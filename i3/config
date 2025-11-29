@@ -1,0 +1,129 @@
+
+### VARIABILI
+set $mod Mod4
+set $terminal kitty
+set $fileManager thunar
+set $menu "albert toggle"
+
+### MONITOR & WORKSPACES
+set $ws1 1
+set $ws2 2
+set $ws3 3
+set $ws4 4
+set $ws5 5
+set $ws6 6
+set $ws7 7
+set $ws8 8
+set $ws9 9
+set $ws10 10
+
+### AUTOSTART
+exec --no-startup-id waybar
+exec --no-startup-id albert
+exec --no-startup-id feh --bg-scale /home/user/Pictures/Black.png
+
+exec --no-startup-id xinput set-prop "Logitech USB Receiver" "libinput Accel Profile Enabled" 0, 1
+exec --no-startup-id xinput set-prop "Logitech USB Receiver" "libinput Accel Speed" 0
+
+exec --no-startup-id xset s off
+exec --no-startup-id xset s noblank
+exec --no-startup-id xset -dpms
+
+### Desig
+gaps inner 3
+gaps outer 2
+
+new_window pixel 0
+new_float  pixel 0
+
+bar {
+    position top
+    padding 2px 6px 4px 1px
+    status_command i3status
+    font pango:DejaVu Sans Mono, Terminus Bold Semi-Condensed 11
+    tray_output primary
+    mode dock
+
+    colors {
+        background #000000
+        statusline #ffffff
+        separator  #555555
+
+        focused_workspace  #000000 #000000 #ffffff
+        active_workspace   #000000 #000000 #cccccc
+        inactive_workspace #000000 #000000 #777777
+        urgent_workspace   #000000 #000000 #ff4444
+    }
+
+}
+
+### KEYBINDINGS
+bindsym $mod+q exec $terminal
+bindsym $mod+c kill
+bindsym $mod+m exec --no-startup-id i3-msg exit
+bindsym $mod+f exec $fileManager
+bindsym $mod+v floating toggle
+bindsym $mod+r exec --no-startup-id $menu
+bindsym Print exec --no-startup-id bash -c 'maim -s | swappy -f -' 
+
+# Move focus
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
+
+# Switch workspaces
+bindsym $mod+1 workspace $ws1
+bindsym $mod+2 workspace $ws2
+bindsym $mod+3 workspace $ws3
+bindsym $mod+4 workspace $ws4
+bindsym $mod+5 workspace $ws5
+bindsym $mod+6 workspace $ws6
+bindsym $mod+7 workspace $ws7
+bindsym $mod+8 workspace $ws8
+bindsym $mod+9 workspace $ws9
+bindsym $mod+0 workspace $ws10
+bindsym $mod+Shift+c reload
+
+# Move window to a workspace
+bindsym $mod+Shift+1 move container to workspace $ws1
+bindsym $mod+Shift+2 move container to workspace $ws2
+bindsym $mod+Shift+3 move container to workspace $ws3
+bindsym $mod+Shift+4 move container to workspace $ws4
+bindsym $mod+Shift+5 move container to workspace $ws5
+bindsym $mod+Shift+6 move container to workspace $ws6
+bindsym $mod+Shift+7 move container to workspace $ws7
+bindsym $mod+Shift+8 move container to workspace $ws8
+bindsym $mod+Shift+9 move container to workspace $ws9
+bindsym $mod+Shift+0 move container to workspace $ws10
+
+### RESIZE
+bindsym $mod+Shift+r mode "resize"
+
+mode "resize" {
+    bindsym h resize shrink width 50 px
+    bindsym l resize grow   width 50 px
+    bindsym k resize shrink height 50 px
+    bindsym j resize grow   height 50 px
+
+    bindsym Escape mode "default"
+    bindsym Return mode "default"
+}
+
+floating_modifier $mod
+
+### MULTIMEDIA KEYS 
+bindsym XF86AudioRaiseVolume exec --no-startup-id wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+bindsym XF86AudioLowerVolume exec --no-startup-id wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+bindsym XF86AudioMute       exec --no-startup-id wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+bindsym XF86AudioMicMute    exec --no-startup-id wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+
+bindsym XF86MonBrightnessUp   exec --no-startup-id brightnessctl s 10%+
+bindsym XF86MonBrightnessDown exec --no-startup-id brightnessctl s 10%-
+
+bindsym XF86AudioNext   exec --no-startup-id playerctl next
+bindsym XF86AudioPause  exec --no-startup-id playerctl play-pause
+bindsym XF86AudioPlay   exec --no-startup-id playerctl play-pause
+bindsym XF86AudioPrev   exec --no-startup-id playerctl previous
+
+bindsym $mod+Shift+e exit`
