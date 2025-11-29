@@ -5,6 +5,12 @@
 " Cursor shape
 let &t_SI = "\e[6 q"
 let &t_EI = "\e[2 q"
+set guicursor=n-v-c:ver25
+set guicursor+=i:ver25
+set guicursor+=r:ver25
+set guicursor+=o:ver25
+set guicursor+=v:block
+
 
 " Syntax colors
 syntax on
@@ -98,13 +104,6 @@ set expandtab
 set autoindent
 set smartindent
 filetype plugin indent on
-
-" Insert-mode auto-closing pairs
-inoremap ( ()<Left>
-inoremap [ []<Left>
-inoremap { {}<Left>
-inoremap " ""<Left>
-inoremap ' ''<Left>
 
 " Line numbers: absolute + relative; disable relative in Insert
 set number
