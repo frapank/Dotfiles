@@ -14,6 +14,7 @@ hi StatusLineNC guifg=#888888 guibg=#000000
 hi TabLine guibg=#000000
 hi TabLineFill guibg=#000000
 hi VertSplit guibg=bg guifg=bg
+hi Pmenu ctermbg=black guibg=black
 hi ExtraWhitespace ctermbg=red guibg=red
 match ExtraWhitespace /\s+$/
 set list
