@@ -3,6 +3,7 @@ alias pls='sudo'
 alias ssh='kitten ssh'
 alias pack='tar -czvf'
 alias unpack='tar -xzvf'
+alias cvim='nvim -u ~/.nvimrc.lua'
 
 ..() { cd ..; }
 ...() { cd ../..; }
