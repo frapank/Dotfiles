@@ -65,6 +65,18 @@ o.number = true
 o.relativenumber = true
 vim.api.nvim_create_autocmd('InsertEnter', {pattern='*', command='set norelativenumber'})
 vim.api.nvim_create_autocmd('InsertLeave', {pattern='*', command='set relativenumber'})
+vim.api.nvim_create_autocmd("FileType", {
+    pattern = "python",
+    callback = function()
+        vim.opt_local.makeprg = "python3 %"
+    end,
+})
+vim.api.nvim_create_autocmd("FileType", {
+    pattern = "sh",
+    callback = function()
+        vim.opt_local.makeprg = "bash %"
+    end,
+})
 
 -- netrw
 vim.g.netrw_banner = 0
@@ -85,6 +97,7 @@ km('n', '<leader>n', ':cnext<CR>', opts)
 km('n', '<leader>p', ':cprev<CR>', opts)
 km('n', '<leader>e', ':Lexplore<CR>', opts)
 km('n', '<C-h>', '<C-w>h', opts)
+km('n', '<leader>?', ':lua vim.diagnostic.open_float()<CR>', opts)
 km('n', '<C-j>', '<C-w>j', opts)
 km('n', '<C-k>', '<C-w>k', opts)
 km('n', '<C-l>', '<C-w>l', opts)
@@ -106,7 +119,10 @@ end)
 -- LSP
 pcall(function()
     require('mason').setup()
-    require('mason-lspconfig').setup({ ensure_installed = { 'clangd' } })
+    require('mason-lspconfig').setup({
+        ensure_installed = { 'clangd', 'bashls', 'jdtls', 'pyright' }
+    })
+
 
     local capabilities = vim.lsp.protocol.make_client_capabilities()
     local ok_cmpnlsp, cmp_nvim_lsp = pcall(require, 'cmp_nvim_lsp')
