@@ -48,6 +48,10 @@ set relativenumber
 autocmd InsertEnter * set norelativenumber
 autocmd InsertLeave * set relativenumber
 
+" Language
+autocmd FileType python set makeprg=python3\ %
+autocmd FileType sh setlocal makeprg=bash\ %
+
 " Tree
 let g:netrw_banner = 0
 let g:netrw_keepdir = 0
