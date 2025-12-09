@@ -45,7 +45,7 @@ vim.o.statusline = '%f %y %m%r%=%{fnamemodify(getcwd(),\':t\')}  [%p%%] %l:%c'
 o.path = '.,**'
 o.wildmenu = true
 o.wildoptions = 'pum'
-o.wildignore = '*.exe,*.dll,*.pdb,*.class'
+o.wildignore = '*.exe,*.dll,*.pdb,*.class,*.uniqueId*'
 o.shortmess:append('FI')
 o.hidden = true
 o.backspace = 'indent,eol,start'
@@ -67,10 +67,8 @@ vim.api.nvim_create_autocmd('InsertLeave', {pattern='*', command='set relativenu
 
 -- netrw
 vim.g.netrw_banner = 0
-vim.g.netrw_keepdir = 0
-vim.g.netrw_winsize = 20
+vim.g.netrw_winsize = 17
 vim.g.netrw_liststyle = 3
-vim.g.netrw_localcopydircmd = 'cp -r'
 vim.cmd('hi! link netrwMarkFile Search')
 
 -- Keymaps
@@ -83,19 +81,13 @@ km('n', '<leader>q', ':copen<CR>', opts)
 km('n', '<leader>n', ':cnext<CR>', opts)
 km('n', '<leader>p', ':cprev<CR>', opts)
 km('n', '<leader>e', ':Lexplore<CR>', opts)
-km('n', '<C-h>', '<C-w>h', opts)
-km('n', '<leader>?', ':lua vim.diagnostic.open_float()<CR>', opts)
-km('n', '<C-j>', '<C-w>j', opts)
-km('n', '<C-k>', '<C-w>k', opts)
-km('n', '<C-l>', '<C-w>l', opts)
 km('n', '<leader>x', ':bd<CR>', opts)
 km('n', '<Tab>', ':bnext<CR>', opts)
 km('n', '<S-Tab>', ':bprev<CR>', opts)
-km('n', '<leader>l', ':vsplit<CR>', opts)
-km('n', '<leader>j', ':split<CR>', opts)
 km('n', '<leader>k', ':close<CR>', opts)
+km('n', '<leader>?', ':lua vim.diagnostic.open_float()<CR>', opts)
 
--- Mason
+-- Mason + LSP
 require('mason').setup()
 require('mason-lspconfig').setup({
   ensure_installed = { 'clangd', 'bashls', 'pyright', 'jdtls' },
@@ -113,4 +105,11 @@ cmp.setup{
     { name = 'nvim_lsp' },
     { name = 'luasnip' },
   },
+  mapping = {
+    ['<C-n>'] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Insert }),
+    ['<C-p>'] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Insert }),
+    ['<C-Space>'] = cmp.mapping.complete(),
+    ['<C-e>'] = cmp.mapping.abort(),
+    ['<CR>'] = cmp.mapping.confirm({ select = true }),
+  }
 }
