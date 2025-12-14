@@ -15,16 +15,24 @@ cd "$CACHE_DIR"
 
 ./configure \
   --with-features=huge \
+  --with-x \
   --enable-gui=gtk3 \
-  --enable-multibyte \
   --enable-clipboard \
-  --enable-cscope \
+  --enable-xterm_clipboard \
+  --enable-multibyte \
   --enable-terminal \
-  --enable-luainterp \
+  --enable-xim \
+  --enable-fontset \
+  --enable-cscope \
+  --enable-socketserver \
+  --enable-autoservername \
+  --enable-luainterp=dynamic \
+  --with-luajit \
+  --enable-python3interp=dynamic \
+  --enable-perlinterp=dynamic \
+  --enable-rubyinterp=dynamic \
+  --enable-tclinterp=dynamic \
   --enable-fail-if-missing \
-  --prefix=/usr/local
 
 make -j"$(nproc)"
 sudo make install
-
-echo "Done! Installed in: /usr/local/bin/vim"
