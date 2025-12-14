@@ -1,11 +1,7 @@
-" Syntax colors
-syntax on
-if has("termguicolors")
-    set termguicolors
-endif
-
 " Theme
+syntax off
 set background=dark
+set termguicolors
 colorscheme habamax
 hi Normal guibg=#000000
 hi LineNr guibg=#000000
@@ -16,6 +12,7 @@ hi TabLineFill guibg=#000000
 hi VertSplit guibg=bg guifg=bg
 hi Pmenu ctermbg=black guibg=black
 hi ExtraWhitespace ctermbg=red guibg=red
+
 match ExtraWhitespace /\s+$/
 set list
 set listchars=tab:▸\ ,trail:·,nbsp:␣
@@ -28,7 +25,9 @@ set statusline=%f\ %y\ %m%r%=%{fnamemodify(getcwd(),':t')}\ \ [%p%%]\ %l:%c
 set path=.,**
 set wildmenu
 set wildoptions=pum
-set wildignore=*.exe,*.dll,*.pdb,*.class
+set wildignore+=*.exe,*.dll,*.pdb,*.class,*.o,*.d
+set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
+set wildignorecase
 set shortmess+=FI
 set hidden
 set backspace=indent,eol,start
@@ -55,7 +54,7 @@ autocmd FileType sh setlocal makeprg=bash\ %
 " Tree
 let g:netrw_banner = 0
 let g:netrw_keepdir = 0
-let g:netrw_winsize = 20
+let g:netrw_winsize = 17
 let g:netrw_liststyle = 3
 let g:netrw_localcopydircmd = 'cp -r'
 hi! link netrwMarkFile Search
@@ -71,15 +70,5 @@ nnoremap <leader>p :cprev<CR>
 
 nnoremap <leader>e  :Lexplore<CR>
 
-nnoremap <C-h> <C-w>h
-nnoremap <C-j> <C-w>j
-nnoremap <C-k> <C-w>k
-nnoremap <C-l> <C-w>l
-
-nnoremap <leader>x  :bd<CR>
 nnoremap <Tab>      :bnext<CR>
 nnoremap <S-Tab>    :bprev<CR>
-
-nnoremap <leader>l :vsplit<CR>
-nnoremap <leader>j :split<CR>
-nnoremap <leader>k :close<CR>
