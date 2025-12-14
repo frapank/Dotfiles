@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
+DISTRO=""
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     DISTRO=$ID
-else
-    echo "Can't detect distro"
-    exit 1
 fi
 
-echo "Detected: $DISTRO"
+echo "Detected distro: $DISTRO"
 
+# Install dependencies
 case "$DISTRO" in
     ubuntu|debian)
         sudo apt update
@@ -19,15 +18,19 @@ case "$DISTRO" in
             libtool libtool-bin autoconf automake pkg-config bison \
             libncurses-dev libevent-dev libgtk-3-dev lua5.4 lua5.4-dev \
             ruby-dev perl libperl-dev tcl-dev python3-dev python3-pip \
-            doxygen
+            doxygen \
+            libx11-dev libxt-dev libxpm-dev libxmu-dev libxi-dev \
+            libxrandr-dev libxcursor-dev libxinerama-dev libxft-dev
         ;;
     arch)
         sudo pacman -Syu --noconfirm
         sudo pacman -S --needed --noconfirm \
             base-devel git cmake ninja gettext unzip \
             libtool autoconf automake pkgconf bison \
-            ncurses libevent gtk3 lua lua52 lua-lpeg \
-            ruby perl tcl python python-pip doxygen
+            ncurses libevent gtk3 lua lua-luajit lua-lpeg \
+            ruby perl tcl python python-pip doxygen \
+            libx11 libxt libxpm libxmu libxi libxrandr \
+            libxcursor libxinerama libxft
         ;;
     fedora)
         sudo dnf update -y
@@ -36,10 +39,12 @@ case "$DISTRO" in
             libtool autoconf automake pkgconfig bison \
             ncurses-devel libevent-devel gtk3-devel lua lua-devel \
             ruby-devel perl perl-ExtUtils-Embed tcl-devel python3-devel \
-            doxygen
+            doxygen \
+            libX11-devel libXt-devel libXpm-devel libXmu-devel libXi-devel \
+            libXrandr-devel libXcursor-devel libXinerama-devel libXft-devel
         ;;
     *)
-        echo "Distro not supported"
+        echo "Unsupported distro: $DISTRO"
         exit 1
         ;;
 esac
