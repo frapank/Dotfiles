@@ -12,7 +12,6 @@ hi TabLineFill guibg=#000000
 hi VertSplit guibg=bg guifg=bg
 hi Pmenu ctermbg=black guibg=black
 hi ExtraWhitespace ctermbg=red guibg=red
-
 match ExtraWhitespace /\s+$/
 set list
 set listchars=tab:▸\ ,trail:·,nbsp:␣
@@ -36,7 +35,6 @@ set shiftwidth=4
 set expandtab
 set smartcase
 set clipboard=unnamedplus
-set gp=git\ grep\ -n
 set mouse=a
 set undofile
 set undodir=~/.vim/undo/
@@ -46,10 +44,6 @@ set number
 set relativenumber
 autocmd InsertEnter * set norelativenumber
 autocmd InsertLeave * set relativenumber
-
-" Language
-autocmd FileType python set makeprg=python3\ %
-autocmd FileType sh setlocal makeprg=bash\ %
 
 " Tree
 let g:netrw_banner = 0
@@ -61,14 +55,11 @@ hi! link netrwMarkFile Search
 
 " Keymaps
 let mapleader=" "
-nnoremap <leader>g  :grep<Space>
-nnoremap <leader>f  :find<Space>
-
+nnoremap <leader>g :grep<Space>
+nnoremap <leader>f :find<Space>
 nnoremap <leader>q :copen<CR>
 nnoremap <leader>n :cnext<CR>
 nnoremap <leader>p :cprev<CR>
-
-nnoremap <leader>e  :Lexplore<CR>
-
-nnoremap <Tab>      :bnext<CR>
+nnoremap <leader>e :Lexplore<CR>
+nnoremap <Tab>     :bnext<CR>
 nnoremap <S-Tab>    :bprev<CR>
