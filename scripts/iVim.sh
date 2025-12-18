@@ -13,6 +13,9 @@ fi
 
 cd "$CACHE_DIR"
 
+export CFLAGS="-O3 -march=native -pipe"
+export CXXFLAGS="-O3 -march=native -pipe"
+
 ./configure \
   --with-features=huge \
   --with-x \
