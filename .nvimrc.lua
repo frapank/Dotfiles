@@ -18,44 +18,10 @@ require('lazy').setup({
   'L3MON4D3/LuaSnip',
 })
 
--- Mason + LSP
-require('mason').setup()
-require('mason-lspconfig').setup({
-  ensure_installed = { 'clangd', 'bashls', 'pyright', 'jdtls' },
-})
-
-local lspconfig = require('lspconfig')
-local servers = { 'clangd', 'bashls', 'pyright', 'jdtls' }
-
--- nvim-cmp
-local cmp = require('cmp')
-local luasnip = require('luasnip')
-cmp.setup{
-  snippet = { expand = function(args) luasnip.lsp_expand(args.body) end },
-  sources = {
-    { name = 'nvim_lsp' },
-    { name = 'luasnip' },
-  },
-  mapping = {
-    ['<C-n>'] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Insert }),
-    ['<C-p>'] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Insert }),
-    ['<C-Space>'] = cmp.mapping.complete(),
-    ['<C-e>'] = cmp.mapping.abort(),
-    ['<CR>'] = cmp.mapping.confirm({ select = true }),
-  }
-}
-
-vim.api.nvim_create_autocmd("LspAttach", {
-  callback = function(args)
-    local client = vim.lsp.get_client_by_id(args.data.client_id)
-    client.server_capabilities.semanticTokensProvider = nil
-  end,
-})
-
 -- Basic options
 local o = vim.opt
-o.syntax = 'on'
 if vim.fn.has('termguicolors') == 1 then o.termguicolors = true end
+o.syntax = 'off'
 o.background = 'dark'
 pcall(vim.cmd, 'colorscheme habamax')
 vim.cmd('hi Normal guibg=#000000')
@@ -115,8 +81,33 @@ km('n', '<leader>q', ':copen<CR>', opts)
 km('n', '<leader>n', ':cnext<CR>', opts)
 km('n', '<leader>p', ':cprev<CR>', opts)
 km('n', '<leader>e', ':Lexplore<CR>', opts)
-km('n', '<leader>x', ':bd<CR>', opts)
 km('n', '<Tab>', ':bnext<CR>', opts)
 km('n', '<S-Tab>', ':bprev<CR>', opts)
-km('n', '<leader>k', ':close<CR>', opts)
 km('n', '<leader>?', ':lua vim.diagnostic.open_float()<CR>', opts)
+
+-- Mason + LSP
+require('mason').setup()
+require('mason-lspconfig').setup({
+  ensure_installed = { 'clangd', 'bashls', 'pyright', 'jdtls' },
+})
+
+local lspconfig = require('lspconfig')
+local servers = { 'clangd', 'bashls', 'pyright', 'jdtls' }
+
+-- nvim-cmp
+local cmp = require('cmp')
+local luasnip = require('luasnip')
+cmp.setup{
+  snippet = { expand = function(args) luasnip.lsp_expand(args.body) end },
+  sources = {
+    { name = 'nvim_lsp' },
+    { name = 'luasnip' },
+  },
+  mapping = {
+    ['<C-n>'] = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Insert }),
+    ['<C-p>'] = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Insert }),
+    ['<C-Space>'] = cmp.mapping.complete(),
+    ['<C-e>'] = cmp.mapping.abort(),
+    ['<CR>'] = cmp.mapping.confirm({ select = true }),
+  }
+}
