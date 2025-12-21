@@ -13,21 +13,20 @@ hi VertSplit guibg=bg guifg=bg
 hi Pmenu ctermbg=black guibg=black
 hi ExtraWhitespace ctermbg=red guibg=red
 match ExtraWhitespace /\s+$/
-set list
-set listchars=tab:▸\ ,trail:·,nbsp:␣
-
-" Status line
+set listchars=tab:·\ ,trail:·,nbsp:␣
+set cursorline
 set laststatus=2
-set statusline=%f\ %y\ %m%r%=%{fnamemodify(getcwd(),':t')}\ \ [%p%%]\ %l:%c
+set statusline=%#StatusLine#\ %f\ %m%r%=%#StatusLineNC#%{fnamemodify(getcwd(),':t')}\ [%p%%]\ %l:%c
 
 " General
 set path=.,**
-set wildmenu
-set wildoptions=pum
 set wildignore+=*.exe,*.dll,*.pdb,*.class,*.o,*.d
 set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
 set wildignorecase
 set shortmess+=FI
+set number
+set relativenumber
+set mouse=n
 set hidden
 set backspace=indent,eol,start
 set tabstop=4
@@ -35,15 +34,9 @@ set shiftwidth=4
 set expandtab
 set smartcase
 set clipboard=unnamedplus
-set mouse=a
 set undofile
 set undodir=~/.vim/undo/
 filetype plugin indent on
-packadd! termdebug
-set number
-set relativenumber
-autocmd InsertEnter * set norelativenumber
-autocmd InsertLeave * set relativenumber
 
 " Tree
 let g:netrw_banner = 0
@@ -51,15 +44,13 @@ let g:netrw_keepdir = 0
 let g:netrw_winsize = 17
 let g:netrw_liststyle = 3
 let g:netrw_localcopydircmd = 'cp -r'
-hi! link netrwMarkFile Search
 
 " Keymaps
 let mapleader=" "
-nnoremap <leader>g :grep<Space>
 nnoremap <leader>f :find<Space>
 nnoremap <leader>q :copen<CR>
 nnoremap <leader>n :cnext<CR>
 nnoremap <leader>p :cprev<CR>
 nnoremap <leader>e :Lexplore<CR>
 nnoremap <Tab>     :bnext<CR>
-nnoremap <S-Tab>    :bprev<CR>
+nnoremap <S-Tab>   :bprev<CR>
