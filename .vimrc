@@ -1,22 +1,12 @@
 " Theme
 syntax off
 set background=dark
-set termguicolors
-colorscheme habamax
-hi Normal guibg=#000000
-hi LineNr guibg=#000000
-hi StatusLine guifg=#ffffff guibg=#000000
-hi StatusLineNC guifg=#888888 guibg=#000000
-hi TabLine guibg=#000000
-hi TabLineFill guibg=#000000
-hi VertSplit guibg=bg guifg=bg
-hi Pmenu ctermbg=black guibg=black
+colorscheme wildcharm
 hi ExtraWhitespace ctermbg=red guibg=red
 match ExtraWhitespace /\s+$/
 set listchars=tab:·\ ,trail:·,nbsp:␣
-set cursorline
-set laststatus=2
-set statusline=%#StatusLine#\ %f\ %m%r%=%#StatusLineNC#%{fnamemodify(getcwd(),':t')}\ [%p%%]\ %l:%c
+set cursorline laststatus=2
+set statusline=%#StatusLine#\ %f\ %m%r%=%{fnamemodify(getcwd(),':t')}\ [%p%%]\ %l:%c
 
 " General
 set path=.,**
@@ -24,18 +14,14 @@ set wildignore+=*.exe,*.dll,*.pdb,*.class,*.o,*.d
 set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
 set wildignorecase
 set shortmess+=FI
-set number
-set relativenumber
+set number relativenumber
 set mouse=n
 set hidden
 set backspace=indent,eol,start
-set tabstop=4
-set shiftwidth=4
-set expandtab
+set tabstop=4 shiftwidth=4 expandtab
 set smartcase
 set clipboard=unnamedplus
-set undofile
-set undodir=~/.vim/undo/
+set undofile undodir=~/.vim/undo/
 filetype plugin indent on
 
 " Tree
