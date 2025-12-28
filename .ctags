@@ -1,0 +1,12 @@
+--recurse=yes
+--kinds-all=+p
+--fields=+iaS
+--extras=+q
+--sort=yes
+--exclude=.git
+--exclude=build
+--exclude=node_modules
+--exclude=venv
+--exclude=__pycache__
+--tag-relative=yes
+--tag-file=tags
