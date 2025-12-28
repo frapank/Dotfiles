@@ -2,8 +2,6 @@
 syntax off
 set background=dark
 colorscheme wildcharm
-hi ExtraWhitespace ctermbg=red guibg=red
-match ExtraWhitespace /\s+$/
 set listchars=tab:·\ ,trail:·,nbsp:␣
 set cursorline laststatus=2
 set statusline=%#StatusLine#\ %f\ %m%r%=%{fnamemodify(getcwd(),':t')}\ [%p%%]\ %l:%c
@@ -13,6 +11,7 @@ set path=.,**
 set wildignore+=*.exe,*.dll,*.pdb,*.class,*.o,*.d
 set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
 set wildignorecase
+set splitbelow splitright
 set shortmess+=FI
 set number relativenumber
 set mouse=n
