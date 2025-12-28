@@ -4,7 +4,7 @@ set background=dark
 colorscheme wildcharm
 set listchars=tab:·\ ,trail:·,nbsp:␣
 set cursorline laststatus=2
-set statusline=%#StatusLine#\ %f\ %m%r%=%{fnamemodify(getcwd(),':t')}\ [%p%%]\ %l:%c
+set statusline=%#StatusLine#\ %f\ %m%r%=%{fnamemodify(getcwd(),':t')}\ %l:%c\  
 
 " General
 set path=.,**
