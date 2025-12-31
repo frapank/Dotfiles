@@ -4,7 +4,7 @@ set background=dark
 colorscheme wildcharm
 highlight Normal ctermfg=White guifg=#ffffff guibg=NONE
 set listchars=tab:·\ ,trail:·,nbsp:␣
-set cursorline laststatus=2
+set laststatus=2
 set statusline=%#StatusLine#\ %f\ %m%r%=%{fnamemodify(getcwd(),':t')}\ %l:%c\  
 
 " General
@@ -14,9 +14,8 @@ set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
 set wildignorecase
 set splitbelow splitright
 set shortmess+=FI
-set number relativenumber
 set mouse=n
-set hidden
+set hidden lazyredraw
 set backspace=indent,eol,start
 set tabstop=4 shiftwidth=4 expandtab
 set smartcase
