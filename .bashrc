@@ -2,8 +2,8 @@
 alias nvim='nvim -u ~/.nvimrc.lua'
 alias vim='/usr/local/bin/vim'
 alias ls='ls -h --group-directories-first --indicator-style=classify'
-alias links='torsocks links'
-alias nlinks='links'
+alias lynx='torsocks lynx'
+alias nlynx='lynx'
 
 # -- DESIGN
 __set_bash_prompt() {
