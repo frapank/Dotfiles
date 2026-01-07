@@ -1,5 +1,5 @@
 # -- UTILS
-alias nvim='nvim -u ~/.nvimrc.lua'
+alias pvim='vim -u ~/.vimprc'
 alias vim='/usr/local/bin/vim'
 alias ls='ls -h --group-directories-first --indicator-style=classify'
 alias lynx='torsocks lynx'
