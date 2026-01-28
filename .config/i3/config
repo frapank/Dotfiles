@@ -1,10 +1,10 @@
 ### VARIABILI
 set $mod Mod4
-set $terminal kitty
+set $terminal alacritty
 set $fileManager thunar
-set $menu "albert toggle"
+set $menu dmenu_run -b -fn "DinaRemaster" -nb "#000000" -sb "#000000" -p "$"
 
-### MONITOR & WORKSPACES
+### WORKSPACE
 set $ws1 1
 set $ws2 2
 set $ws3 3
@@ -17,30 +17,22 @@ set $ws9 9
 set $ws10 10
 
 ### AUTOSTART
-exec --no-startup-id waybar
-exec --no-startup-id albert
-exec --no-startup-id feh --bg-scale /home/user/Pictures/Black.png
-
-exec --no-startup-id xinput set-prop "Logitech USB Receiver" "libinput Accel Profile Enabled" 0, 1
-exec --no-startup-id xinput set-prop "Logitech USB Receiver" "libinput Accel Speed" 0
-
-exec --no-startup-id xset s off
-exec --no-startup-id xset s noblank
-exec --no-startup-id xset -dpms
+exec_always --no-startup-id feh --bg-scale ~/Media/lain.jpg
+exec_always --no-startup-id xset s off
+exec_always --no-startup-id xset s noblank
+exec_always --no-startup-id xset -dpms
 
 ### Desig
-gaps inner 3
-gaps outer 2
-
 new_window pixel 0
 new_float  pixel 0
 
 bar {
     position top
-    padding 2px 6px 4px 1px
+    separator_symbol " "
+    padding 2px 2px 2px 2px
     status_command i3status
-    font pango:DejaVu Sans Mono, Terminus Bold Semi-Condensed 11
-    tray_output primary
+    font pango: DinaRemaster 14
+    tray_output none
     mode dock
 
     colors {
@@ -53,13 +45,11 @@ bar {
         inactive_workspace #000000 #000000 #777777
         urgent_workspace   #000000 #000000 #ff4444
     }
-
 }
 
 ### KEYBINDINGS
 bindsym $mod+q exec $terminal
 bindsym $mod+c kill
-bindsym $mod+m exec --no-startup-id i3-msg exit
 bindsym $mod+f exec $fileManager
 bindsym $mod+v floating toggle
 bindsym $mod+r exec --no-startup-id $menu
@@ -96,6 +86,12 @@ bindsym $mod+Shift+8 move container to workspace $ws8
 bindsym $mod+Shift+9 move container to workspace $ws9
 bindsym $mod+Shift+0 move container to workspace $ws10
 
+# Move position
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
+
 ### RESIZE
 bindsym $mod+Shift+r mode "resize"
 
@@ -112,17 +108,17 @@ mode "resize" {
 floating_modifier $mod
 
 ### MULTIMEDIA KEYS 
-bindsym XF86AudioRaiseVolume exec --no-startup-id wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
-bindsym XF86AudioLowerVolume exec --no-startup-id wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
-bindsym XF86AudioMute       exec --no-startup-id wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
-bindsym XF86AudioMicMute    exec --no-startup-id wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+bindsym XF86AudioRaiseVolume    exec --no-startup-id wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+bindsym XF86AudioLowerVolume    exec --no-startup-id wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+bindsym XF86AudioMute           exec --no-startup-id wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+bindsym XF86AudioMicMute        exec --no-startup-id wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
 
-bindsym XF86MonBrightnessUp   exec --no-startup-id brightnessctl s 10%+
-bindsym XF86MonBrightnessDown exec --no-startup-id brightnessctl s 10%-
+bindsym XF86MonBrightnessUp     exec --no-startup-id brightnessctl s 10%+
+bindsym XF86MonBrightnessDown   exec --no-startup-id brightnessctl s 10%-
 
-bindsym XF86AudioNext   exec --no-startup-id playerctl next
-bindsym XF86AudioPause  exec --no-startup-id playerctl play-pause
-bindsym XF86AudioPlay   exec --no-startup-id playerctl play-pause
-bindsym XF86AudioPrev   exec --no-startup-id playerctl previous
+bindsym XF86AudioNext           exec --no-startup-id playerctl next
+bindsym XF86AudioPause          exec --no-startup-id playerctl play-pause
+bindsym XF86AudioPlay           exec --no-startup-id playerctl play-pause
+bindsym XF86AudioPrev           exec --no-startup-id playerctl previous
 
-bindsym $mod+Shift+e exit`
+bindsym $mod+Shift+e exit
