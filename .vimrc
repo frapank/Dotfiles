@@ -1,11 +1,9 @@
 " Theme
-syntax off
-set background=dark
-colorscheme wildcharm
+colorscheme lain
 highlight Normal ctermfg=White guifg=#ffffff guibg=NONE
 set listchars=tab:·\ ,trail:·,nbsp:␣
 set laststatus=2
-set statusline=%#StatusLine#\ %f\ %m%r%=%{fnamemodify(getcwd(),':t')}\ %l:%c\  
+set statusline=%#StatusLine#\ %f\ %m%r%=%{fnamemodify(getcwd(),':t')}\ %L\ %l:%c\ 
 
 " General
 set path=.,**
@@ -14,13 +12,11 @@ set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
 set wildignorecase
 set splitbelow splitright
 set shortmess+=FI
-set mouse=n
 set hidden lazyredraw
 set backspace=indent,eol,start
 set tabstop=4 shiftwidth=4 expandtab
 set smartcase
 set clipboard=unnamedplus
-set undofile undodir=~/.vim/undo/
 filetype plugin indent on
 
 " Tree
@@ -32,10 +28,10 @@ let g:netrw_localcopydircmd = 'cp -r'
 
 " Keymaps
 let mapleader=" "
-nnoremap <leader>f :find<Space>
-nnoremap <leader>q :copen<CR>
-nnoremap <leader>n :cnext<CR>
-nnoremap <leader>p :cprev<CR>
-nnoremap <leader>e :Lexplore<CR>
-nnoremap <Tab>     :bnext<CR>
-nnoremap <S-Tab>   :bprev<CR>
+nnoremap <leader>f          :find<Space>
+nnoremap <silent> <leader>q :copen<CR>
+nnoremap <silent> <leader>n :cnext<CR>
+nnoremap <silent> <leader>p :cprev<CR>
+nnoremap <silent> <leader>e :Lexplore<CR>
+nnoremap <silent> <Tab>     :bnext<CR>
+nnoremap <silent> <S-Tab>   :bprevious<CR>
