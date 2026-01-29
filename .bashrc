@@ -12,8 +12,3 @@ __set_bash_prompt() {
   PS1="$p \W: "
 }
 PROMPT_COMMAND="__set_bash_prompt"
-
-# -- TMUX
-if [[ $PS1 && -z $TMUX && $TERM != dumb ]] && command -v tmux >/dev/null; then
-  tmux attach -t main 2>/dev/null || tmux new -s main
-fi
