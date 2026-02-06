@@ -1,0 +1,6 @@
+* linguist-language=HolyC
+* linguist-detectable
+*.md linguist-language=HolyC
+*.json linguist-language=HolyC
+*.yml linguist-language=HolyC
+*.txt linguist-language=HolyC
