@@ -1,11 +1,13 @@
-" Theme
+vim9script
+
+# Theme
 colorscheme lain
 highlight Normal ctermfg=White guifg=#ffffff guibg=NONE
 set listchars=tab:·\ ,trail:·,nbsp:␣
 set laststatus=2
-set statusline=%#StatusLine#\ %f\ %m%r%=%{fnamemodify(getcwd(),':t')}\ %L\ %l:%c\ 
+var statusline = "%#StatusLine# %f %m%r%=%{fnamemodify(getcwd(),':t')} %L %l:%c"
 
-" General
+# General
 set path=.,**
 set wildignore+=*.exe,*.dll,*.pdb,*.class,*.o,*.d
 set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
@@ -21,15 +23,15 @@ set smartcase
 set clipboard=unnamedplus
 filetype plugin indent on
 
-" Tree
-let g:netrw_banner = 0
-let g:netrw_keepdir = 0
-let g:netrw_winsize = 17
-let g:netrw_liststyle = 3
-let g:netrw_localcopydircmd = 'cp -r'
+# Tree
+g:netrw_banner = 0
+g:netrw_keepdir = 0
+g:netrw_winsize = 17
+g:netrw_liststyle = 3
+g:netrw_localcopydircmd = 'cp -r'
 
-" Keymaps
-let mapleader=" "
+# Keymaps
+g:mapleader = ' '
 nnoremap <leader>f          :find<Space>
 nnoremap <silent> <leader>q :copen<CR>
 nnoremap <silent> <leader>n :cnext<CR>
