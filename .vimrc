@@ -12,6 +12,8 @@ set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
 set wildignorecase
 set splitbelow splitright
 set shortmess+=FI
+set timeoutlen=300 ttimeoutlen=2
+set updatetime=300 redrawtime=1500
 set hidden lazyredraw
 set backspace=indent,eol,start
 set tabstop=4 shiftwidth=4 expandtab
