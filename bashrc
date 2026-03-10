@@ -1,11 +1,7 @@
-# -- UTILS
-alias pvim='vim -u ~/.vimprc'
-alias vim='/usr/local/bin/vim'
+# UTILS
 alias ls='ls -h --group-directories-first --indicator-style=classify'
-alias lynx='torsocks lynx'
-alias nlynx='lynx'
 
-# -- DESIGN
+# DESIGN
 __set_bash_prompt() {
   local s=$? p='$'
   (( s )) && p='\[\e[31m\]$\[\e[0m\]'
