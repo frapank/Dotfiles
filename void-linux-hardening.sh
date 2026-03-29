@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
-# --- Variables ---
 SYSCTL_CONF="/etc/sysctl.d/99-custom-hardening.conf"
 DOAS_CONF="/etc/doas.conf"
 XBPS_IGNORE_CONF="/etc/xbps.d/ignore.conf"
 NM_MAC_RANDOMIZE_CONF="/etc/NetworkManager/conf.d/00-macrandomize.conf"
 
-# --- Logging ---
 log_info()      { echo -e "[\e[34m*\e[0m] $1"; }
 log_success()   { echo -e "[\e[32m+\e[0m] $1"; }
 log_error()     { echo -e "[\e[31m!\e[0m] $1" >&2; }
 
-# --- Core Functions ---
 require_root() {
     if [[ "$(id -u)" -ne 0 ]]; then
         log_error "Root privileges are required to run this script."
@@ -20,9 +17,16 @@ require_root() {
     fi
 }
 
-check_os() {
+require_void() {
     if ! grep -q "Void" /etc/os-release; then
         log_error "This script is designed for Void Linux."
+        exit 1
+    fi
+}
+
+require_connection() {
+    if ! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+        log_error "Internet required to run this script"
         exit 1
     fi
 }
@@ -44,7 +48,7 @@ install_package() {
 
 init_system() {
     log_info "Updating system packages..."
-    xbps-install -Suvy
+    xbps-install -Suvy >/dev/null
 }
 
 apply_sysctl_patches() {
@@ -72,8 +76,12 @@ EOF
 
 setup_ufw() {
     log_info "Configuring UFW..."
+
     install_package ufw
     install_package gufw
+
+    ufw disable >/dev/null
+    yes | ufw reset >/dev/null
 
     ufw default deny incoming >/dev/null
     ufw default allow outgoing >/dev/null
@@ -89,6 +97,21 @@ setup_ufw() {
 
     ufw logging low >/dev/null
     log_success "UFW firewall configured and active."
+}
+
+configure_network() {
+    log_info "Configuring MAC randomization in NetworkManager..."
+    mkdir -p "$(dirname "$NM_MAC_RANDOMIZE_CONF")"
+
+    cat > "$NM_MAC_RANDOMIZE_CONF" << 'EOF'
+[device]
+wifi.scan-rand-mac-address=yes
+
+[connection]
+wifi.cloned-mac-address=random
+ethernet.cloned-mac-address=random
+EOF
+    log_success "MAC randomization configured."
 }
 
 replace_sudo_with_doas() {
@@ -126,30 +149,26 @@ EOF
     fi
 }
 
-configure_network() {
-    log_info "Configuring MAC randomization in NetworkManager..."
-    mkdir -p "$(dirname "$NM_MAC_RANDOMIZE_CONF")"
-
-    cat > "$NM_MAC_RANDOMIZE_CONF" << 'EOF'
-[device]
-wifi.scan-rand-mac-address=yes
-
-[connection]
-wifi.cloned-mac-address=random
-ethernet.cloned-mac-address=random
-EOF
-    log_success "MAC randomization configured."
+app_armor() {
+    if apparmor_status >/dev/null; then
+        log_info "apparmor already enabled"       
+    else
+        install_package apparmor
+        log_info "Add parameter 'apparmor=1 security=apparmor' to '/etc/default/grub' at section 'GRUB_CMDLINE_LINUX_DEFAULT'. Then type 'update-grub' and restart"
+    fi
 }
 
-# --- Execution ---
 main() {
     require_root
-    check_os
+    require_void
+    require_connection
+
     init_system
     apply_sysctl_patches
     setup_ufw
-    replace_sudo_with_doas
     configure_network
+    replace_sudo_with_doas
+    app_armor
 }
 
 main
