@@ -55,6 +55,11 @@ apply_sysctl_patches() {
     log_info "Applying system hardening patches..."
 
     sysctl -w kernel.randomize_va_space=2 >/dev/null
+    sysctl -w kernel.kptr_restrict=2 >/dev/null
+    sysctl -w kernel.dmesg_restrict=1 >/dev/null
+    sysctl -w kernel.yama.ptrace_scope=2 >/dev/null
+    sysctl -w fs.protected_hardlinks=1 >/dev/null
+    sysctl -w fs.protected_symlinks=1 >/dev/null
     sysctl -w net.ipv4.ip_forward=0 >/dev/null
     sysctl -w net.ipv6.conf.all.forwarding=0 >/dev/null
     sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null
@@ -64,11 +69,18 @@ apply_sysctl_patches() {
 
     cat > "$SYSCTL_CONF" << 'EOF'
 kernel.randomize_va_space=2
+kernel.kptr_restrict=2
+kernel.dmesg_restrict=1
+kernel.yama.ptrace_scope=2
+fs.protected_hardlinks=1
+fs.protected_symlinks=1
 net.ipv4.ip_forward=0
 net.ipv6.conf.all.forwarding=0
 net.ipv4.tcp_syncookies=1
 net.ipv4.icmp_echo_ignore_broadcasts=1
 EOF
+
+    chmod 0400 "$SYSCTL_CONF"
 
     sysctl --system >/dev/null
     log_success "Patches applied and made permanent."
@@ -80,7 +92,7 @@ setup_ufw() {
     install_package ufw
     install_package gufw
 
-    ufw disable >/dev/null
+    ufw disable >/dev/null 
     yes | ufw reset >/dev/null
 
     ufw default deny incoming >/dev/null
@@ -88,7 +100,8 @@ setup_ufw() {
 
     ufw allow 53/tcp >/dev/null
     ufw allow 53/udp >/dev/null
-    ufw allow 67:68/udp >/dev/null
+    ufw allow 67/udp >/dev/null
+    ufw allow 68/udp >/dev/null
 
     if ! ufw status | grep -q "Status: active"; then
         log_info "Enabling UFW..."
@@ -152,6 +165,7 @@ EOF
 app_armor() {
     if apparmor_status >/dev/null; then
         log_info "apparmor already enabled"       
+        aa-enforce /etc/apparmor.d/* >/dev/null
     else
         install_package apparmor
         log_info "Add parameter 'apparmor=1 security=apparmor' to '/etc/default/grub' at section 'GRUB_CMDLINE_LINUX_DEFAULT'. Then type 'update-grub' and restart"
