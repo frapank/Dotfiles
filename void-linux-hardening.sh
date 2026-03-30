@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
-set -e
+set -Eeuo pipefail
+trap 'log_error "Error at line ${LINENO}: ${BASH_COMMAND} (exit code: $?)"' ERR
 
 SYSCTL_CONF="/etc/sysctl.d/99-custom-hardening.conf"
 DOAS_CONF="/etc/doas.conf"
 XBPS_IGNORE_CONF="/etc/xbps.d/ignore.conf"
 NM_MAC_RANDOMIZE_CONF="/etc/NetworkManager/conf.d/00-macrandomize.conf"
+LOG_FILE="/var/log/hardening.log"
 
-log_info()      { echo -e "[\e[34m*\e[0m] $1"; }
-log_success()   { echo -e "[\e[32m+\e[0m] $1"; }
-log_error()     { echo -e "[\e[31m!\e[0m] $1" >&2; }
+log() {
+    local level="$1"
+    shift
+    echo "[$(date '+%F %T')] [$level] $*" | tee -a "$LOG_FILE"
+}
+
+log_info()    { log INFO "$@"; }
+log_success() { log OK "$@"; }
+log_error()   { log ERROR "$@" >&2; }
 
 require_root() {
     if [[ "$(id -u)" -ne 0 ]]; then
@@ -25,7 +33,7 @@ require_void() {
 }
 
 require_connection() {
-    if ! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+    if ! xbps-install -S >/dev/null 2>&1; then
         log_error "Internet required to run this script"
         exit 1
     fi
@@ -57,13 +65,19 @@ apply_sysctl_patches() {
     sysctl -w kernel.randomize_va_space=2 >/dev/null
     sysctl -w kernel.kptr_restrict=2 >/dev/null
     sysctl -w kernel.dmesg_restrict=1 >/dev/null
-    sysctl -w kernel.yama.ptrace_scope=2 >/dev/null
+    sysctl -w kernel.kexec_load_disabled=1 >/dev/null
+    sysctl -w kernel.unprivileged_bpf_disabled=1 >/dev/null
+    sysctl -w kernel.sysrq=0 >/dev/null
+    sysctl -w kernel.yama.ptrace_scope=1 >/dev/null
+    sysctl -w vm.unprivileged_userfaultfd=0 >/dev/null
     sysctl -w fs.protected_hardlinks=1 >/dev/null
     sysctl -w fs.protected_symlinks=1 >/dev/null
-    sysctl -w net.ipv4.ip_forward=0 >/dev/null
     sysctl -w net.ipv6.conf.all.forwarding=0 >/dev/null
     sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null
     sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1 >/dev/null
+    sysctl -w net.ipv4.conf.all.rp_filter=2 >/dev/null
+    sysctl -w net.ipv4.conf.default.rp_filter=2 >/dev/null
+    sysctl -w net.core.bpf_jit_harden=2 >/dev/null
 
     mkdir -p "$(dirname "$SYSCTL_CONF")"
 
@@ -71,13 +85,19 @@ apply_sysctl_patches() {
 kernel.randomize_va_space=2
 kernel.kptr_restrict=2
 kernel.dmesg_restrict=1
-kernel.yama.ptrace_scope=2
+kernel.kexec_load_disabled=1
+kernel.unprivileged_bpf_disabled=1
+kernel.sysrq=0
+kernel.yama.ptrace_scope=1
+vm.unprivileged_userfaultfd=0
 fs.protected_hardlinks=1
 fs.protected_symlinks=1
-net.ipv4.ip_forward=0
 net.ipv6.conf.all.forwarding=0
 net.ipv4.tcp_syncookies=1
 net.ipv4.icmp_echo_ignore_broadcasts=1
+net.ipv4.conf.all.rp_filter=2
+net.ipv4.conf.default.rp_filter=2
+net.core.bpf_jit_harden=2
 EOF
 
     chmod 0400 "$SYSCTL_CONF"
@@ -92,14 +112,12 @@ setup_ufw() {
     install_package ufw
     install_package gufw
 
-    ufw disable >/dev/null 
-    yes | ufw reset >/dev/null
+    ufw disable >/dev/null 2>&1 || true
+    ufw --force reset >/dev/null
 
     ufw default deny incoming >/dev/null
     ufw default allow outgoing >/dev/null
 
-    ufw allow 53/tcp >/dev/null
-    ufw allow 53/udp >/dev/null
     ufw allow 67/udp >/dev/null
     ufw allow 68/udp >/dev/null
 
@@ -132,11 +150,19 @@ replace_sudo_with_doas() {
     install_package opendoas
 
     if [[ -f "$DOAS_CONF" ]]; then
-        cp "$DOAS_CONF" "${DOAS_CONF}.bak"
+        cp -a "$DOAS_CONF" "${DOAS_CONF}.$(date +%s).bak"
+        rm "$DOAS_CONF"
     fi
 
     cat > "$DOAS_CONF" << 'EOF'
-permit :wheel
+permit persist :wheel
+permit nopass :wheel cmd xbps-remove args -Oo
+permit nopass :wheel cmd vkpurge args rm all
+permit nopass :wheel cmd xbps-install args -Su
+permit nopass :wheel cmd btrfs args filesystem df /
+permit nopass :wheel cmd btrfs args fi df /
+permit nopass :wheel cmd btrfs args sub list /
+permit nopass :wheel cmd btrfs args dev us /
 EOF
 
     if ! doas -C "$DOAS_CONF"; then
