@@ -2,6 +2,9 @@
 set -Eeuo pipefail
 trap 'log_error "Error at line ${LINENO}: ${BASH_COMMAND} (exit code: $?)"' ERR
 
+umask 077
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+
 SYSCTL_CONF="/etc/sysctl.d/99-custom-hardening.conf"
 DOAS_CONF="/etc/doas.conf"
 XBPS_IGNORE_CONF="/etc/xbps.d/ignore.conf"
@@ -21,7 +24,7 @@ log_error()   { log ERROR "$@" >&2; }
 require_root() {
     if [[ "$(id -u)" -ne 0 ]]; then
         log_error "Root privileges are required to run this script."
-        exit 1
+        exit 0
     fi
 }
 
@@ -66,6 +69,7 @@ apply_sysctl_patches() {
     sysctl -w kernel.kptr_restrict=2 >/dev/null
     sysctl -w kernel.dmesg_restrict=1 >/dev/null
     sysctl -w kernel.kexec_load_disabled=1 >/dev/null
+    sysctl -w kernel.perf_event_paranoid=3 >/dev/null
     sysctl -w kernel.unprivileged_bpf_disabled=1 >/dev/null
     sysctl -w kernel.sysrq=0 >/dev/null
     sysctl -w kernel.yama.ptrace_scope=1 >/dev/null
@@ -77,6 +81,7 @@ apply_sysctl_patches() {
     sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1 >/dev/null
     sysctl -w net.ipv4.conf.all.rp_filter=2 >/dev/null
     sysctl -w net.ipv4.conf.default.rp_filter=2 >/dev/null
+    sysctl -w net.ipv4.tcp_rfc1337=1 >/dev/null
     sysctl -w net.core.bpf_jit_harden=2 >/dev/null
 
     mkdir -p "$(dirname "$SYSCTL_CONF")"
@@ -86,6 +91,7 @@ kernel.randomize_va_space=2
 kernel.kptr_restrict=2
 kernel.dmesg_restrict=1
 kernel.kexec_load_disabled=1
+kernel.perf_event_paranoid=3
 kernel.unprivileged_bpf_disabled=1
 kernel.sysrq=0
 kernel.yama.ptrace_scope=1
@@ -97,6 +103,7 @@ net.ipv4.tcp_syncookies=1
 net.ipv4.icmp_echo_ignore_broadcasts=1
 net.ipv4.conf.all.rp_filter=2
 net.ipv4.conf.default.rp_filter=2
+net.ipv4.tcp_rfc1337=1
 net.core.bpf_jit_harden=2
 EOF
 
@@ -111,6 +118,8 @@ setup_ufw() {
 
     install_package ufw
     install_package gufw
+
+    ln -sf /etc/sv/ufw /var/service/ >/dev/null
 
     ufw disable >/dev/null 2>&1 || true
     ufw --force reset >/dev/null
@@ -156,13 +165,6 @@ replace_sudo_with_doas() {
 
     cat > "$DOAS_CONF" << 'EOF'
 permit persist :wheel
-permit nopass :wheel cmd xbps-remove args -Oo
-permit nopass :wheel cmd vkpurge args rm all
-permit nopass :wheel cmd xbps-install args -Su
-permit nopass :wheel cmd btrfs args filesystem df /
-permit nopass :wheel cmd btrfs args fi df /
-permit nopass :wheel cmd btrfs args sub list /
-permit nopass :wheel cmd btrfs args dev us /
 EOF
 
     if ! doas -C "$DOAS_CONF"; then
