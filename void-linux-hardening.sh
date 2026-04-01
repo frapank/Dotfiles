@@ -2,9 +2,6 @@
 set -Eeuo pipefail
 trap 'log_error "Error at line ${LINENO}: ${BASH_COMMAND} (exit code: $?)"' ERR
 
-umask 077
-export PATH="/usr/sbin:/usr/bin:/sbin:/bin"
-
 SYSCTL_CONF="/etc/sysctl.d/99-custom-hardening.conf"
 DOAS_CONF="/etc/doas.conf"
 XBPS_IGNORE_CONF="/etc/xbps.d/ignore.conf"
@@ -21,10 +18,24 @@ log_info()    { log INFO "$@"; }
 log_success() { log OK "$@"; }
 log_error()   { log ERROR "$@" >&2; }
 
+confirm() {
+    local prompt="${1:-Are you sure?}"
+    local answer
+
+    while true; do
+        read -rp "Confirm \"$prompt\" [y/n]: " answer
+        case "$answer" in
+            [Yy]) return 0 ;;
+            [Nn]) return 1 ;;
+            *) echo "Please answer y or n." ;;
+        esac
+    done
+}
+
 require_root() {
     if [[ "$(id -u)" -ne 0 ]]; then
         log_error "Root privileges are required to run this script."
-        exit 0
+        exit 1
     fi
 }
 
@@ -35,7 +46,7 @@ require_void() {
     fi
 }
 
-require_connection() {
+require_repo() {
     if ! xbps-install -S >/dev/null 2>&1; then
         log_error "Internet required to run this script"
         exit 1
@@ -65,26 +76,11 @@ init_system() {
 apply_sysctl_patches() {
     log_info "Applying system hardening patches..."
 
-    sysctl -w kernel.randomize_va_space=2 >/dev/null
-    sysctl -w kernel.kptr_restrict=2 >/dev/null
-    sysctl -w kernel.dmesg_restrict=1 >/dev/null
-    sysctl -w kernel.kexec_load_disabled=1 >/dev/null
-    sysctl -w kernel.perf_event_paranoid=3 >/dev/null
-    sysctl -w kernel.unprivileged_bpf_disabled=1 >/dev/null
-    sysctl -w kernel.sysrq=0 >/dev/null
-    sysctl -w kernel.yama.ptrace_scope=1 >/dev/null
-    sysctl -w vm.unprivileged_userfaultfd=0 >/dev/null
-    sysctl -w fs.protected_hardlinks=1 >/dev/null
-    sysctl -w fs.protected_symlinks=1 >/dev/null
-    sysctl -w net.ipv6.conf.all.forwarding=0 >/dev/null
-    sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null
-    sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1 >/dev/null
-    sysctl -w net.ipv4.conf.all.rp_filter=2 >/dev/null
-    sysctl -w net.ipv4.conf.default.rp_filter=2 >/dev/null
-    sysctl -w net.ipv4.tcp_rfc1337=1 >/dev/null
-    sysctl -w net.core.bpf_jit_harden=2 >/dev/null
-
     mkdir -p "$(dirname "$SYSCTL_CONF")"
+    if [[ -f $SYSCTL_CONF ]]; then
+        cp -a "$SYSCTL_CONF" "${SYSCTL_CONF}.$(date +%s).bak"
+        rm "$SYSCTL_CONF"
+    fi
 
     cat > "$SYSCTL_CONF" << 'EOF'
 kernel.randomize_va_space=2
@@ -113,37 +109,75 @@ EOF
     log_success "Patches applied and made permanent."
 }
 
-setup_ufw() {
-    log_info "Configuring UFW..."
+setup_firewall() {
+    if confirm "Enable firewall? (Desktop configuration)"; then
 
-    install_package ufw
-    install_package gufw
+        log_info "Configuring nftables firewall..."
 
-    ln -sf /etc/sv/ufw /var/service/ >/dev/null
+        install_package nftables
 
-    ufw disable >/dev/null 2>&1 || true
-    ufw --force reset >/dev/null
+        local NFT_CONF="/etc/nftables.conf"
 
-    ufw default deny incoming >/dev/null
-    ufw default allow outgoing >/dev/null
+        if [[ -f "$NFT_CONF" ]]; then
+            cp -a "$NFT_CONF" "${NFT_CONF}.$(date +%s).bak"
+        fi
 
-    ufw allow 67/udp >/dev/null
-    ufw allow 68/udp >/dev/null
+        cat > "$NFT_CONF" << 'EOF'
+flush ruleset
 
-    if ! ufw status | grep -q "Status: active"; then
-        log_info "Enabling UFW..."
-        ufw --force enable >/dev/null
+table inet filter {
+    chain input {
+        type filter hook input priority 0;
+        policy drop;
+
+        # Allow loopback
+        iif lo accept
+
+        # Allow established/related
+        ct state established,related accept
+
+        # Allow ICMP (ping ecc.)
+        ip protocol icmp accept
+        ip6 nexthdr icmpv6 accept
+
+        # DHCP client
+        udp sport 67 udp dport 68 accept
+        udp sport 68 udp dport 67 accept
+
+        # Log & drop everything else
+        log prefix "nft-input-drop: " flags all counter drop
+    }
+
+    chain forward {
+        type filter hook forward priority 0;
+        policy drop;
+    }
+
+    chain output {
+        type filter hook output priority 0;
+        policy accept;
+    }
+}
+EOF
+
+        chmod 600 "$NFT_CONF"
+        
+        if [[ ! -d /var/service/nftables ]]; then
+            ln -s /etc/sv/nftables /var/service/
+        fi
+        
+        nft -f "$NFT_CONF"
+        
+        log_success "nftables firewall configured and active."
     fi
-
-    ufw logging low >/dev/null
-    log_success "UFW firewall configured and active."
 }
 
 configure_network() {
-    log_info "Configuring MAC randomization in NetworkManager..."
-    mkdir -p "$(dirname "$NM_MAC_RANDOMIZE_CONF")"
+    if confirm "Enable MAC randomization? (raccomanded)"; then
+        log_info "Configuring MAC randomization in NetworkManager..."
+        mkdir -p "$(dirname "$NM_MAC_RANDOMIZE_CONF")"
 
-    cat > "$NM_MAC_RANDOMIZE_CONF" << 'EOF'
+        cat > "$NM_MAC_RANDOMIZE_CONF" << 'EOF'
 [device]
 wifi.scan-rand-mac-address=yes
 
@@ -151,7 +185,8 @@ wifi.scan-rand-mac-address=yes
 wifi.cloned-mac-address=random
 ethernet.cloned-mac-address=random
 EOF
-    log_success "MAC randomization configured."
+        log_success "MAC randomization configured."
+    fi
 }
 
 replace_sudo_with_doas() {
@@ -164,7 +199,7 @@ replace_sudo_with_doas() {
     fi
 
     cat > "$DOAS_CONF" << 'EOF'
-permit persist :wheel
+permit :wheel
 EOF
 
     if ! doas -C "$DOAS_CONF"; then
@@ -177,16 +212,18 @@ EOF
     log_success "Doas installed and configured."
 
 
-    if xbps-query -S sudo >/dev/null 2>&1; then
-        mkdir -p "$(dirname "$XBPS_IGNORE_CONF")"
-        cat > "$XBPS_IGNORE_CONF" << 'EOF'
+    if confirm "Remove sudo from system? (raccomanded)"; then
+        if xbps-query -S sudo >/dev/null 2>&1; then
+            mkdir -p "$(dirname "$XBPS_IGNORE_CONF")"
+            cat > "$XBPS_IGNORE_CONF" << 'EOF'
 ignorepkg=sudo
 EOF
 
-        xbps-remove -y sudo
-        log_success "Sudo successfully removed."
-    else
-        log_info "Sudo is not installed, skipping removal."
+            xbps-remove -y sudo
+            log_success "Sudo successfully removed."
+        else
+            log_info "Sudo is not installed, skipping removal."
+        fi
     fi
 }
 
@@ -203,11 +240,11 @@ app_armor() {
 main() {
     require_root
     require_void
-    require_connection
+    require_repo
 
     init_system
     apply_sysctl_patches
-    setup_ufw
+    setup_firewall
     configure_network
     replace_sudo_with_doas
     app_armor
