@@ -79,7 +79,6 @@ apply_sysctl_patches() {
     mkdir -p "$(dirname "$SYSCTL_CONF")"
     if [[ -f $SYSCTL_CONF ]]; then
         cp -a "$SYSCTL_CONF" "${SYSCTL_CONF}.$(date +%s).bak"
-        rm "$SYSCTL_CONF"
     fi
 
     cat > "$SYSCTL_CONF" << 'EOF'
@@ -173,7 +172,7 @@ EOF
 }
 
 configure_network() {
-    if confirm "Enable MAC randomization? (raccomanded)"; then
+    if confirm "Enable MAC randomization? (recommended)"; then
         log_info "Configuring MAC randomization in NetworkManager..."
         mkdir -p "$(dirname "$NM_MAC_RANDOMIZE_CONF")"
 
@@ -195,7 +194,6 @@ replace_sudo_with_doas() {
 
     if [[ -f "$DOAS_CONF" ]]; then
         cp -a "$DOAS_CONF" "${DOAS_CONF}.$(date +%s).bak"
-        rm "$DOAS_CONF"
     fi
 
     cat > "$DOAS_CONF" << 'EOF'
@@ -212,7 +210,7 @@ EOF
     log_success "Doas installed and configured."
 
 
-    if confirm "Remove sudo from system? (raccomanded)"; then
+    if confirm "Remove sudo from system? (recommended)"; then
         if xbps-query -S sudo >/dev/null 2>&1; then
             mkdir -p "$(dirname "$XBPS_IGNORE_CONF")"
             cat > "$XBPS_IGNORE_CONF" << 'EOF'
@@ -242,12 +240,14 @@ main() {
     require_void
     require_repo
 
-    init_system
-    apply_sysctl_patches
-    setup_firewall
-    configure_network
-    replace_sudo_with_doas
-    app_armor
+    if confirm "This script is for desktop only. Run?"; then
+        init_system
+        apply_sysctl_patches
+        setup_firewall
+        configure_network
+        replace_sudo_with_doas
+        app_armor
+    fi
 }
 
 main
