@@ -37,6 +37,8 @@ set completeopt=menu,popup
 set complete=o^10,.^10,w^5,b^5,u^3,t^3
 
 # UI / Theme
+syntax on
+set termguicolors
 colorscheme lain
 set listchars=tab:·\ ,trail:·,nbsp:␣
 set laststatus=2
@@ -58,10 +60,13 @@ g:netrw_localcopydircmd = 'cp -r'
 # Keys
 g:mapleader = ' '
 nnoremap <leader>f          :find<Space>
+nnoremap <leader>e          :e<Space>
+nnoremap <leader>d          :cd<Space>
+nnoremap <leader>g          :grep<Space>
 nnoremap <silent> <leader>q :copen<CR>
 nnoremap <silent> <leader>n :cnext<CR>
 nnoremap <silent> <leader>p :cprev<CR>
-nnoremap <silent> <leader>e :Lexplore<CR>
+nnoremap <silent> <leader>t :Lexplore<CR>
 nnoremap <silent> <Tab>     :bnext<CR>
 nnoremap <silent> <S-Tab>   :bprevious<CR>
 nnoremap <silent> <leader>/ :nohlsearch<CR>
@@ -73,6 +78,7 @@ nnoremap <silent> <leader>/ :nohlsearch<CR>
     '--recursive',
     '--ignore-case',
     '--perl-regexp',
+    '--exclude tags',
     '--exclude-dir .git',
     '--binary-files=without-match',
     '$*'
