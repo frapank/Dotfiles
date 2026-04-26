@@ -1,102 +1,108 @@
-### VARIABILI
-set $mod Mod4
-set $terminal alacritty
-set $fileManager thunar
-set $browser librewolf
-set $menu wmenu-run -b -f "DinaRemasterII Regular 12" -s "#ffffff" -S "#00000" -n "#ffffff" -N "#000000" -M "#000000" -p "$"
+### VARIABLES
+set $bg             #000000
+set $fg             #e5e5e5
+set $fg_sec         #777777
+set $urgent         #ff4444
+set $font           "DejaVu Sans Mono 10"
 
-### Cursor
-seat * xcursor_theme Adwaita 20
+set $mod            Mod4
 
-### WORKSPACE
-set $ws1 1
-set $ws2 2
-set $ws3 3
-set $ws4 4
-set $ws5 5
-set $ws6 6
-set $ws7 7
-set $ws8 8
-set $ws9 9
-set $ws10 10
+set $terminal       foot
+set $fileManager    thunar
+set $browser        librewolf
+set $menu           wmenu-run -b -f $font -s "$fg" -S "$bg" -n "$fg" -N "$bg" -M "$bg" -p "$"
 
-### AUTOSTART
-exec_always --no-startup-id xset s off
-exec_always --no-startup-id xset s noblank
-exec_always --no-startup-id xset -dpms
+### INPUT AND POINTER SETTINGS
+seat * xcursor_theme Adwaita 16
+input * {
+    accel_profile flat
+    pointer_accel -0.1
+}
+focus_follows_mouse yes
+mouse_warping none
 
-### Desig
+### AUTOSTART APPLICATIONS
+
+
+### DISPLAY OUTPUTS
+output DP-2 resolution 1920x1080@240Hz position 0 0
+output HDMI-A-1 resolution 1280x1024@75Hz position 1920 0
+
+### APPEARANCE SETTINGS
 default_border pixel 0
-default_floating_border  pixel 0
-font pango: DinaRemasterII 13
+default_floating_border pixel 0
 
+gaps inner 0
+gaps outer 0
+
+font pango: $font
+
+### STATUS BAR
 bar {
     position top
     separator_symbol " "
     status_command i3status
-    font pango: DinaRemasterII 13
-    tray_output none
+    tray_output DP-2
     mode dock
 
     colors {
-        background #000000
-        statusline #ffffff
-        separator  #555555
+        background $bg
+        statusline $fg
+        separator  $fg_sec
 
-        focused_workspace  #000000 #000000 #ffffff
-        active_workspace   #000000 #000000 #cccccc
-        inactive_workspace #000000 #000000 #777777
-        urgent_workspace   #000000 #000000 #ff4444
+        focused_workspace  $bg $bg $fg
+        active_workspace   $bg $bg $fg_sec
+        inactive_workspace $bg $bg $fg_sec
+        urgent_workspace   $bg $bg $urgent
     }
 }
 
-### KEYBINDINGS
-bindsym $mod+q exec $terminal
-bindsym $mod+c kill
-bindsym $mod+f exec $fileManager
-bindsym $mod+v floating toggle
-bindsym $mod+r exec --no-startup-id $menu
-bindsym $mod+b exec --no-startup-id $browser
-bindsym Print exec --no-startup-id bash -c 'maim -s | swappy -f -' 
+### KEYBINDINGS - APPLICATIONS AND SYSTEM
+bindsym $mod+Shift+c    reload
+bindsym $mod+Shift+f    fullscreen toggle
+bindsym $mod+v          floating toggle
+bindsym $mod+c          kill
+bindsym $mod+q          exec --no-startup-id $terminal
+bindsym $mod+f          exec --no-startup-id $fileManager
+bindsym $mod+r          exec --no-startup-id $menu
+bindsym $mod+b          exec --no-startup-id $browser
+bindsym Print           exec grim -g "$(slurp)" - | swappy -f -
 
-# Move focus
+### KEYBINDINGS - FOCUS CONTROL
 bindsym $mod+h focus left
 bindsym $mod+j focus down
 bindsym $mod+k focus up
 bindsym $mod+l focus right
 
-# Switch workspaces
-bindsym $mod+1 workspace $ws1
-bindsym $mod+2 workspace $ws2
-bindsym $mod+3 workspace $ws3
-bindsym $mod+4 workspace $ws4
-bindsym $mod+5 workspace $ws5
-bindsym $mod+6 workspace $ws6
-bindsym $mod+7 workspace $ws7
-bindsym $mod+8 workspace $ws8
-bindsym $mod+9 workspace $ws9
-bindsym $mod+0 workspace $ws10
-bindsym $mod+Shift+c reload
+### KEYBINDINGS - WORKSPACE SWITCHING
+bindsym $mod+1 workspace 1
+bindsym $mod+2 workspace 2
+bindsym $mod+3 workspace 3
+bindsym $mod+4 workspace 4
+bindsym $mod+5 workspace 5
+bindsym $mod+6 workspace 6
+bindsym $mod+7 workspace 7
+bindsym $mod+8 workspace 8
+bindsym $mod+9 workspace 9
 
-# Move window to a workspace
-bindsym $mod+Shift+1 move container to workspace $ws1
-bindsym $mod+Shift+2 move container to workspace $ws2
-bindsym $mod+Shift+3 move container to workspace $ws3
-bindsym $mod+Shift+4 move container to workspace $ws4
-bindsym $mod+Shift+5 move container to workspace $ws5
-bindsym $mod+Shift+6 move container to workspace $ws6
-bindsym $mod+Shift+7 move container to workspace $ws7
-bindsym $mod+Shift+8 move container to workspace $ws8
-bindsym $mod+Shift+9 move container to workspace $ws9
-bindsym $mod+Shift+0 move container to workspace $ws10
+### KEYBINDINGS - MOVE TO WORKSPACE
+bindsym $mod+Shift+1 move container to workspace 1
+bindsym $mod+Shift+2 move container to workspace 2
+bindsym $mod+Shift+3 move container to workspace 3
+bindsym $mod+Shift+4 move container to workspace 4
+bindsym $mod+Shift+5 move container to workspace 5
+bindsym $mod+Shift+6 move container to workspace 6
+bindsym $mod+Shift+7 move container to workspace 7
+bindsym $mod+Shift+8 move container to workspace 8
+bindsym $mod+Shift+9 move container to workspace 9
 
-# Move position
+### KEYBINDINGS - MOVE WINDOW POSITION
 bindsym $mod+Shift+h move left
 bindsym $mod+Shift+j move down
 bindsym $mod+Shift+k move up
 bindsym $mod+Shift+l move right
 
-### RESIZE
+### RESIZE MODE
 bindsym $mod+Shift+r mode "resize"
 
 mode "resize" {
@@ -111,7 +117,7 @@ mode "resize" {
 
 floating_modifier $mod
 
-### MULTIMEDIA KEYS 
+### MEDIA CONTROLS
 bindsym XF86AudioRaiseVolume    exec --no-startup-id wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
 bindsym XF86AudioLowerVolume    exec --no-startup-id wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
 bindsym XF86AudioMute           exec --no-startup-id wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
@@ -125,4 +131,5 @@ bindsym XF86AudioPause          exec --no-startup-id playerctl play-pause
 bindsym XF86AudioPlay           exec --no-startup-id playerctl play-pause
 bindsym XF86AudioPrev           exec --no-startup-id playerctl previous
 
+### EXIT SESSION
 bindsym $mod+Shift+e exit
