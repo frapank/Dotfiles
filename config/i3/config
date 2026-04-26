@@ -1,32 +1,24 @@
-### VARIABLES
+### VARIABILI
 set $bg             #000000
 set $fg             #e5e5e5
 set $fg_sec         #777777
 set $urgent         #ff4444
-set $font           "DejaVu Sans Mono 10"
+set $font           DejaVu Sans Mono 10
 
-set $mod            Mod4
+set $mod Mod4
 
-set $terminal       foot
-set $fileManager    thunar
-set $browser        librewolf
-set $menu           wmenu-run -b -f $font -s "$fg" -S "$bg" -n "$fg" -N "$bg" -M "$bg" -p "$"
-
-### INPUT AND POINTER SETTINGS
-seat * xcursor_theme Adwaita 16
-input * {
-    accel_profile flat
-    pointer_accel -0.1
-}
-focus_follows_mouse yes
-mouse_warping none
+set $terminal alacritty
+set $fileManager thunar
+set $browser librewolf
+set $menu dmenu_run -b -fn "$font" -nb "$bg" -sb "$bg" -p "$"
 
 ### AUTOSTART APPLICATIONS
-
+exec --no-startup-id xset s off
+exec --no-startup-id xset s noblank
+exec --no-startup-id xset -dpms
 
 ### DISPLAY OUTPUTS
-output DP-2 resolution 1920x1080@240Hz position 0 0
-output HDMI-A-1 resolution 1280x1024@75Hz position 1920 0
+# exec --no-startup-id xrandr --output <monitor> --mode <rend_ex:1920x1080> --rate <hz> --pos <pos_ex:0x0>
 
 ### APPEARANCE SETTINGS
 default_border pixel 0
@@ -37,12 +29,11 @@ gaps outer 0
 
 font pango: $font
 
-### STATUS BAR
 bar {
     position top
     separator_symbol " "
     status_command i3status
-    tray_output DP-2
+    tray_output DisplayPort-1
     mode dock
 
     colors {
@@ -66,7 +57,7 @@ bindsym $mod+q          exec --no-startup-id $terminal
 bindsym $mod+f          exec --no-startup-id $fileManager
 bindsym $mod+r          exec --no-startup-id $menu
 bindsym $mod+b          exec --no-startup-id $browser
-bindsym Print           exec grim -g "$(slurp)" - | swappy -f -
+bindsym Print           exec --no-startup-id bash -c 'maim -s | swappy -f -' 
 
 ### KEYBINDINGS - FOCUS CONTROL
 bindsym $mod+h focus left
