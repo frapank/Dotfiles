@@ -1,5 +1,11 @@
 vim9script
 
+hi clear
+if exists("syntax_on")
+  syntax reset
+endif
+g:colors_name = "lain"
+
 const groups = [
       \ 'Constant', 'String', 'Character', 'Number', 'Boolean', 'Float',
       \ 'Identifier', 'Function',
