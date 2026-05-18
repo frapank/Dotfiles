@@ -23,7 +23,7 @@ focus_follows_mouse yes
 mouse_warping none
 
 ### AUTOSTART APPLICATIONS
-exec swaybg -i ~/.sway/wall.jpg -m fill
+exec swaybg -i ~/.sway/wall.png -m fill
 exec swayidle -w \
   timeout 300 'swaylock -f -c 000000' \
   timeout 600 'swaymsg "output * dpms off"' \
