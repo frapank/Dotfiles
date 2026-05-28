@@ -1,7 +1,6 @@
 vim9script
 
 # CORE SETTINGS
-set clipboard=exclude:.*
 set hlsearch incsearch ignorecase smartcase
 set wildignore+=*.exe,*.dll,*.pdb,*.class,*.o,*.d
 set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
@@ -19,13 +18,11 @@ set nrformats=bin,hex,unsigned
 set virtualedit=block nostartofline
 filetype plugin indent on
 
-
 # WRAPPING & SCROLLING
 set nowrap
 set linebreak
 set display=lastline
-set sidescroll=1 sidescrolloff=3
-
+set sidescroll=1 sidescrolloff=5
 
 # UI & COLORS
 set termguicolors
@@ -35,16 +32,17 @@ set listchars=tab:·\ ,trail:·,nbsp:␣
 set laststatus=2
 set nojoinspaces
 
-
 # COMPLETION
 set completeopt=menu,popup
-set complete=o,.,w,b,u,t
-
+set complete=.,w,b,u,t
 
 # STATUSLINE
-autocmd DirChanged * g:cwd_tail = fnamemodify(getcwd(), ':t')
+augroup VrcStatusline
+    autocmd!
+    autocmd DirChanged * g:cwd_tail = fnamemodify(getcwd(), ':t')
+augroup END
 g:cwd_tail = fnamemodify(getcwd(), ':t')
-set statusline=%#StatusLine#\ %f\ %m%r%=%{g:cwd_tail}\ %L\ %l:%c\
+set statusline=%#StatusLine#\ %f\ %m%r%=%{g:cwd_tail}\ %L\ %l:%c\ 
 
 
 # KEYMAPS
@@ -88,26 +86,36 @@ endif
 
 
 # CUSTOM FUNCTIONS
-def FZF()
-    var lines = []
+def RunFZF()
+    var lines: list<string> = []
 
-    def OnOut(job: job, data: list<string>)
-        lines += data
+    def OnOut(ch: channel, msg: string)
+        lines->add(msg)
     enddef
 
     def OnExit(job: job, status: number)
-        lines = filter(copy(lines), 'v:val != ""')
-        if !empty(lines)
-            setqflist([], ' ', {
-                lines: lines->map((_, v) => v .. ':1:1')
-            })
-            copen
+        if status != 0
+            return
         endif
+        lines = filter(lines, (_, v) => v != '')
+        if empty(lines)
+            return
+        endif
+        setqflist([], ' ', {
+            title: 'FZF',
+            lines: lines->map((_, v) => v .. ':1:1')
+        })
+        copen
+        cfirst
     enddef
 
-    job_start(['sh', '-c', 'fzf --multi --no-border'], {...})
-        out_cb: OnOut,
+    var cmd = 'fzf --no-multi --cycle'
+
+    job_start(['sh', '-c', cmd], {
+        in_io:   'null',
+        out_cb:  OnOut,
         exit_cb: OnExit,
-        err_cb: OnOut,
+        err_cb:  OnOut,
     })
 enddef
+command! -nargs=? FZF RunFZF()
