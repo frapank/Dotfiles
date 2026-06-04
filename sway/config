@@ -11,7 +11,7 @@ set $mod            Mod4
 set $terminal       foot
 set $fileManager    thunar
 set $browser        librewolf
-set $menu           wmenu-run -b -f $font -s "$fg" -S "$bg" -n "$fg" -N "$bg" -M "$bg" -p "$"
+set $menu           fuzzel
 
 ### INPUT AND POINTER SETTINGS
 seat * xcursor_theme $xcursor
