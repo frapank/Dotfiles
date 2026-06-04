@@ -1,5 +1,6 @@
 vim9script
 
+
 # CORE SETTINGS
 set hlsearch incsearch ignorecase smartcase
 set wildignore+=*.exe,*.dll,*.pdb,*.class,*.o,*.d
@@ -18,23 +19,27 @@ set nrformats=bin,hex,unsigned
 set virtualedit=block nostartofline
 filetype plugin indent on
 
+
 # WRAPPING & SCROLLING
 set nowrap
 set linebreak
 set display=lastline
 set sidescroll=1 sidescrolloff=5
 
+
 # UI & COLORS
 set termguicolors
 syntax on
-colorscheme lain
+colorscheme dot
 set listchars=tab:·\ ,trail:·,nbsp:␣
 set laststatus=2
 set nojoinspaces
 
+
 # COMPLETION
 set completeopt=menu,popup
 set complete=.,w,b,u,t
+
 
 # STATUSLINE
 augroup VrcStatusline
@@ -47,7 +52,6 @@ set statusline=%#StatusLine#\ %f\ %m%r%=%{g:cwd_tail}\ %L\ %l:%c\
 
 # KEYMAPS
 g:mapleader = ' '
-
 nnoremap <leader>e          :e<Space>
 nnoremap <leader>d          :cd<Space>
 nnoremap <leader>g          :grep<Space>
@@ -62,8 +66,6 @@ nnoremap <silent> <leader>/ :nohlsearch<CR>
 
 # FUZZY FINDER (FZF / FALLBACK)
 if executable('fzf')
-    $FZF_DEFAULT_OPTS = '--color=fg:#ffffff,bg:#000000,hl:#b0b0b0,fg+:#000000,bg+:#ffffff,hl+:#000000,border:#ffffff,header:#ffffff,gutter:#000000,spinner:#ffffff,info:#b0b0b0,pointer:#ffffff,marker:#ffffff,prompt:#ffffff,query:#ffffff,disabled:#666666,preview-fg:#ffffff,preview-bg:#000000'
-
     if executable('fd')
         $FZF_DEFAULT_COMMAND = 'fd . --exclude build --exclude .git'
     else
