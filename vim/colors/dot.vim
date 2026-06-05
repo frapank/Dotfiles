@@ -9,19 +9,20 @@ set background=dark
 g:colors_name = "dog"
 
 # Palette
-const BG       = '#0a0a0a'
-const FG       = '#ffffff'
-const GOLD     = '#ffee8f'
-const MUTED    = '#8a8a8a'
-const DIM      = '#7d7d7d'
-const SPLIT    = '#1a1a1a'
-const PMENU_BG = '#0f0f0f'
-const PMENU_FG = '#e6e6e6'
-const PMENU_SE = '#cccccc'
-const WILD_BG  = '#303030'
-const SBAR_BG  = '#555555'
-const THUMB_BG = '#aaaaaa'
-const STATUSNC = '#bfbfbf'
+const BG        = '#0a0a0a'
+const FG        = '#ffffff'
+const GOLD      = '#ffee8f'
+const MUTED     = '#8a8a8a'
+const DIM       = '#7d7d7d'
+const SPLIT     = '#1a1a1a'
+const PMENU_BG  = '#0f0f0f'
+const PMENU_FG  = '#e6e6e6'
+const PMENU_SE  = '#cccccc'
+const WILD_BG   = '#303030'
+const SBAR_BG   = '#555555'
+const THUMB_BG  = '#aaaaaa'
+const STATUSNC  = '#bfbfbf'
+const STATUS_BG = '#2a2a2a'
 
 # Helper
 def Hi(group: string, fg: string, bg: string, attr: string = 'NONE')
@@ -52,7 +53,8 @@ Hi('SpecialKey',     DIM,      BG)
 Hi('VertSplit',      SPLIT,    BG)
 Hi('WinSeparator',   SPLIT,    BG)
 
-Hi('StatusLine',     BG,       FG,      'bold')
+
+Hi('StatusLine',     FG,       STATUS_BG, 'bold')
 Hi('StatusLineNC',   BG,       MUTED,   'bold')
 
 Hi('CursorLine',     FG,       BG)
