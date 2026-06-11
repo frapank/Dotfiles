@@ -9,20 +9,24 @@ set background=dark
 g:colors_name = "dog"
 
 # Palette
-const BG        = '#0a0a0a'
-const FG        = '#ffffff'
-const GOLD      = '#ffee8f'
-const MUTED     = '#8a8a8a'
-const DIM       = '#7d7d7d'
-const SPLIT     = '#1a1a1a'
-const PMENU_BG  = '#0f0f0f'
-const PMENU_FG  = '#e6e6e6'
-const PMENU_SE  = '#cccccc'
-const WILD_BG   = '#303030'
-const SBAR_BG   = '#555555'
-const THUMB_BG  = '#aaaaaa'
-const STATUSNC  = '#bfbfbf'
-const STATUS_BG = '#2a2a2a'
+const BG          = '#0a0a0a'
+const FG          = '#ffffff'
+const GOLD        = '#ffee8f'
+const MUTED       = '#a8a8a8'
+const NOISE       = '#737373'
+const DIM         = '#7d7d7d'
+const SPLIT       = '#1a1a1a'
+const PMENU_BG    = '#0f0f0f'
+const PMENU_FG    = '#e6e6e6'
+const PMENU_SE    = '#cccccc'
+const WILD_BG     = '#303030'
+const SBAR_BG     = '#555555'
+const THUMB_BG    = '#aaaaaa'
+const CURSOR_BG   = '#141414'
+const STATUS_BG   = '#1a1a1a'
+const DIFF_ADD_BG = '#1a231a'
+const DIFF_CHG_BG = '#1a1a23'
+const DIFF_DEL_BG = '#231a1a'
 
 # Helper
 def Hi(group: string, fg: string, bg: string, attr: string = 'NONE')
@@ -48,16 +52,37 @@ Hi('Normal',         FG,       BG)
 
 Hi('LineNr',         DIM,      BG)
 Hi('EndOfBuffer',    BG,       BG)
-Hi('NonText',        FG,       BG)
+Hi('NonText',        NOISE,    BG)
 Hi('SpecialKey',     DIM,      BG)
 Hi('VertSplit',      SPLIT,    BG)
 Hi('WinSeparator',   SPLIT,    BG)
 
+Hi('SignColumn',     DIM,      BG)
+Hi('Folded',         NOISE,    SPLIT,   'italic')
+Hi('FoldColumn',     DIM,      BG)
+Hi('ColorColumn',    'NONE',   SPLIT)
+Hi('Conceal',        NOISE,    BG)
+Hi('QuickFixLine',   BG,       GOLD)
+Hi('Substitute',     BG,       GOLD)
+
+Hi('Whitespace',     SPLIT,    BG)
+
+Hi('PmenuKind',      GOLD,     PMENU_BG)
+Hi('PmenuKindSel',   BG,       PMENU_SE)
+Hi('PmenuExtra',     NOISE,    PMENU_BG)
+Hi('PmenuExtraSel',  NOISE,    PMENU_SE)
+
+Hi('NormalFloat',    PMENU_FG, PMENU_BG)
+Hi('FloatBorder',    NOISE,    PMENU_BG)
+Hi('FloatTitle',     GOLD,     PMENU_BG, 'bold')
+
+Hi('LineNrAbove',    NOISE,    BG)
+Hi('LineNrBelow',    NOISE,    BG)
 
 Hi('StatusLine',     FG,       STATUS_BG, 'bold')
 Hi('StatusLineNC',   BG,       MUTED,   'bold')
 
-Hi('CursorLine',     FG,       BG)
+Hi('CursorLine',     'NONE',   CURSOR_BG)
 Hi('CursorLineNr',   GOLD,     BG)
 Hi('MatchParen',     GOLD,     BG)
 
@@ -73,13 +98,13 @@ Hi('PmenuThumb',     PMENU_FG, THUMB_BG)
 Hi('WildMenu',       PMENU_FG, WILD_BG)
 
 Hi('TabLine',        MUTED,    SPLIT)
-Hi('TabLineFill',    MUTED,     SPLIT)
+Hi('TabLineFill',    MUTED,    SPLIT)
 Hi('TabLineSel',     BG,       FG,       'bold')
 
-Hi('DiffAdd',        BG,       MUTED)
-Hi('DiffChange',     BG,       DIM)
-Hi('DiffDelete',     BG,       SPLIT)
-Hi('DiffText',       BG,       GOLD,     'bold')
+Hi('DiffAdd',        'NONE',   DIFF_ADD_BG)
+Hi('DiffChange',     'NONE',   DIFF_CHG_BG)
+Hi('DiffDelete',     'NONE',   DIFF_DEL_BG)
+Hi('DiffText',       BG,       GOLD,        'bold')
 
 Hi('Directory',      FG,       BG,       'bold')
 Hi('Title',          GOLD,     BG,       'bold')
@@ -89,7 +114,7 @@ Hi('Question',       GOLD,     BG)
 Hi('WarningMsg',     GOLD,     BG)
 
 Hi('String',         MUTED,    BG)
-Hi('Comment',        MUTED,    BG,      'italic')
+Hi('Comment',        NOISE,    BG,      'italic')
 Hi('Todo',           GOLD,     BG,      'bold')
 Hi('SpecialComment', GOLD,     BG)
 
