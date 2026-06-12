@@ -1,174 +1,179 @@
-vim.cmd("hi clear")
+vim.cmd("highlight clear")
 if vim.fn.exists("syntax_on") == 1 then
     vim.cmd("syntax reset")
 end
-vim.opt.background = "dark"
+vim.o.background = "dark"
+
 vim.g.colors_name = "dot"
 
 -- Palette
-local bg              = '#0a0a0a'
-local fg              = '#ffffff'
-local accent          = '#ffee8f'
-local text_muted      = '#a8a8a8'
-local text_noise      = '#737373'
-local text_dim        = '#7d7d7d'
-local border          = '#1a1a1a'
-local popup_bg        = '#0f0f0f'
-local popup_fg        = '#e6e6e6'
-local popup_sel       = '#cccccc'
-local menu_bg         = '#303030'
-local scrollbar_bg    = '#555555'
-local scrollbar_thumb = '#aaaaaa'
-local cursor_bg       = '#141414'
-local diff_add_bg     = '#1a231a'
-local diff_chg_bg     = '#1a1a23'
-local diff_del_bg     = '#231a1a'
+local BG          = '#0a0a0a'
+local FG          = '#ffffff'
+local GOLD        = '#ffee8f'
+local MUTED       = '#a8a8a8'
+local NOISE       = '#737373'
+local DIM         = '#7d7d7d'
+local SPLIT       = '#1a1a1a'
+local PMENU_BG    = '#0f0f0f'
+local PMENU_FG    = '#e6e6e6'
+local PMENU_SE    = '#cccccc'
+local WILD_BG     = '#303030'
+local SBAR_BG     = '#555555'
+local THUMB_BG    = '#aaaaaa'
+local CURSOR_BG   = '#141414'
+local STATUS_BG   = '#1a1a1a'
+local DIFF_ADD_BG = '#1a231a'
+local DIFF_CHG_BG = '#1a1a23'
+local DIFF_DEL_BG = '#231a1a'
 
--- Helper function
+-- Helper
 local function Hi(group, fg, bg, attr)
-    local opts = {}
-    if fg and fg ~= 'NONE' then opts.fg = fg end
-    if bg and bg ~= 'NONE' then opts.bg = bg end
-    if attr and attr ~= 'NONE' then
-        opts[attr] = true
-    end
-    vim.api.nvim_set_hl(0, group, opts)
+    attr = attr or 'NONE'
+    vim.cmd(string.format("hi %s guifg=%s guibg=%s gui=%s cterm=%s ctermfg=NONE ctermbg=NONE", group, fg, bg, attr, attr))
 end
 
 -- Base groups
-local base_groups = {
-    'Constant', 'Character', 'Number', 'Boolean', 'Float',
-    'Identifier', 'Function',
-    'Statement', 'Conditional', 'Repeat', 'Label', 'Operator', 'Keyword', 'Exception',
-    'PreProc', 'Include', 'Define', 'Macro', 'PreCondit',
-    'Type', 'StorageClass', 'Structure', 'Typedef',
-    'Special', 'SpecialChar', 'Tag', 'Delimiter', 'Debug',
-    'Underlined', 'Ignore',
-}
-
-for _, g in ipairs(base_groups) do
-    Hi(g, fg, bg)
+local groups = {
+      'Constant', 'Character', 'Number', 'Boolean', 'Float',
+      'Identifier', 'Function',
+      'Statement', 'Conditional', 'Repeat', 'Label', 'Operator', 'Keyword', 'Exception',
+      'PreProc', 'Include', 'Define', 'Macro', 'PreCondit',
+      'Type', 'StorageClass', 'Structure', 'Typedef',
+      'Special', 'SpecialChar', 'Tag', 'Delimiter', 'Debug',
+      'Underlined', 'Ignore',
+      }
+for _, g in ipairs(groups) do
+    Hi(g, FG, BG)
 end
 
 -- Custom groups
-Hi('Normal',         fg,            bg                        )
+Hi('Normal',         FG,       BG)
 
-Hi('LineNr',         text_dim,      bg                        )
-Hi('EndOfBuffer',    bg,            bg                        )
-Hi('NonText',        text_noise,    bg                        )
-Hi('SpecialKey',     text_dim,      bg                        )
-Hi('VertSplit',      border,        bg                        )
-Hi('WinSeparator',   border,        bg                        )
+Hi('LineNr',         DIM,      BG)
+Hi('EndOfBuffer',    BG,       BG)
+Hi('NonText',        NOISE,    BG)
+Hi('SpecialKey',     DIM,      BG)
+Hi('VertSplit',      SPLIT,    BG)
+Hi('WinSeparator',   SPLIT,    BG)
 
-Hi('SignColumn',     text_dim,      bg                        )
-Hi('Folded',         text_noise,    border,        'italic'   )
-Hi('FoldColumn',     text_dim,      bg                        )
-Hi('ColorColumn',    nil,           border                    )
-Hi('Conceal',        text_noise,    bg                        )
-Hi('QuickFixLine',   bg,            accent                    )
-Hi('Substitute',     bg,            accent                    )
+Hi('SignColumn',     DIM,      BG)
+Hi('Folded',         NOISE,    SPLIT,   'italic')
+Hi('FoldColumn',     DIM,      BG)
+Hi('ColorColumn',    'NONE',   SPLIT)
+Hi('Conceal',        NOISE,    BG)
+Hi('QuickFixLine',   BG,       GOLD)
+Hi('Substitute',     BG,       GOLD)
 
-Hi('Whitespace',     border,        bg                        )
+Hi('Whitespace',     SPLIT,    BG)
 
-Hi('PmenuKind',      accent,        popup_bg                  )
-Hi('PmenuKindSel',   bg,            popup_sel                 )
-Hi('PmenuExtra',     text_noise,    popup_bg                  )
-Hi('PmenuExtraSel',  text_noise,    popup_sel                 )
+Hi('PmenuKind',      GOLD,     PMENU_BG)
+Hi('PmenuKindSel',   BG,       PMENU_SE)
+Hi('PmenuExtra',     NOISE,    PMENU_BG)
+Hi('PmenuExtraSel',  NOISE,    PMENU_SE)
 
-Hi('NormalFloat',    popup_fg,      popup_bg                  )
-Hi('FloatBorder',    text_noise,    popup_bg                  )
-Hi('FloatTitle',     accent,        popup_bg,      'bold'     )
+Hi('NormalFloat',    PMENU_FG, PMENU_BG)
+Hi('FloatBorder',    NOISE,    PMENU_BG)
+Hi('FloatTitle',     GOLD,     PMENU_BG, 'bold')
 
-Hi('LineNrAbove',    text_noise,    bg                        )
-Hi('LineNrBelow',    text_noise,    bg                        )
+Hi('LineNrAbove',    NOISE,    BG)
+Hi('LineNrBelow',    NOISE,    BG)
 
-Hi('StatusLine',     fg,            border,        'bold'     )
-Hi('StatusLineNC',   bg,            text_muted,    'bold'     )
+Hi('StatusLine',     FG,       STATUS_BG, 'bold')
+Hi('StatusLineNC',   BG,       MUTED,   'bold')
 
-Hi('CursorLine',     nil,           cursor_bg                 )
-Hi('CursorLineNr',   accent,        bg                        )
-Hi('MatchParen',     accent,        bg                        )
+Hi('CursorLine',     'NONE',   CURSOR_BG)
+Hi('CursorLineNr',   GOLD,     BG)
+Hi('MatchParen',     GOLD,     BG)
 
-Hi('Visual',         bg,            accent                    )
-Hi('Search',         bg,            accent                    )
-Hi('CurSearch',      bg,            fg,            'bold'     )
-Hi('IncSearch',      bg,            accent                    )
+Hi('Visual',         BG,       GOLD)
+Hi('Search',         BG,       GOLD)
+Hi('CurSearch',      BG,       FG,      'bold')
+Hi('IncSearch',      BG,       GOLD)
 
-Hi('Pmenu',          popup_fg,      popup_bg                  )
-Hi('PmenuSel',       bg,            popup_sel                 )
-Hi('PmenuSbar',      popup_fg,      scrollbar_bg              )
-Hi('PmenuThumb',     popup_fg,      scrollbar_thumb           )
-Hi('WildMenu',       popup_fg,      menu_bg                   )
+Hi('Pmenu',          PMENU_FG, PMENU_BG)
+Hi('PmenuSel',       BG,       PMENU_SE)
+Hi('PmenuSbar',      PMENU_FG, SBAR_BG)
+Hi('PmenuThumb',     PMENU_FG, THUMB_BG)
+Hi('WildMenu',       PMENU_FG, WILD_BG)
 
-Hi('TabLine',        text_muted,    border                    )
-Hi('TabLineFill',    text_muted,    border                    )
-Hi('TabLineSel',     bg,            fg,            'bold'     )
+Hi('TabLine',        MUTED,    SPLIT)
+Hi('TabLineFill',    MUTED,    SPLIT)
+Hi('TabLineSel',     BG,       FG,       'bold')
 
-Hi('DiffAdd',        nil,           diff_add_bg               )
-Hi('DiffChange',     nil,           diff_chg_bg               )
-Hi('DiffDelete',     nil,           diff_del_bg               )
-Hi('DiffText',       bg,            accent,        'bold'     )
+Hi('DiffAdd',        'NONE',   DIFF_ADD_BG)
+Hi('DiffChange',     'NONE',   DIFF_CHG_BG)
+Hi('DiffDelete',     'NONE',   DIFF_DEL_BG)
+Hi('DiffText',       BG,       GOLD,        'bold')
 
-Hi('Directory',      fg,            bg,            'bold'     )
-Hi('Title',          accent,        bg,            'bold'     )
-Hi('ModeMsg',        fg,            bg,            'bold'     )
-Hi('MoreMsg',        text_dim,      bg                        )
-Hi('Question',       accent,        bg                        )
-Hi('WarningMsg',     accent,        bg                        )
+Hi('Directory',      FG,       BG,       'bold')
+Hi('Title',          GOLD,     BG,       'bold')
+Hi('ModeMsg',        FG,       BG,       'bold')
+Hi('MoreMsg',        DIM,      BG)
+Hi('Question',       GOLD,     BG)
+Hi('WarningMsg',     GOLD,     BG)
 
-Hi('String',         text_muted,    bg                        )
-Hi('Comment',        text_noise,    bg,            'italic'   )
-Hi('Todo',           accent,        bg,            'bold'     )
-Hi('SpecialComment', accent,        bg                        )
+Hi('String',         MUTED,    BG)
+Hi('Comment',        NOISE,    BG,      'italic')
+Hi('Todo',           GOLD,     BG,      'bold')
+Hi('SpecialComment', GOLD,     BG)
 
-Hi('Error',          accent,        bg,            'reverse'  )
-Hi('ErrorMsg',       accent,        bg,            'reverse'  )
+Hi('Error',          GOLD,     BG,       'reverse')
+Hi('ErrorMsg',       GOLD,     BG,       'reverse')
 
 -- Terminal colors
-local term_red          = '#cc6666'
-local term_green        = '#8c9a8c'
-local term_blue         = '#708a99'
-local term_magenta      = '#a6829c'
-local term_cyan         = '#70a09f'
-local term_yellow       = '#ffe066'
+local T_RED     = '#cc6666'
+local T_GREEN   = '#8c9a8c'
+local T_BLUE    = '#708a99'
+local T_MAGENTA = '#a6829c'
+local T_CYAN    = '#70a09f'
+local T_YELLOW  = '#ffe066'
 
-local term_bright_red   = '#d97e7e'
-local term_bright_green = '#afd7af'
-local term_bright_blue  = '#8ab0c6'
-local term_bright_mag   = '#c59dc8'
-local term_bright_cyan  = '#8cc8c7'
+local T_B_RED   = '#d97e7e'
+local T_B_GREEN = '#afd7af'
+local T_B_BLUE  = '#8ab0c6'
+local T_B_MAG   = '#c59dc8'
+local T_B_CYAN  = '#8cc8c7'
 
-local term_colors = {
-    bg,           term_red,         term_green,       accent,
-    term_blue,    term_magenta,     term_cyan,        text_muted,
-    scrollbar_bg, term_bright_red,  term_bright_green, term_yellow,
-    term_bright_blue, term_bright_mag, term_bright_cyan, fg
+vim.g.terminal_ansi_colors = {
+      BG,
+      T_RED,
+      T_GREEN,
+      GOLD,
+      T_BLUE,
+      T_MAGENTA,
+      T_CYAN,
+      MUTED,
+      SBAR_BG,
+      T_B_RED,
+      T_B_GREEN,
+      T_YELLOW,
+      T_B_BLUE,
+      T_B_MAG,
+      T_B_CYAN,
+      FG
 }
-for i, color in ipairs(term_colors) do
-    vim.g["terminal_color_" .. (i - 1)] = color
-end
 
--- FZF Default Options
+-- FZF
 vim.env.FZF_DEFAULT_OPTS =
-    '--color=' ..
-    'fg:#ffffff,'      ..
-    'bg:#0a0a0a,'      ..
-    'hl:#ffee8f,'      ..
-    'fg+:#0a0a0a,'     ..
-    'bg+:#cccccc,'     ..
-    'hl+:#ffee8f,'     ..
-    'border:#1a1a1a,'  ..
-    'header:#8a8a8a,'  ..
-    'gutter:#0a0a0a,'  ..
-    'spinner:#ffee8f,' ..
-    'info:#8a8a8a,'    ..
-    'pointer:#ffee8f,' ..
-    'marker:#ffee8f,'  ..
-    'prompt:#ffee8f,'  ..
-    'query:#ffffff,'   ..
-    'separator:#1a1a1a,' ..
-    'scrollbar:#555555,' ..
-    'label:#8a8a8a,'   ..
-    'disabled:#7d7d7d,' ..
-    'preview-fg:#ffffff,' ..
-    'preview-bg:#0f0f0f'
+  '--color=' ..
+  'fg:#ffffff,' ..
+  'bg:#0a0a0a,' ..
+  'hl:#ffee8f,' ..
+  'fg+:#0a0a0a,' ..
+  'bg+:#cccccc,' ..
+  'hl+:#ffee8f,' ..
+  'border:#1a1a1a,' ..
+  'header:#8a8a8a,' ..
+  'gutter:#0a0a0a,' ..
+  'spinner:#ffee8f,' ..
+  'info:#8a8a8a,' ..
+  'pointer:#ffee8f,' ..
+  'marker:#ffee8f,' ..
+  'prompt:#ffee8f,' ..
+  'query:#ffffff,' ..
+  'separator:#1a1a1a,' ..
+  'scrollbar:#555555,' ..
+  'label:#8a8a8a,' ..
+  'disabled:#7d7d7d,' ..
+  'preview-fg:#ffffff,' ..
+  'preview-bg:#0f0f0f'
