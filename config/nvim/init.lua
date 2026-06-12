@@ -142,3 +142,38 @@ vim.api.nvim_create_autocmd("TermOpen", {
     pattern = "*",
     command = "startinsert",
 })
+
+-- LSP
+-- clangd (C / C++)
+vim.api.nvim_create_autocmd("FileType", {
+    group = lsp_group,
+    pattern = { "c", "cpp" },
+    callback = function()
+        vim.lsp.start({
+            name     = "clangd",
+            cmd      = { "clangd" },
+            root_dir = vim.fs.root(0, { "compile_commands.json", ".clangd", ".git" }),
+        })
+    end,
+})
+
+-- rust-analyzer
+vim.api.nvim_create_autocmd("FileType", {
+    group = lsp_group,
+    pattern = "rust",
+    callback = function()
+        vim.lsp.start({
+            name     = "rust-analyzer",
+            cmd      = { "rust-analyzer" },
+            root_dir = vim.fs.root(0, { "Cargo.toml", ".git" }),
+        })
+    end,
+})
+
+-- config
+vim.diagnostic.config({
+    virtual_text     = true,
+    signs            = false,
+    underline        = true,
+    update_in_insert = false,
+})
