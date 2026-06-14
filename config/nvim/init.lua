@@ -130,6 +130,11 @@ vim.api.nvim_create_user_command('FZF', function()
 end, { nargs = "?" })
 
 -- VIM TERM
+map('t', '<C-w>h', [[<C-\><C-n><C-w>h]])
+map('t', '<C-w>j', [[<C-\><C-n><C-w>j]])
+map('t', '<C-w>k', [[<C-\><C-n><C-w>k]])
+map('t', '<C-w>l', [[<C-\><C-n><C-w>l]])
+
 vim.cmd([[
 cnoreabbrev <expr> term (getcmdtype() == ':' && getcmdline() == 'term') ? 'split <bar> term' : 'term'
 cnoreabbrev <expr> terminal (getcmdtype() == ':' && getcmdline() == 'terminal') ? 'split <bar> term' : 'terminal'
