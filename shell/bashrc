@@ -5,33 +5,41 @@ _has() { command -v "$1" >/dev/null 2>&1; }
 _setup_history() {
     HISTSIZE=10000
     HISTFILESIZE=20000
-    HISTCONTROL=ignoredups:erasedups
+    HISTCONTROL=ignoreboth:erasedups
     HISTIGNORE='ls:ll:la:cd:cd -:pwd:exit:history:clear'
     shopt -s histappend checkwinsize promptvars
     shopt -s cmdhist lithist
-    shopt -s nullglob
-    set -o pipefail
+
+    [[ -n $HISTFILE && -f $HISTFILE ]] && chmod 600 "$HISTFILE" 2>/dev/null
 }
 
 _setup_prompt() {
     __set_bash_prompt() {
-        local s=$? p='$'
-        (( s )) && p='\[\e[31m\]$\[\e[0m\]'
-        PS1="$p \W: "
+        local s=$? sym='$'
+        (( EUID == 0 )) && sym='#'
+
+        local p="$sym"
+        (( s )) && p="\[\e[31m\]$sym\[\e[0m\]"
+
+        local h=''
+        [[ -n $SSH_CONNECTION ]] && h='\h '
+
+        PS1="$h$p \W: "
     }
 
-    PROMPT_COMMAND='history -a; history -n; __set_bash_prompt'
+    PROMPT_COMMAND='__set_bash_prompt; history -a; history -n'
 }
 
 _setup_env() {
     export LESS='-RF'
-    export LESSHISTFILE=
+    export LESSHISTFILE=/dev/null
 
     if _has vim; then
         export EDITOR=vim
     else
         export EDITOR=vi
     fi
+    export VISUAL="$EDITOR"
 
     local _lp
     for _lp in lesspipe lesspipe.sh; do
@@ -57,16 +65,23 @@ _setup_completion() {
 
 _setup_ls() {
     export LS_COLORS='di=1;34:ln=36:ex=32'
+    export LSCOLORS='Exgxxxxxcxxxxxxxxxxxxx'
+    export CLICOLOR=1
 
+    local _ls_cmd
     if _has gls && gls --group-directories-first / >/dev/null 2>&1; then
-        alias ls='gls -h --color=auto --group-directories-first --indicator-style=classify'
+        _ls_cmd='gls -h --color=auto --group-directories-first --indicator-style=classify'
     elif ls --group-directories-first / >/dev/null 2>&1; then
-        alias ls='ls -h --color=auto --group-directories-first --indicator-style=classify'
+        _ls_cmd='ls -h --color=auto --group-directories-first --indicator-style=classify'
     elif ls -G / >/dev/null 2>&1; then
-        alias ls='ls -hFG'
+        _ls_cmd='ls -hFG'
     else
-        alias ls='ls -hF'
+        _ls_cmd='ls -hF'
     fi
+
+    alias ls="$_ls_cmd"
+    alias ll="$_ls_cmd -l"
+    alias la="$_ls_cmd -A"
 }
 
 _setup_man() {
@@ -93,3 +108,5 @@ _setup_path
 _setup_completion
 _setup_ls
 _setup_man
+
+unset -f _setup_history _setup_prompt _setup_env _setup_path _setup_completion _setup_ls _setup_man
