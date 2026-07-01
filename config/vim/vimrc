@@ -1,6 +1,5 @@
 vim9script
 
-
 # CORE SETTINGS
 set hlsearch incsearch ignorecase smartcase
 set wildignore+=*.exe,*.dll,*.pdb,*.class,*.o,*.d
@@ -19,27 +18,29 @@ set nrformats=bin,hex,unsigned
 set virtualedit=block nostartofline
 filetype plugin indent on
 
-
 # WRAPPING & SCROLLING
 set nowrap
 set linebreak
 set display=lastline
 set sidescroll=1 sidescrolloff=5
 
-
 # UI & COLORS
-set termguicolors
+if has('termguicolors')
+    set termguicolors
+endif
 syntax on
-colorscheme dot
+try
+    colorscheme dot
+catch
+    colorscheme habamax
+endtry
 set listchars=tab:·\ ,trail:·,nbsp:␣
 set laststatus=2
 set nojoinspaces
 
-
 # COMPLETION
 set completeopt=menu,popup
 set complete=.,w,b,u,t
-
 
 # STATUSLINE
 augroup VrcStatusline
@@ -49,9 +50,9 @@ augroup END
 g:cwd_tail = fnamemodify(getcwd(), ':t')
 set statusline=%#StatusLine#\ %f\ %m%r%=%{g:cwd_tail}\ %L\ %l:%c\ 
 
-
 # KEYMAPS
 g:mapleader = ' '
+
 nnoremap <leader>e          :e<Space>
 nnoremap <leader>d          :cd<Space>
 nnoremap <leader>g          :grep<Space>
@@ -63,61 +64,49 @@ nnoremap <silent> <Tab>     :bnext<CR>
 nnoremap <silent> <S-Tab>   :bprevious<CR>
 nnoremap <silent> <leader>/ :nohlsearch<CR>
 
-
-# FUZZY FINDER (FZF / FALLBACK)
+# FUZZY FINDER
 if executable('fzf')
     if executable('fd')
         $FZF_DEFAULT_COMMAND = 'fd . --exclude build --exclude .git'
     else
         $FZF_DEFAULT_COMMAND = 'find . \( -path "*/build/*" -o -path "*/.git/*" \) -prune -o -type f ! -perm -111 -print'
     endif
-
     nnoremap <leader>f :FZF<CR>
 else
     set path=.,**
     nnoremap <leader>f :find<Space>
 endif
 
-
 # SEARCH / GREP TOOLS
 if executable('rg')
-    &grepprg = 'rg -n -P --no-heading --smart-case --glob "!.git/*"'
-else
-    &grepprg = 'grep -nR --ignore-case --perl-regexp --exclude-dir=.git --binary-files=without-match'
+    &grepprg = 'rg --vimgrep --no-heading --smart-case'
+    &grepformat = '%f:%l:%c:%m,%f:%l:%m'
+elseif executable('grep')
+    &grepprg = 'grep -n -R -I -E'
+    &grepformat = '%f:%l:%m'
 endif
-
 
 # CUSTOM FUNCTIONS
 def RunFZF()
-    var lines: list<string> = []
-
-    def OnOut(ch: channel, msg: string)
-        lines->add(msg)
-    enddef
-
-    def OnExit(job: job, status: number)
-        if status != 0
-            return
-        endif
-        lines = filter(lines, (_, v) => v != '')
-        if empty(lines)
-            return
-        endif
-        setqflist([], ' ', {
-            title: 'FZF',
-            lines: lines->map((_, v) => v .. ':1:1')
-        })
-        copen
-        cfirst
-    enddef
-
-    var cmd = 'fzf --no-multi --cycle'
-
-    job_start(['sh', '-c', cmd], {
-        in_io:   'null',
-        out_cb:  OnOut,
-        exit_cb: OnExit,
-        err_cb:  OnOut,
+    if !has('terminal')
+        echom 'fzf not available: missing +terminal'
+        return
+    endif
+    var tmpfile = tempname()
+    var cmd = 'fzf > ' .. tmpfile
+    term_start(['sh', '-c', cmd], {
+        term_finish: 'close',
+        exit_cb: (_, status) => {
+            if status == 0 && filereadable(tmpfile)
+                var lines = readfile(tmpfile)
+                if !empty(lines) && !empty(lines[0])
+                    execute 'edit ' .. fnameescape(lines[0])
+                endif
+            endif
+            if filereadable(tmpfile)
+                delete(tmpfile)
+            endif
+        }
     })
 enddef
-command! -nargs=? FZF RunFZF()
+command! -nargs=0 FZF RunFZF()
