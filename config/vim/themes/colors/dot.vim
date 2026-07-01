@@ -1,12 +1,25 @@
 vim9script
 
+# dot.vim
+#
+# Minimal black & gold colorscheme for Vim
+#
+# Supports:
+#  - GVim / MacVim
+#  - truecolor terminals
+#  - 256-color terminals
+#  - basic 16-color terminals
+#
+# Requires Vim 9.x (vim9script)
+# Doesn't work in Neovim
+
 hi clear
-if exists("syntax_on")
+if exists('syntax_on')
   syntax reset
 endif
 set background=dark
 
-g:colors_name = "dog"
+g:colors_name = 'dot'
 
 # Palette
 const BG          = '#0a0a0a'
@@ -28,24 +41,108 @@ const DIFF_ADD_BG = '#1a231a'
 const DIFF_CHG_BG = '#1a1a23'
 const DIFF_DEL_BG = '#231a1a'
 
-# Helper
-def Hi(group: string, fg: string, bg: string, attr: string = 'NONE')
-    execute $"hi {group} guifg={fg} guibg={bg} gui={attr} cterm={attr} ctermfg=NONE ctermbg=NONE"
+def HexToRgb(hex: string): list<number>
+  return [str2nr(hex[1 : 2], 16), str2nr(hex[3 : 4], 16), str2nr(hex[5 : 6], 16)]
 enddef
 
-# Base groups
+def RgbToXterm256(r: number, g: number, b: number): number
+  if r == g && g == b
+    if r < 8
+      return 16
+    endif
+    if r > 248
+      return 231
+    endif
+    return float2nr(round(((r - 8) / 247.0) * 24)) + 232
+  endif
+  var ir = float2nr(round(r / 255.0 * 5))
+  var ig = float2nr(round(g / 255.0 * 5))
+  var ib = float2nr(round(b / 255.0 * 5))
+  return 16 + (36 * ir) + (6 * ig) + ib
+enddef
+
+# Standard xterm default RGB values for the 16 basic ANSI colors
+const ANSI16_RGB: list<list<number>> = [
+  [0x00, 0x00, 0x00], [0xcd, 0x00, 0x00], [0x00, 0xcd, 0x00], [0xcd, 0xcd, 0x00],
+  [0x00, 0x00, 0xee], [0xcd, 0x00, 0xcd], [0x00, 0xcd, 0xcd], [0xe5, 0xe5, 0xe5],
+  [0x7f, 0x7f, 0x7f], [0xff, 0x00, 0x00], [0x00, 0xff, 0x00], [0xff, 0xff, 0x00],
+  [0x5c, 0x5c, 0xff], [0xff, 0x00, 0xff], [0x00, 0xff, 0xff], [0xff, 0xff, 0xff],
+]
+
+def RgbToAnsi16(r: number, g: number, b: number): number
+  var best = 0
+  var bestDist = 999999999
+  for i in range(16)
+    var dr = r - ANSI16_RGB[i][0]
+    var dg = g - ANSI16_RGB[i][1]
+    var db = b - ANSI16_RGB[i][2]
+    var dist = dr * dr + dg * dg + db * db
+    if dist < bestDist
+      bestDist = dist
+      best = i
+    endif
+  endfor
+  return best
+enddef
+
+# Plain nearest-neighbour matching washes GOLD out to pale grey on 16-color
+# terminals. Force it to bright yellow there instead.
+const ANSI16_OVERRIDE: dict<number> = {
+  '#ffee8f': 11,
+}
+
+const USE_256 = str2nr(&t_Co) >= 256
+var ctermCache: dict<string> = {}
+
+def ToCterm(hex: string): string
+  if hex[0] !=# '#'
+    return 'NONE'
+  endif
+  if has_key(ctermCache, hex)
+    return ctermCache[hex]
+  endif
+  var result: string
+  if USE_256
+    const rgb = HexToRgb(hex)
+    result = string(RgbToXterm256(rgb[0], rgb[1], rgb[2]))
+  elseif has_key(ANSI16_OVERRIDE, hex)
+    result = string(ANSI16_OVERRIDE[hex])
+  else
+    const rgb = HexToRgb(hex)
+    result = string(RgbToAnsi16(rgb[0], rgb[1], rgb[2]))
+  endif
+  ctermCache[hex] = result
+  return result
+enddef
+
+# Highlight helpers
+def Hi(group: string, fg: string, bg: string, attr: string = 'NONE')
+  const cfg = ToCterm(fg)
+  const cbg = ToCterm(bg)
+  execute $"hi {group} guifg={fg} guibg={bg} gui={attr} cterm={attr} ctermfg={cfg} ctermbg={cbg}"
+enddef
+
+# Spell-style groups. Only sets the undercurl ("special") color.
+def HiSp(group: string, sp: string)
+  const csp = ToCterm(sp)
+  execute $"hi {group} guisp={sp} gui=undercurl cterm=undercurl ctermul={csp}"
+enddef
+
+# Base syntax groups, deliberately monochrome.
+# Below are the only ones that break from plain FG on BG
 const groups = [
-      \ 'Constant', 'Character', 'Number', 'Boolean', 'Float',
-      \ 'Identifier', 'Function',
-      \ 'Statement', 'Conditional', 'Repeat', 'Label', 'Operator', 'Keyword', 'Exception',
-      \ 'PreProc', 'Include', 'Define', 'Macro', 'PreCondit',
-      \ 'Type', 'StorageClass', 'Structure', 'Typedef',
-      \ 'Special', 'SpecialChar', 'Tag', 'Delimiter', 'Debug',
-      \ 'Underlined', 'Ignore',
-      \ ]
+  'Constant', 'Character', 'Number', 'Boolean', 'Float',
+  'Identifier', 'Function',
+  'Statement', 'Conditional', 'Repeat', 'Label', 'Operator', 'Keyword', 'Exception',
+  'PreProc', 'Include', 'Define', 'Macro', 'PreCondit',
+  'Type', 'StorageClass', 'Structure', 'Typedef',
+  'Special', 'SpecialChar', 'Tag', 'Delimiter', 'Debug',
+]
 for g in groups
-    Hi(g, FG, BG)
+  Hi(g, FG, BG)
 endfor
+Hi('Underlined', FG, BG, 'underline')
+Hi('Ignore',      BG, BG)
 
 # Custom groups
 Hi('Normal',         FG,       BG)
@@ -79,14 +176,24 @@ Hi('FloatTitle',     GOLD,     PMENU_BG, 'bold')
 Hi('LineNrAbove',    NOISE,    BG)
 Hi('LineNrBelow',    NOISE,    BG)
 
-Hi('StatusLine',     FG,       STATUS_BG, 'bold')
-Hi('StatusLineNC',   BG,       MUTED,   'bold')
+Hi('StatusLine',       FG,     STATUS_BG, 'bold')
+Hi('StatusLineNC',     BG,     MUTED,     'bold')
+Hi('StatusLineTerm',   FG,     STATUS_BG, 'bold')
+Hi('StatusLineTermNC', BG,     MUTED,     'bold')
 
 Hi('CursorLine',     'NONE',   CURSOR_BG)
 Hi('CursorLineNr',   GOLD,     BG)
+Hi('CursorLineFold', NOISE,    CURSOR_BG, 'italic')
+Hi('CursorLineSign', DIM,      CURSOR_BG)
+Hi('CursorColumn',   'NONE',   CURSOR_BG)
 Hi('MatchParen',     GOLD,     BG)
 
+Hi('Cursor',         BG,       GOLD)
+Hi('lCursor',        BG,       GOLD)
+Hi('CursorIM',       BG,       GOLD)
+
 Hi('Visual',         BG,       GOLD)
+Hi('VisualNOS',      BG,       PMENU_SE)
 Hi('Search',         BG,       GOLD)
 Hi('CurSearch',      BG,       FG,      'bold')
 Hi('IncSearch',      BG,       GOLD)
@@ -120,6 +227,26 @@ Hi('SpecialComment', GOLD,     BG)
 
 Hi('Error',          GOLD,     BG,       'reverse')
 Hi('ErrorMsg',       GOLD,     BG,       'reverse')
+
+# GUI chrome
+Hi('Menu',           PMENU_FG, PMENU_BG)
+Hi('Tooltip',        PMENU_FG, PMENU_BG)
+Hi('Scrollbar',      THUMB_BG, SBAR_BG)
+Hi('ToolbarLine',    MUTED,    SPLIT)
+Hi('ToolbarButton',  FG,       SPLIT,    'bold')
+
+# :terminal buffers
+Hi('Terminal',        FG,      BG)
+
+# Termdebug plugin
+Hi('debugPC',          BG,     GOLD)
+Hi('debugBreakpoint',  GOLD,   SPLIT)
+
+# Spelling
+HiSp('SpellBad',    GOLD)
+HiSp('SpellCap',    MUTED)
+HiSp('SpellLocal',  DIM)
+HiSp('SpellRare',   NOISE)
 
 # Terminal colors
 const T_RED     = '#cc6666'
