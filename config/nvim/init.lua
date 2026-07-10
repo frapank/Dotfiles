@@ -25,14 +25,21 @@ vim.opt.fileformats = { "unix", "dos" }
 vim.opt.nrformats = { "bin", "hex", "unsigned" }
 vim.opt.virtualedit = "block"
 vim.opt.startofline = false
+vim.opt.tags = "./tags;,tags;"
+
+-- PERSISTENT UNDO
+vim.opt.undofile = true
 
 -- WRAPPING & SCROLLING
 vim.opt.wrap = false
+vim.opt.scrolloff = 4
 vim.opt.sidescroll = 1
 vim.opt.sidescrolloff = 5
 
 -- UI & COLORS
-vim.opt.termguicolors = true
+if vim.fn.has('nvim-0.10') == 0 then
+    vim.opt.termguicolors = true
+end
 vim.opt.listchars = { tab = "· ", trail = "·", nbsp = "␣" }
 vim.opt.laststatus = 3
 vim.opt.joinspaces = false
@@ -73,6 +80,7 @@ map('n', '<leader>p', ':cprev<CR>', { silent = true })
 map('n', '<leader>t', ':Sex<CR>', { silent = true })
 map('n', '<Tab>', ':bnext<CR>', { silent = true })
 map('n', '<S-Tab>', ':bprevious<CR>', { silent = true })
+map('n', '<leader>m', ':make<CR>', { silent = true })
 map('n', '<leader>/', ':nohlsearch<CR>', { silent = true })
 
 -- FUZZY FINDER (FZF / FALLBACK)
@@ -80,7 +88,7 @@ if vim.fn.executable('fzf') == 1 then
     if vim.fn.executable('fd') == 1 then
         vim.env.FZF_DEFAULT_COMMAND = 'fd . --exclude build --exclude .git'
     else
-        vim.env.FZF_DEFAULT_COMMAND = 'find . \\( -path "*/build/*" -o -path "*/.git/*" \\) -prune -o -type f ! -perm -111 -print'
+        vim.env.FZF_DEFAULT_COMMAND = 'find . \\( -path "*/build/*" -o -path "*/.git/*" \\) -prune -o -type f -print'
     end
     map('n', '<leader>f', ':FZF<CR>')
 else
@@ -92,8 +100,15 @@ end
 if vim.fn.executable('rg') == 1 then
     vim.opt.grepprg = 'rg --vimgrep --smart-case --glob "!.git/*"'
 else
-    vim.opt.grepprg = 'grep -nR --ignore-case --perl-regexp --exclude-dir=.git --binary-files=without-match'
+    -- -E, not -P: BSD grep has no perl regex
+    vim.opt.grepprg = 'grep -n -R -I -E --exclude-dir=.git'
 end
+
+-- DEBUGGER
+vim.api.nvim_create_user_command('Debug', function(opts)
+    vim.cmd('packadd termdebug')
+    vim.cmd('Termdebug ' .. opts.args)
+end, { nargs = '*', complete = 'file' })
 
 -- CUSTOM FUNCTIONS (FZF in Quickfix)
 vim.api.nvim_create_user_command('FZF', function()
@@ -149,6 +164,8 @@ vim.api.nvim_create_autocmd("TermOpen", {
 })
 
 -- LSP
+local lsp_group = vim.api.nvim_create_augroup("LspStart", { clear = true })
+
 -- clangd (C / C++)
 vim.api.nvim_create_autocmd("FileType", {
     group = lsp_group,
@@ -182,3 +199,20 @@ vim.diagnostic.config({
     underline        = true,
     update_in_insert = false,
 })
+
+-- hex see
+vim.api.nvim_create_user_command('HexToggle', function()
+    if vim.bo.binary and vim.bo.filetype == 'xxd' then
+        vim.cmd('silent %!xxd -r')
+        vim.bo.filetype = ''
+    else
+        if vim.bo.modified then
+            vim.notify('HexToggle: save changes first', vim.log.levels.WARN)
+            return
+        end
+        vim.bo.binary = true
+        vim.cmd('silent edit')
+        vim.cmd('silent %!xxd -g1')
+        vim.bo.filetype = 'xxd'
+    end
+end, {})
