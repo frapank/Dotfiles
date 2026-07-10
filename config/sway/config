@@ -13,6 +13,10 @@ set $fileManager    thunar
 set $browser        librewolf
 set $menu           fuzzel
 
+### SECURITY
+# Comment this out if an X11 only app stops opening
+xwayland disable
+
 ### INPUT AND POINTER SETTINGS
 seat * xcursor_theme $xcursor
 input * {
