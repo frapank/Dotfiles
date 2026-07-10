@@ -1,3 +1,8 @@
+# Interactive shells only
+[[ $- != *i* ]] && return
+
+umask 077
+
 # HELPER
 _has() { command -v "$1" >/dev/null 2>&1; }
 
@@ -9,6 +14,7 @@ _setup_history() {
     HISTIGNORE='ls:ll:la:cd:cd -:pwd:exit:history:clear'
     shopt -s histappend checkwinsize promptvars
     shopt -s cmdhist lithist
+    shopt -s globstar autocd 2>/dev/null
 
     [[ -n $HISTFILE && -f $HISTFILE ]] && chmod 600 "$HISTFILE" 2>/dev/null
 }
@@ -27,7 +33,7 @@ _setup_prompt() {
         PS1="$h$p \W: "
     }
 
-    PROMPT_COMMAND='__set_bash_prompt; history -a; history -n'
+    PROMPT_COMMAND='__set_bash_prompt; history -a'
 }
 
 _setup_env() {
@@ -40,6 +46,8 @@ _setup_env() {
         export EDITOR=vi
     fi
     export VISUAL="$EDITOR"
+
+    [[ -t 0 ]] && export GPG_TTY=$(tty)
 
     local _lp
     for _lp in lesspipe lesspipe.sh; do
@@ -61,6 +69,13 @@ _setup_completion() {
     bind 'set completion-ignore-case on' 2>/dev/null
     bind 'set show-all-if-ambiguous on' 2>/dev/null
     bind 'set menu-complete-display-prefix on' 2>/dev/null
+
+    bind '"\e[A": history-search-backward' 2>/dev/null
+    bind '"\e[B": history-search-forward' 2>/dev/null
+}
+
+_setup_fzf() {
+    _has fzf && eval "$(fzf --bash 2>/dev/null)"
 }
 
 _setup_ls() {
@@ -88,17 +103,15 @@ _setup_man() {
     local _b
     for _b in bat batcat; do
         if _has "$_b"; then
-            _BAT="$_b"
+            export MANPAGER="sh -c 'col -bx | $_b -l man -p'"
             break
         fi
     done
-
-    man() {
-        [[ -z $_BAT ]] && { command man "$@"; return; }
-        command man "$@" | col -bx | "$_BAT" -l man -p
-        return "${PIPESTATUS[0]}"
-    }
 }
+
+# BINARY TOOLS
+dis() { objdump -d -M intel --no-show-raw-insn "$@" | less; }
+hex() { xxd -g1 "$@" | less; }
 
 # INIT ALL
 _setup_history
@@ -106,7 +119,8 @@ _setup_prompt
 _setup_env
 _setup_path
 _setup_completion
+_setup_fzf
 _setup_ls
 _setup_man
 
-unset -f _setup_history _setup_prompt _setup_env _setup_path _setup_completion _setup_ls _setup_man
+unset -f _setup_history _setup_prompt _setup_env _setup_path _setup_completion _setup_fzf _setup_ls _setup_man
