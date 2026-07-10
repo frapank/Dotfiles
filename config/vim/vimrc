@@ -16,12 +16,20 @@ set smartindent
 set fileformats=unix,dos
 set nrformats=bin,hex,unsigned
 set virtualedit=block nostartofline
+set tags=./tags;,tags;
 filetype plugin indent on
+
+# PERSISTENT UNDO
+if !isdirectory($HOME .. '/.vim/undo')
+    mkdir($HOME .. '/.vim/undo', 'p', 0o700)
+endif
+set undofile undodir=~/.vim/undo
 
 # WRAPPING & SCROLLING
 set nowrap
 set linebreak
 set display=lastline
+set scrolloff=4
 set sidescroll=1 sidescrolloff=5
 
 # UI & COLORS
@@ -62,6 +70,7 @@ nnoremap <silent> <leader>p :cprev<CR>
 nnoremap <silent> <leader>t :Sex<CR>
 nnoremap <silent> <Tab>     :bnext<CR>
 nnoremap <silent> <S-Tab>   :bprevious<CR>
+nnoremap <silent> <leader>m :make<CR>
 nnoremap <silent> <leader>/ :nohlsearch<CR>
 
 # FUZZY FINDER
@@ -69,7 +78,7 @@ if executable('fzf')
     if executable('fd')
         $FZF_DEFAULT_COMMAND = 'fd . --exclude build --exclude .git'
     else
-        $FZF_DEFAULT_COMMAND = 'find . \( -path "*/build/*" -o -path "*/.git/*" \) -prune -o -type f ! -perm -111 -print'
+        $FZF_DEFAULT_COMMAND = 'find . \( -path "*/build/*" -o -path "*/.git/*" \) -prune -o -type f -print'
     endif
     nnoremap <leader>f :FZF<CR>
 else
@@ -82,9 +91,16 @@ if executable('rg')
     &grepprg = 'rg --vimgrep --no-heading --smart-case'
     &grepformat = '%f:%l:%c:%m,%f:%l:%m'
 elseif executable('grep')
-    &grepprg = 'grep -n -R -I -E'
+    &grepprg = 'grep -n -R -I -E --exclude-dir=.git'
     &grepformat = '%f:%l:%m'
 endif
+
+# DEBUGGER
+def LoadTermdebug(args: string)
+    packadd termdebug
+    execute 'Termdebug ' .. args
+enddef
+command! -nargs=* -complete=file Debug LoadTermdebug(<q-args>)
 
 # CUSTOM FUNCTIONS
 def RunFZF()
@@ -110,3 +126,20 @@ def RunFZF()
     })
 enddef
 command! -nargs=0 FZF RunFZF()
+
+def HexToggle()
+    if &l:binary && &l:filetype ==# 'xxd'
+        silent :%!xxd -r
+        setlocal filetype=
+    else
+        if &modified
+            echohl WarningMsg | echom 'HexToggle: save changes first' | echohl None
+            return
+        endif
+        setlocal binary
+        silent edit
+        silent :%!xxd -g1
+        setlocal filetype=xxd
+    endif
+enddef
+command! -nargs=0 HexToggle HexToggle()
