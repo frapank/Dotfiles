@@ -16,6 +16,8 @@ set $menu dmenu_run -b -fn "$font" -nb "$bg" -sb "$bg" -p "$"
 exec --no-startup-id xset s off
 exec --no-startup-id xset s noblank
 exec --no-startup-id xset -dpms
+# lock on suspend/lid close (and $mod+Shift+x manually)
+exec --no-startup-id xss-lock -- i3lock -n -c 000000
 
 ### DISPLAY OUTPUTS
 # exec --no-startup-id xrandr --output <monitor> --mode <rend_ex:1920x1080> --rate <hz> --pos <pos_ex:0x0>
@@ -57,7 +59,8 @@ bindsym $mod+q          exec --no-startup-id $terminal
 bindsym $mod+f          exec --no-startup-id $fileManager
 bindsym $mod+r          exec --no-startup-id $menu
 bindsym $mod+b          exec --no-startup-id $browser
-bindsym Print           exec --no-startup-id bash -c 'maim -s | swappy -f -' 
+bindsym Print           exec --no-startup-id bash -c 'maim -s | swappy -f -'
+bindsym $mod+Shift+x    exec --no-startup-id i3lock -n -c 000000
 
 ### KEYBINDINGS - FOCUS CONTROL
 bindsym $mod+h focus left
