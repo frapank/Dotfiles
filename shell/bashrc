@@ -103,10 +103,16 @@ _setup_man() {
     local _b
     for _b in bat batcat; do
         if _has "$_b"; then
-            export MANPAGER="sh -c 'col -bx | $_b -l man -p'"
+            _BAT="$_b"
             break
         fi
     done
+
+    man() {
+        [[ -z $_BAT ]] && { command man "$@"; return; }
+        command man "$@" | col -bx | "$_BAT" -l man -p
+        return "${PIPESTATUS[0]}"
+    }
 }
 
 # BINARY TOOLS
