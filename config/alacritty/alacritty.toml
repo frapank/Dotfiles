@@ -2,35 +2,35 @@ window.opacity = 1.0
 
 [colors.bright]
 black = "0x555555"
-blue = "0x5555ff"
-cyan = "0x55ffff"
-green = "0x55ff55"
-magenta = "0xff55ff"
-red = "0xff5555"
+blue = "0x8ab0c6"
+cyan = "0x8cc8c7"
+green = "0xafd7af"
+magenta = "0xc59dc8"
+red = "0xd97e7e"
 white = "0xffffff"
-yellow = "0xffff55"
+yellow = "0xffe066"
 
 [colors.cursor]
-cursor = "0x9cabca"
-text = "0x000000"
+cursor = "0xffee8f"
+text = "0x0a0a0a"
 
 [colors.normal]
-black = "0x000000"
-blue = "0x0000ff"
-cyan = "0x00ffff"
-green = "0x00ff00"
-magenta = "0xff00ff"
-red = "0xff0000"
-white = "0xffffff"
-yellow = "0xffff00"
+black = "0x0a0a0a"
+blue = "0x708a99"
+cyan = "0x70a09f"
+green = "0x8c9a8c"
+magenta = "0xa6829c"
+red = "0xcc6666"
+white = "0x8a8a8a"
+yellow = "0xffee8f"
 
 [colors.primary]
-background = "0x000000"
+background = "0x0a0a0a"
 foreground = "0xffffff"
 
 [colors.selection]
-background = "0x4e5579"
-text = "0xffffff"
+background = "0xffee8f"
+text = "0x0a0a0a"
 
 [font]
 size = 11
