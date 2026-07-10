@@ -40,11 +40,11 @@ _setup_env() {
     export LESS='-RF'
     export LESSHISTFILE=/dev/null
 
-    if _has vim; then
-        export EDITOR=vim
-    else
-        export EDITOR=vi
-    fi
+    local _ed _found_ed
+    for _ed in vim nvim vi nano; do
+        _has "$_ed" && { _found_ed=$_ed; break; }
+    done
+    export EDITOR="${_found_ed:-vi}"
     export VISUAL="$EDITOR"
 
     [[ -t 0 ]] && export GPG_TTY=$(tty)
@@ -60,7 +60,7 @@ _setup_env() {
 
 _setup_path() {
     local _dir
-    for _dir in "$HOME/.cargo/bin" "$HOME/.local/bin"; do
+    for _dir in "$HOME/.cargo/bin" "$HOME/.local/bin" "$HOME/go/bin" "$HOME/bin"; do
         [[ -d $_dir && :$PATH: != *:$_dir:* ]] && PATH="$_dir:$PATH"
     done
 }
@@ -69,13 +69,31 @@ _setup_completion() {
     bind 'set completion-ignore-case on' 2>/dev/null
     bind 'set show-all-if-ambiguous on' 2>/dev/null
     bind 'set menu-complete-display-prefix on' 2>/dev/null
+    bind 'set colored-stats on' 2>/dev/null
+    bind 'set colored-completion-prefix on' 2>/dev/null
+    bind 'set mark-symlinked-directories on' 2>/dev/null
+    bind 'set skip-completed-text on' 2>/dev/null
 
     bind '"\e[A": history-search-backward' 2>/dev/null
     bind '"\e[B": history-search-forward' 2>/dev/null
+
+    local _bc
+    for _bc in /etc/bash_completion /usr/share/bash-completion/bash_completion /opt/homebrew/etc/profile.d/bash_completion.sh; do
+        [[ -r $_bc ]] && { source "$_bc"; break; }
+    done
 }
 
 _setup_fzf() {
-    _has fzf && eval "$(fzf --bash 2>/dev/null)"
+    _has fzf || return
+
+    local _init
+    _init=$(fzf --bash 2>/dev/null) && [[ -n $_init ]] && { eval "$_init"; return; }
+
+    local _dir
+    for _dir in /usr/share/fzf /usr/share/doc/fzf/examples /opt/homebrew/opt/fzf/shell /usr/local/opt/fzf/shell "$HOME/.fzf/shell"; do
+        [[ -f $_dir/key-bindings.bash ]] && source "$_dir/key-bindings.bash"
+        [[ -f $_dir/completion.bash ]] && source "$_dir/completion.bash"
+    done
 }
 
 _setup_ls() {
@@ -109,15 +127,44 @@ _setup_man() {
     done
 
     man() {
-        [[ -z $_BAT ]] && { command man "$@"; return; }
+        if [[ -z $_BAT ]] || ! _has col; then
+            command man "$@"
+            return
+        fi
         command man "$@" | col -bx | "$_BAT" -l man -p
         return "${PIPESTATUS[0]}"
     }
 }
 
 # BINARY TOOLS
-dis() { objdump -d -M intel --no-show-raw-insn "$@" | less; }
-hex() { xxd -g1 "$@" | less; }
+_pager() {
+    if _has less; then command less
+    elif _has more; then command more
+    else command cat
+    fi
+}
+
+dis() {
+    local _od _found_od
+    for _od in objdump gobjdump; do
+        _has "$_od" && { _found_od=$_od; break; }
+    done
+    [[ -n $_found_od ]] || { echo "dis: no disassembler found (objdump/gobjdump)" >&2; return 1; }
+
+    if [[ -n $_BAT ]]; then
+        "$_found_od" -d -M intel --no-show-raw-insn "$@" | "$_BAT" -l asm -p
+    else
+        "$_found_od" -d -M intel --no-show-raw-insn "$@" | _pager
+    fi
+}
+
+hex() {
+    if _has xxd; then
+        xxd -g1 "$@" | _pager
+    else
+        od -A x -t x1z "$@" | _pager
+    fi
+}
 
 # INIT ALL
 _setup_history
