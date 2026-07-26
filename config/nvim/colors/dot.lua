@@ -8,8 +8,8 @@ vim.g.colors_name = "dot"
 
 -- Palette
 local BG          = '#0a0a0a'
-local FG          = '#ffffff'
-local GOLD        = '#ffee8f'
+local FG          = '#e9e9e9'
+local ACCENT      = '#9d9d9d'
 local MUTED       = '#a8a8a8'
 local NOISE       = '#737373'
 local DIM         = '#7d7d7d'
@@ -51,10 +51,6 @@ local ANSI16_RGB = {
     {0x5c, 0x5c, 0xff}, {0xff, 0x00, 0xff}, {0x00, 0xff, 0xff}, {0xff, 0xff, 0xff},
 }
 
--- Nearest-neighbour washes GOLD out to pale grey on 16-color
--- terminals. Force it to bright yellow there instead.
-local ANSI16_OVERRIDE = { ['#ffee8f'] = 11 }
-
 local function rgb_to_ansi16(r, g, b)
     local best, best_dist = 0, math.huge
     for i = 1, 16 do
@@ -79,8 +75,6 @@ local function to_cterm(hex)
     local result
     if USE_256 then
         result = tostring(rgb_to_xterm256(hex_to_rgb(hex)))
-    elseif ANSI16_OVERRIDE[hex] then
-        result = tostring(ANSI16_OVERRIDE[hex])
     else
         result = tostring(rgb_to_ansi16(hex_to_rgb(hex)))
     end
@@ -124,19 +118,19 @@ Hi('Folded',         NOISE,    SPLIT,   'italic')
 Hi('FoldColumn',     DIM,      BG)
 Hi('ColorColumn',    'NONE',   SPLIT)
 Hi('Conceal',        NOISE,    BG)
-Hi('QuickFixLine',   BG,       GOLD)
-Hi('Substitute',     BG,       GOLD)
+Hi('QuickFixLine',   BG,       ACCENT)
+Hi('Substitute',     BG,       ACCENT)
 
 Hi('Whitespace',     SPLIT,    BG)
 
-Hi('PmenuKind',      GOLD,     PMENU_BG)
+Hi('PmenuKind',      ACCENT,     PMENU_BG)
 Hi('PmenuKindSel',   BG,       PMENU_SE)
 Hi('PmenuExtra',     NOISE,    PMENU_BG)
 Hi('PmenuExtraSel',  NOISE,    PMENU_SE)
 
 Hi('NormalFloat',    PMENU_FG, PMENU_BG)
 Hi('FloatBorder',    NOISE,    PMENU_BG)
-Hi('FloatTitle',     GOLD,     PMENU_BG, 'bold')
+Hi('FloatTitle',     ACCENT,     PMENU_BG, 'bold')
 
 Hi('LineNrAbove',    NOISE,    BG)
 Hi('LineNrBelow',    NOISE,    BG)
@@ -145,13 +139,17 @@ Hi('StatusLine',     FG,       STATUS_BG, 'bold')
 Hi('StatusLineNC',   BG,       MUTED,   'bold')
 
 Hi('CursorLine',     'NONE',   CURSOR_BG)
-Hi('CursorLineNr',   GOLD,     BG)
-Hi('MatchParen',     GOLD,     BG)
+Hi('CursorLineNr',   ACCENT,     BG)
+Hi('MatchParen',     ACCENT,     BG)
 
-Hi('Visual',         BG,       GOLD)
-Hi('Search',         BG,       GOLD)
+Hi('Cursor',         BG,       ACCENT)
+Hi('lCursor',        BG,       ACCENT)
+Hi('CursorIM',       BG,       ACCENT)
+
+Hi('Visual',         BG,       ACCENT)
+Hi('Search',         BG,       ACCENT)
 Hi('CurSearch',      BG,       FG,      'bold')
-Hi('IncSearch',      BG,       GOLD)
+Hi('IncSearch',      BG,       ACCENT)
 
 Hi('Pmenu',          PMENU_FG, PMENU_BG)
 Hi('PmenuSel',       BG,       PMENU_SE)
@@ -166,25 +164,25 @@ Hi('TabLineSel',     BG,       FG,       'bold')
 Hi('DiffAdd',        'NONE',   DIFF_ADD_BG)
 Hi('DiffChange',     'NONE',   DIFF_CHG_BG)
 Hi('DiffDelete',     'NONE',   DIFF_DEL_BG)
-Hi('DiffText',       BG,       GOLD,        'bold')
+Hi('DiffText',       BG,       ACCENT,        'bold')
 
 Hi('Directory',      FG,       BG,       'bold')
-Hi('Title',          GOLD,     BG,       'bold')
+Hi('Title',          ACCENT,     BG,       'bold')
 Hi('ModeMsg',        FG,       BG,       'bold')
 Hi('MoreMsg',        DIM,      BG)
-Hi('Question',       GOLD,     BG)
-Hi('WarningMsg',     GOLD,     BG)
+Hi('Question',       ACCENT,     BG)
+Hi('WarningMsg',     ACCENT,     BG)
 
 Hi('String',         MUTED,    BG)
 Hi('Comment',        NOISE,    BG,      'italic')
-Hi('Todo',           GOLD,     BG,      'bold')
-Hi('SpecialComment', GOLD,     BG)
+Hi('Todo',           ACCENT,     BG,      'bold')
+Hi('SpecialComment', ACCENT,     BG)
 
-Hi('Error',          GOLD,     BG,       'reverse')
-Hi('ErrorMsg',       GOLD,     BG,       'reverse')
+Hi('Error',          ACCENT,     BG,       'reverse')
+Hi('ErrorMsg',       ACCENT,     BG,       'reverse')
 
--- Diagnostics (LSP) - keep the monochrome black & gold look
-Hi('DiagnosticError',          GOLD,   BG)
+-- Diagnostics (LSP) - keep the monochrome black & grey look
+Hi('DiagnosticError',          ACCENT,   BG)
 Hi('DiagnosticWarn',           MUTED,  BG)
 Hi('DiagnosticInfo',           DIM,    BG)
 Hi('DiagnosticHint',           NOISE,  BG)
@@ -193,7 +191,7 @@ Hi('DiagnosticUnderlineError', 'NONE', BG, 'undercurl')
 Hi('DiagnosticUnderlineWarn',  'NONE', BG, 'undercurl')
 Hi('DiagnosticUnderlineInfo',  'NONE', BG, 'underline')
 Hi('DiagnosticUnderlineHint',  'NONE', BG, 'underline')
-vim.cmd('hi DiagnosticUnderlineError guisp=' .. GOLD)
+vim.cmd('hi DiagnosticUnderlineError guisp=' .. ACCENT)
 vim.cmd('hi DiagnosticUnderlineWarn guisp=' .. MUTED)
 
 -- Terminal colors
@@ -214,7 +212,7 @@ local term_colors = {
       BG,
       T_RED,
       T_GREEN,
-      GOLD,
+      ACCENT,
       T_BLUE,
       T_MAGENTA,
       T_CYAN,
@@ -237,18 +235,18 @@ vim.env.FZF_DEFAULT_OPTS =
   '--color=' ..
   'fg:#ffffff,' ..
   'bg:#0a0a0a,' ..
-  'hl:#ffee8f,' ..
+  'hl:#9d9d9d,' ..
   'fg+:#0a0a0a,' ..
   'bg+:#cccccc,' ..
-  'hl+:#ffee8f,' ..
+  'hl+:#9d9d9d,' ..
   'border:#1a1a1a,' ..
   'header:#8a8a8a,' ..
   'gutter:#0a0a0a,' ..
-  'spinner:#ffee8f,' ..
+  'spinner:#9d9d9d,' ..
   'info:#8a8a8a,' ..
-  'pointer:#ffee8f,' ..
-  'marker:#ffee8f,' ..
-  'prompt:#ffee8f,' ..
+  'pointer:#9d9d9d,' ..
+  'marker:#9d9d9d,' ..
+  'prompt:#9d9d9d,' ..
   'query:#ffffff,' ..
   'separator:#1a1a1a,' ..
   'scrollbar:#555555,' ..

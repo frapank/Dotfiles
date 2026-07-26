@@ -2,7 +2,7 @@ vim9script
 
 # dot.vim
 #
-# Minimal black & gold colorscheme for Vim
+# Minimal black & grey colorscheme for Vim
 #
 # Supports:
 #  - GVim / MacVim
@@ -23,8 +23,8 @@ g:colors_name = 'dot'
 
 # Palette
 const BG          = '#0a0a0a'
-const FG          = '#ffffff'
-const GOLD        = '#ffee8f'
+const FG          = '#e9e9e9'
+const ACCENT      = '#9d9d9d'
 const MUTED       = '#a8a8a8'
 const NOISE       = '#737373'
 const DIM         = '#7d7d7d'
@@ -85,12 +85,6 @@ def RgbToAnsi16(r: number, g: number, b: number): number
   return best
 enddef
 
-# Plain nearest-neighbour matching washes GOLD out to pale grey on 16-color
-# terminals. Force it to bright yellow there instead.
-const ANSI16_OVERRIDE: dict<number> = {
-  '#ffee8f': 11,
-}
-
 const USE_256 = str2nr(&t_Co) >= 256
 var ctermCache: dict<string> = {}
 
@@ -105,8 +99,6 @@ def ToCterm(hex: string): string
   if USE_256
     const rgb = HexToRgb(hex)
     result = string(RgbToXterm256(rgb[0], rgb[1], rgb[2]))
-  elseif has_key(ANSI16_OVERRIDE, hex)
-    result = string(ANSI16_OVERRIDE[hex])
   else
     const rgb = HexToRgb(hex)
     result = string(RgbToAnsi16(rgb[0], rgb[1], rgb[2]))
@@ -159,19 +151,19 @@ Hi('Folded',         NOISE,    SPLIT,   'italic')
 Hi('FoldColumn',     DIM,      BG)
 Hi('ColorColumn',    'NONE',   SPLIT)
 Hi('Conceal',        NOISE,    BG)
-Hi('QuickFixLine',   BG,       GOLD)
-Hi('Substitute',     BG,       GOLD)
+Hi('QuickFixLine',   BG,       ACCENT)
+Hi('Substitute',     BG,       ACCENT)
 
 Hi('Whitespace',     SPLIT,    BG)
 
-Hi('PmenuKind',      GOLD,     PMENU_BG)
+Hi('PmenuKind',      ACCENT,     PMENU_BG)
 Hi('PmenuKindSel',   BG,       PMENU_SE)
 Hi('PmenuExtra',     NOISE,    PMENU_BG)
 Hi('PmenuExtraSel',  NOISE,    PMENU_SE)
 
 Hi('NormalFloat',    PMENU_FG, PMENU_BG)
 Hi('FloatBorder',    NOISE,    PMENU_BG)
-Hi('FloatTitle',     GOLD,     PMENU_BG, 'bold')
+Hi('FloatTitle',     ACCENT,     PMENU_BG, 'bold')
 
 Hi('LineNrAbove',    NOISE,    BG)
 Hi('LineNrBelow',    NOISE,    BG)
@@ -182,21 +174,21 @@ Hi('StatusLineTerm',   FG,     STATUS_BG, 'bold')
 Hi('StatusLineTermNC', BG,     MUTED,     'bold')
 
 Hi('CursorLine',     'NONE',   CURSOR_BG)
-Hi('CursorLineNr',   GOLD,     BG)
+Hi('CursorLineNr',   ACCENT,     BG)
 Hi('CursorLineFold', NOISE,    CURSOR_BG, 'italic')
 Hi('CursorLineSign', DIM,      CURSOR_BG)
 Hi('CursorColumn',   'NONE',   CURSOR_BG)
-Hi('MatchParen',     GOLD,     BG)
+Hi('MatchParen',     ACCENT,     BG)
 
-Hi('Cursor',         BG,       GOLD)
-Hi('lCursor',        BG,       GOLD)
-Hi('CursorIM',       BG,       GOLD)
+Hi('Cursor',         BG,       ACCENT)
+Hi('lCursor',        BG,       ACCENT)
+Hi('CursorIM',       BG,       ACCENT)
 
-Hi('Visual',         BG,       GOLD)
+Hi('Visual',         BG,       ACCENT)
 Hi('VisualNOS',      BG,       PMENU_SE)
-Hi('Search',         BG,       GOLD)
+Hi('Search',         BG,       ACCENT)
 Hi('CurSearch',      BG,       FG,      'bold')
-Hi('IncSearch',      BG,       GOLD)
+Hi('IncSearch',      BG,       ACCENT)
 
 Hi('Pmenu',          PMENU_FG, PMENU_BG)
 Hi('PmenuSel',       BG,       PMENU_SE)
@@ -211,22 +203,22 @@ Hi('TabLineSel',     BG,       FG,       'bold')
 Hi('DiffAdd',        'NONE',   DIFF_ADD_BG)
 Hi('DiffChange',     'NONE',   DIFF_CHG_BG)
 Hi('DiffDelete',     'NONE',   DIFF_DEL_BG)
-Hi('DiffText',       BG,       GOLD,        'bold')
+Hi('DiffText',       BG,       ACCENT,        'bold')
 
 Hi('Directory',      FG,       BG,       'bold')
-Hi('Title',          GOLD,     BG,       'bold')
+Hi('Title',          ACCENT,     BG,       'bold')
 Hi('ModeMsg',        FG,       BG,       'bold')
 Hi('MoreMsg',        DIM,      BG)
-Hi('Question',       GOLD,     BG)
-Hi('WarningMsg',     GOLD,     BG)
+Hi('Question',       ACCENT,     BG)
+Hi('WarningMsg',     ACCENT,     BG)
 
 Hi('String',         MUTED,    BG)
 Hi('Comment',        NOISE,    BG,      'italic')
-Hi('Todo',           GOLD,     BG,      'bold')
-Hi('SpecialComment', GOLD,     BG)
+Hi('Todo',           ACCENT,     BG,      'bold')
+Hi('SpecialComment', ACCENT,     BG)
 
-Hi('Error',          GOLD,     BG,       'reverse')
-Hi('ErrorMsg',       GOLD,     BG,       'reverse')
+Hi('Error',          ACCENT,     BG,       'reverse')
+Hi('ErrorMsg',       ACCENT,     BG,       'reverse')
 
 # GUI chrome
 Hi('Menu',           PMENU_FG, PMENU_BG)
@@ -239,11 +231,11 @@ Hi('ToolbarButton',  FG,       SPLIT,    'bold')
 Hi('Terminal',        FG,      BG)
 
 # Termdebug plugin
-Hi('debugPC',          BG,     GOLD)
-Hi('debugBreakpoint',  GOLD,   SPLIT)
+Hi('debugPC',          BG,     ACCENT)
+Hi('debugBreakpoint',  ACCENT,   SPLIT)
 
 # Spelling
-HiSp('SpellBad',    GOLD)
+HiSp('SpellBad',    ACCENT)
 HiSp('SpellCap',    MUTED)
 HiSp('SpellLocal',  DIM)
 HiSp('SpellRare',   NOISE)
@@ -266,7 +258,7 @@ g:terminal_ansi_colors = [
       BG,
       T_RED,
       T_GREEN,
-      GOLD,
+      ACCENT,
       T_BLUE,
       T_MAGENTA,
       T_CYAN,
@@ -286,18 +278,18 @@ $FZF_DEFAULT_OPTS =
   '--color=' ..
   'fg:#ffffff,' ..
   'bg:#0a0a0a,' ..
-  'hl:#ffee8f,' ..
+  'hl:#9d9d9d,' ..
   'fg+:#0a0a0a,' ..
   'bg+:#cccccc,' ..
-  'hl+:#ffee8f,' ..
+  'hl+:#9d9d9d,' ..
   'border:#1a1a1a,' ..
   'header:#8a8a8a,' ..
   'gutter:#0a0a0a,' ..
-  'spinner:#ffee8f,' ..
+  'spinner:#9d9d9d,' ..
   'info:#8a8a8a,' ..
-  'pointer:#ffee8f,' ..
-  'marker:#ffee8f,' ..
-  'prompt:#ffee8f,' ..
+  'pointer:#9d9d9d,' ..
+  'marker:#9d9d9d,' ..
+  'prompt:#9d9d9d,' ..
   'query:#ffffff,' ..
   'separator:#1a1a1a,' ..
   'scrollbar:#555555,' ..

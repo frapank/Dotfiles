@@ -11,7 +11,7 @@ white = "0xffffff"
 yellow = "0xffe066"
 
 [colors.cursor]
-cursor = "0xffee8f"
+cursor = "0x9d9d9d"
 text = "0x0a0a0a"
 
 [colors.normal]
@@ -26,7 +26,7 @@ yellow = "0xffee8f"
 
 [colors.primary]
 background = "0x0a0a0a"
-foreground = "0xffffff"
+foreground = "0xe9e9e9"
 
 [colors.selection]
 background = "0xffee8f"
