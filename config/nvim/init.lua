@@ -1,3 +1,39 @@
+-- PERFORMANCE
+vim.loader.enable()
+
+-- None of these have their neovim host installed; skip probing for them at startup.
+for _, provider in ipairs({ "perl", "ruby", "node", "python3" }) do
+    vim.g["loaded_" .. provider .. "_provider"] = 0
+end
+
+-- Big files: skip syntax/treesitter/undo/swap so the editor stays responsive.
+vim.api.nvim_create_autocmd("BufReadPre", {
+    callback = function(a)
+        local stat = vim.uv.fs_stat(a.file)
+        if stat and stat.size > 5 * 1024 * 1024 then
+            vim.b[a.buf].large_file = true
+            vim.opt_local.undofile = false
+            vim.opt_local.swapfile = false
+        end
+    end,
+})
+
+-- Deferred: startup's lazy ":syntax on" (and any treesitter autostart) can
+-- still re-enable highlighting for a bit after FileType fires, so re-assert
+-- shortly after rather than racing it synchronously.
+vim.api.nvim_create_autocmd("FileType", {
+    callback = function(a)
+        if vim.b[a.buf].large_file then
+            vim.defer_fn(function()
+                if vim.api.nvim_buf_is_valid(a.buf) then
+                    pcall(vim.treesitter.stop, a.buf)
+                    vim.bo[a.buf].syntax = "OFF"
+                end
+            end, 50)
+        end
+    end,
+})
+
 -- OPTIONS
 local o = vim.opt
 
@@ -7,6 +43,7 @@ o.tabstop, o.shiftwidth, o.expandtab, o.smartindent = 4, 4, true, true
 o.wrap, o.startofline, o.joinspaces = false, false, false
 o.scrolloff, o.sidescroll, o.sidescrolloff = 4, 1, 5
 o.ttimeout, o.ttimeoutlen, o.updatetime = true, 25, 300
+o.clipboard = "unnamedplus" -- y/d/p use the system clipboard (needs wl-copy/xclip/pbcopy)
 
 o.wildignore:append({ "*.exe", "*.dll", "*.pdb", "*.class", "*.o", "*.d" })
 o.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/dist/*", "*/build/*", "*/target/*" })
