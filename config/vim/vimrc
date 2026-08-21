@@ -2,6 +2,7 @@ vim9script
 
 # CORE SETTINGS
 set hlsearch incsearch ignorecase smartcase
+set clipboard=exclude:.*
 set wildignore+=*.exe,*.dll,*.pdb,*.class,*.o,*.d
 set wildignore+=*/.git/*,*/node_modules/*,*/dist/*,*/build/*,*/target/*
 set wildignorecase
@@ -56,7 +57,7 @@ augroup VrcStatusline
     autocmd DirChanged * g:cwd_tail = fnamemodify(getcwd(), ':t')
 augroup END
 g:cwd_tail = fnamemodify(getcwd(), ':t')
-set statusline=%#StatusLine#\ %f\ %m%r%=%{g:cwd_tail}\ %L\ %l:%c\ 
+set statusline=%#StatusLine#\ %f\ %m%r%=%{g:cwd_tail}\ %L\ %l:%c\
 
 # KEYMAPS
 g:mapleader = ' '
@@ -74,7 +75,7 @@ nnoremap <silent> <leader>m :make<CR>
 nnoremap <silent> <leader>/ :nohlsearch<CR>
 
 # FUZZY FINDER
-if executable('fzf')
+if executable('fzf') && !empty(globpath(&runtimepath, 'plugin/fzf.vim'))
     if executable('fd')
         $FZF_DEFAULT_COMMAND = 'fd . --exclude build --exclude .git'
     else
@@ -101,45 +102,3 @@ def LoadTermdebug(args: string)
     execute 'Termdebug ' .. args
 enddef
 command! -nargs=* -complete=file Debug LoadTermdebug(<q-args>)
-
-# CUSTOM FUNCTIONS
-def RunFZF()
-    if !has('terminal')
-        echom 'fzf not available: missing +terminal'
-        return
-    endif
-    var tmpfile = tempname()
-    var cmd = 'fzf > ' .. tmpfile
-    term_start(['sh', '-c', cmd], {
-        term_finish: 'close',
-        exit_cb: (_, status) => {
-            if status == 0 && filereadable(tmpfile)
-                var lines = readfile(tmpfile)
-                if !empty(lines) && !empty(lines[0])
-                    execute 'edit ' .. fnameescape(lines[0])
-                endif
-            endif
-            if filereadable(tmpfile)
-                delete(tmpfile)
-            endif
-        }
-    })
-enddef
-command! -nargs=0 FZF RunFZF()
-
-def HexToggle()
-    if &l:binary && &l:filetype ==# 'xxd'
-        silent :%!xxd -r
-        setlocal filetype=
-    else
-        if &modified
-            echohl WarningMsg | echom 'HexToggle: save changes first' | echohl None
-            return
-        endif
-        setlocal binary
-        silent edit
-        silent :%!xxd -g1
-        setlocal filetype=xxd
-    endif
-enddef
-command! -nargs=0 HexToggle HexToggle()
