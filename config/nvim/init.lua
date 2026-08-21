@@ -1,12 +1,10 @@
 -- PERFORMANCE
 vim.loader.enable()
 
--- None of these have their neovim host installed; skip probing for them at startup.
 for _, provider in ipairs({ "perl", "ruby", "node", "python3" }) do
     vim.g["loaded_" .. provider .. "_provider"] = 0
 end
 
--- Big files: skip syntax/treesitter/undo/swap so the editor stays responsive.
 vim.api.nvim_create_autocmd("BufReadPre", {
     callback = function(a)
         local stat = vim.uv.fs_stat(a.file)
@@ -18,9 +16,6 @@ vim.api.nvim_create_autocmd("BufReadPre", {
     end,
 })
 
--- Deferred: startup's lazy ":syntax on" (and any treesitter autostart) can
--- still re-enable highlighting for a bit after FileType fires, so re-assert
--- shortly after rather than racing it synchronously.
 vim.api.nvim_create_autocmd("FileType", {
     callback = function(a)
         if vim.b[a.buf].large_file then
@@ -43,7 +38,7 @@ o.tabstop, o.shiftwidth, o.expandtab, o.smartindent = 4, 4, true, true
 o.wrap, o.startofline, o.joinspaces = false, false, false
 o.scrolloff, o.sidescroll, o.sidescrolloff = 4, 1, 5
 o.ttimeout, o.ttimeoutlen, o.updatetime = true, 25, 300
-o.clipboard = "unnamedplus" -- y/d/p use the system clipboard (needs wl-copy/xclip/pbcopy)
+o.clipboard = "unnamedplus"
 
 o.wildignore:append({ "*.exe", "*.dll", "*.pdb", "*.class", "*.o", "*.d" })
 o.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/dist/*", "*/build/*", "*/target/*" })
@@ -57,7 +52,7 @@ o.virtualedit = "block"
 o.tags = "./tags;,tags;"
 o.listchars = { tab = "· ", trail = "·", nbsp = "␣" }
 o.laststatus = 2
-o.guicursor = "a:block" -- block in every mode, like terminal vim
+o.guicursor = "a:block"
 
 if vim.fn.has("nvim-0.10") == 0 then o.termguicolors = true end
 vim.cmd("colorscheme dot")
@@ -92,7 +87,7 @@ map("n", "<Tab>", ":bnext<CR>", { silent = true })
 map("n", "<S-Tab>", ":bprevious<CR>", { silent = true })
 
 -- FIND / GREP
-if vim.fn.executable("fzf") == 1 then
+if vim.fn.executable("fzf") == 1 and vim.fn.globpath(vim.o.runtimepath, "plugin/fzf.vim") ~= "" then
     vim.env.FZF_DEFAULT_COMMAND = vim.fn.executable("fd") == 1
         and 'fd . --exclude build --exclude .git'
         or 'find . \\( -path "*/build/*" -o -path "*/.git/*" \\) -prune -o -type f -print'
@@ -104,7 +99,7 @@ end
 
 o.grepprg = vim.fn.executable("rg") == 1
     and 'rg --vimgrep --smart-case --glob "!.git/*"'
-    or "grep -n -R -I -E --exclude-dir=.git" -- -E, not -P: BSD grep has no perl regex
+    or "grep -n -R -I -E --exclude-dir=.git"
 
 -- COMMANDS
 local cmd = vim.api.nvim_create_user_command
@@ -113,37 +108,6 @@ cmd("Debug", function(opts)
     vim.cmd("packadd termdebug")
     vim.cmd("Termdebug " .. opts.args)
 end, { nargs = "*", complete = "file" })
-
-cmd("FZF", function()
-    local lines = {}
-    vim.fn.jobstart({ "sh", "-c", "fzf --no-multi --no-cycle" }, {
-        stdout_buffered = true,
-        on_stdout = function(_, data)
-            for _, v in ipairs(data or {}) do
-                if v ~= "" then table.insert(lines, v .. ":1:1") end
-            end
-        end,
-        on_exit = function(_, status)
-            if status ~= 0 or #lines == 0 then return end
-            vim.fn.setqflist({}, " ", { title = "FZF", lines = lines })
-            vim.cmd("copen | cfirst")
-        end,
-    })
-end, {})
-
-cmd("HexToggle", function()
-    if vim.bo.binary and vim.bo.filetype == "xxd" then
-        vim.cmd("silent %!xxd -r")
-        vim.bo.filetype = ""
-    elseif vim.bo.modified then
-        vim.notify("HexToggle: save changes first", vim.log.levels.WARN)
-    else
-        vim.bo.binary = true
-        vim.cmd("silent edit")
-        vim.cmd("silent %!xxd -g1")
-        vim.bo.filetype = "xxd"
-    end
-end, {})
 
 require("lsp")
 require("terminal")
