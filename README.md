@@ -2,5 +2,5 @@ This is a public repository containing my personal configuration files (“dotfi
 
 If you want to use any of these configurations yourself, feel free to do so, but remember that these are meant to be dotfiles, so make sure to include the leading '.' when placing them in your home directory.
 
-Personal DWL WM fork: [DWL](https://github.com/frapank/personal-dwl)
+My WM : [G0WM](https://github.com/frapank/g0wm)
 Preferred font: [SF-Mono](https://github.com/supercomputra/SF-Mono-Font)
