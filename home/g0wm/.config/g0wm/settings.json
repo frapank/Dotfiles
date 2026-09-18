@@ -1,0 +1,1269 @@
+{
+	"look": {
+		"fonts": [
+			"SF Mono:size=11.5"
+		],
+		"colors": {
+			"norm": {
+				"fg": "#8a8a8aff",
+				"bg": "#070707ff",
+				"border": "#070707ff"
+			},
+			"sel": {
+				"fg": "#e9e9e9ff",
+				"bg": "#070707ff",
+				"border": "#070707ff"
+			},
+			"urg": {
+				"fg": "#e0a86aff",
+				"bg": "#070707ff",
+				"border": "#070707ff"
+			},
+			"title": {
+				"fg": "#7a7a7aff",
+				"bg": "#070707ff",
+				"border": "#070707ff"
+			},
+			"titlesel": {
+				"fg": "#e9e9e9ff",
+				"bg": "#070707ff",
+				"border": "#070707ff"
+			},
+			"status": {
+				"fg": "#8a8a8aff",
+				"bg": "#070707ff",
+				"border": "#070707ff"
+			},
+			"notify": {
+				"fg": "#e9e9e9ff",
+				"bg": "#060608ff",
+				"border": "#060608ff"
+			},
+			"runner": {
+				"fg": "#e9e9e9ff",
+				"bg": "#060608ff",
+				"border": "#060608ff"
+			},
+			"runnersuggest": {
+				"fg": "#707070ff",
+				"bg": "#060608ff",
+				"border": "#060608ff"
+			}
+		},
+		"rootcolor": "#0a1224ff",
+		"fullscreen_bg": "#0a1224ff",
+		"wallpaper": "/home/user/Media/Pictures/wallvoid.png",
+		"tags": [
+			"1",
+			"2",
+			"3",
+			"4",
+			"5",
+			"6",
+			"7",
+			"8",
+			"9"
+		]
+	},
+	"windows": {
+		"borderpx": 3,
+		"cornerstyle": "squircle",
+		"cornerpx": 12,
+		"gaps": 2,
+		"gappx": 2,
+		"smartgaps": false,
+		"titlebar": true,
+		"titlepadding": 15,
+		"layouts": [
+			{
+				"symbol": "[ ]",
+				"arrange": "tile"
+			},
+			{
+				"symbol": "< >",
+				"arrange": "float"
+			},
+			{
+				"symbol": "[M]",
+				"arrange": "monocle"
+			},
+			{
+				"symbol": "| |",
+				"arrange": "tabbed"
+			}
+		],
+		"rules": [
+			{
+				"id": "Placeholder",
+				"title": null,
+				"tags": 0,
+				"isfloating": true,
+				"opacity_focus": 0,
+				"opacity_unfocus": 0,
+				"monitor": -1
+			}
+		]
+	},
+	"bar": {
+		"showbar": true,
+		"topbar": true,
+		"barwintitle": false,
+		"barpadding": 4,
+		"barheight": 1.5,
+		"barsinglemon": false,
+		"showsystray": true,
+		"systrayspacing": 2,
+		"systrayiconsize": 16,
+		"traymenucmd": [
+			"wmenu",
+			"-f",
+			"monospace 10",
+			"-N",
+			"000000ff",
+			"-n",
+			"ffffffff",
+			"-M",
+			"000000ff",
+			"-m",
+			"ffffffff",
+			"-S",
+			"000000ff",
+			"-s",
+			"ffffffff"
+		],
+		"shownotifications": true,
+		"notification_timeout": 5
+	},
+	"opacity": {
+		"opacity_enabled": false,
+		"opacity_focus": 0.82,
+		"opacity_unfocus": 0.82,
+		"opacity_deco": 1,
+		"opacity_exclusion_type": "only-listed",
+		"opacity_apps": [
+			"foot",
+			"thunar",
+			"Thunar",
+			"lutris"
+		],
+		"opacity_type": "blur",
+		"blur_radius": 15,
+		"blur_passes": 1,
+		"blur_saturation": 1.6,
+		"blur_brightness": 1
+	},
+	"monitors": [
+		{
+			"name": null,
+			"mfact": 0.55,
+			"nmaster": 1,
+			"scale": 2,
+			"layout": "[ ]",
+			"transform": "normal",
+			"x": -1,
+			"y": -1,
+			"width": 0,
+			"height": 0,
+			"refresh": 0
+		}
+	],
+	"input": {
+		"sloppyfocus": true,
+		"xkb_rules": {
+			"rules": null,
+			"model": null,
+			"layout": null,
+			"variant": null,
+			"options": null
+		},
+		"repeat_rate": 25,
+		"repeat_delay": 600,
+		"cursor_theme": "Adwaita",
+		"cursor_size": 24,
+		"hide_cursor_when_typing": true,
+		"tap_to_click": true,
+		"tap_and_drag": true,
+		"drag_lock": true,
+		"natural_scrolling": false,
+		"disable_while_typing": true,
+		"left_handed": false,
+		"middle_button_emulation": false,
+		"scroll_method": "2fg",
+		"click_method": "button-areas",
+		"send_events_mode": "enabled",
+		"accel_profile": "flat",
+		"accel_speed": 0,
+		"button_map": "lrm"
+	},
+	"autostart": [
+		[
+			"swayidle",
+			"-w",
+			"timeout",
+			"300",
+			"gtklock",
+			"before-sleep",
+			"gtklock"
+		]
+	],
+	"keys": [
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "q",
+			"action": "spawn",
+			"arg": [
+				"foot"
+			]
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "f",
+			"action": "spawn",
+			"arg": [
+				"thunar"
+			]
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "b",
+			"action": "spawn",
+			"arg": [
+				"firefox"
+			]
+		},
+		{
+			"mod": [],
+			"key": "Print",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"grim -g \"$(slurp)\" - | swappy -f -"
+			]
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "c",
+			"action": "killclient",
+			"arg": null
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "v",
+			"action": "togglefloating",
+			"arg": null
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "g",
+			"action": "togglegaps",
+			"arg": null
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "b",
+			"action": "togglebar",
+			"arg": null
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "t",
+			"action": "toggletitlebar",
+			"arg": null
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "t",
+			"action": "toggletabbed",
+			"arg": "| |"
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "e",
+			"action": "togglefullscreen",
+			"arg": null
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "r",
+			"action": "reloadsettings",
+			"arg": null
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "r",
+			"action": "runnertoggle",
+			"arg": null
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "h",
+			"action": "focusstack",
+			"arg": -1
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "j",
+			"action": "focusstack",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "k",
+			"action": "focusstack",
+			"arg": -1
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "l",
+			"action": "focusstack",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "h",
+			"action": "movestack",
+			"arg": -1
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "j",
+			"action": "movestack",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "k",
+			"action": "movestack",
+			"arg": -1
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "l",
+			"action": "movestack",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"shift",
+				"alt",
+				"logo"
+			],
+			"key": "h",
+			"action": "resizewidth",
+			"arg": -50
+		},
+		{
+			"mod": [
+				"shift",
+				"alt",
+				"logo"
+			],
+			"key": "l",
+			"action": "resizewidth",
+			"arg": 50
+		},
+		{
+			"mod": [
+				"shift",
+				"alt",
+				"logo"
+			],
+			"key": "k",
+			"action": "resizeheight",
+			"arg": -50
+		},
+		{
+			"mod": [
+				"shift",
+				"alt",
+				"logo"
+			],
+			"key": "j",
+			"action": "resizeheight",
+			"arg": 50
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "h",
+			"action": "setmfact",
+			"arg": -0.05
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "l",
+			"action": "setmfact",
+			"arg": 0.05
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "o",
+			"action": "setopacityfocus",
+			"arg": 0.05
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "O",
+			"action": "setopacityfocus",
+			"arg": -0.05
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "o",
+			"action": "setopacityunfocus",
+			"arg": 0.05
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "O",
+			"action": "setopacityunfocus",
+			"arg": -0.05
+		},
+		{
+			"mod": [
+				"alt",
+				"logo"
+			],
+			"key": "o",
+			"action": "toggleopacity",
+			"arg": null
+		},
+		{
+			"mod": [],
+			"key": "XF86AudioRaiseVolume",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"
+			]
+		},
+		{
+			"mod": [],
+			"key": "XF86AudioLowerVolume",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+			]
+		},
+		{
+			"mod": [],
+			"key": "XF86AudioMute",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+			]
+		},
+		{
+			"mod": [],
+			"key": "XF86AudioMicMute",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
+			]
+		},
+		{
+			"mod": [],
+			"key": "XF86MonBrightnessUp",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"brightnessctl s 10%+"
+			]
+		},
+		{
+			"mod": [],
+			"key": "XF86MonBrightnessDown",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"brightnessctl s 10%-"
+			]
+		},
+		{
+			"mod": [],
+			"key": "XF86AudioNext",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"playerctl next"
+			]
+		},
+		{
+			"mod": [],
+			"key": "XF86AudioPause",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"playerctl play-pause"
+			]
+		},
+		{
+			"mod": [],
+			"key": "XF86AudioPlay",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"playerctl play-pause"
+			]
+		},
+		{
+			"mod": [],
+			"key": "XF86AudioPrev",
+			"action": "spawn",
+			"arg": [
+				"/bin/sh",
+				"-c",
+				"playerctl previous"
+			]
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "i",
+			"action": "incnmaster",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "d",
+			"action": "incnmaster",
+			"arg": -1
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "Return",
+			"action": "zoom",
+			"arg": null
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "Tab",
+			"action": "view",
+			"arg": 0
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "m",
+			"action": "setlayout",
+			"arg": "[M]"
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "space",
+			"action": "setlayout",
+			"arg": null
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "0",
+			"action": "view",
+			"arg": 4294967295
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "parenright",
+			"action": "tag",
+			"arg": 4294967295
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "comma",
+			"action": "focusmon",
+			"arg": 4
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "period",
+			"action": "focusmon",
+			"arg": 8
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "less",
+			"action": "tagmon",
+			"arg": 4
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "greater",
+			"action": "tagmon",
+			"arg": 8
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "1",
+			"action": "view",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "1",
+			"action": "toggleview",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "exclam",
+			"action": "tag",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "exclam",
+			"action": "toggletag",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "2",
+			"action": "view",
+			"arg": 2
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "2",
+			"action": "toggleview",
+			"arg": 2
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "at",
+			"action": "tag",
+			"arg": 2
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "at",
+			"action": "toggletag",
+			"arg": 2
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "3",
+			"action": "view",
+			"arg": 4
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "3",
+			"action": "toggleview",
+			"arg": 4
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "numbersign",
+			"action": "tag",
+			"arg": 4
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "numbersign",
+			"action": "toggletag",
+			"arg": 4
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "4",
+			"action": "view",
+			"arg": 8
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "4",
+			"action": "toggleview",
+			"arg": 8
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "dollar",
+			"action": "tag",
+			"arg": 8
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "dollar",
+			"action": "toggletag",
+			"arg": 8
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "5",
+			"action": "view",
+			"arg": 16
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "5",
+			"action": "toggleview",
+			"arg": 16
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "percent",
+			"action": "tag",
+			"arg": 16
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "percent",
+			"action": "toggletag",
+			"arg": 16
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "6",
+			"action": "view",
+			"arg": 32
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "6",
+			"action": "toggleview",
+			"arg": 32
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "asciicircum",
+			"action": "tag",
+			"arg": 32
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "asciicircum",
+			"action": "toggletag",
+			"arg": 32
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "7",
+			"action": "view",
+			"arg": 64
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "7",
+			"action": "toggleview",
+			"arg": 64
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "ampersand",
+			"action": "tag",
+			"arg": 64
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "ampersand",
+			"action": "toggletag",
+			"arg": 64
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "8",
+			"action": "view",
+			"arg": 128
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "8",
+			"action": "toggleview",
+			"arg": 128
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "asterisk",
+			"action": "tag",
+			"arg": 128
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "asterisk",
+			"action": "toggletag",
+			"arg": 128
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "9",
+			"action": "view",
+			"arg": 256
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "9",
+			"action": "toggleview",
+			"arg": 256
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "parenleft",
+			"action": "tag",
+			"arg": 256
+		},
+		{
+			"mod": [
+				"shift",
+				"ctrl",
+				"logo"
+			],
+			"key": "parenleft",
+			"action": "toggletag",
+			"arg": 256
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "q",
+			"action": "quit",
+			"arg": null
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "Terminate_Server",
+			"action": "quit",
+			"arg": null
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_1",
+			"action": "chvt",
+			"arg": 1
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_2",
+			"action": "chvt",
+			"arg": 2
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_3",
+			"action": "chvt",
+			"arg": 3
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_4",
+			"action": "chvt",
+			"arg": 4
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_5",
+			"action": "chvt",
+			"arg": 5
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_6",
+			"action": "chvt",
+			"arg": 6
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_7",
+			"action": "chvt",
+			"arg": 7
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_8",
+			"action": "chvt",
+			"arg": 8
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_9",
+			"action": "chvt",
+			"arg": 9
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_10",
+			"action": "chvt",
+			"arg": 10
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_11",
+			"action": "chvt",
+			"arg": 11
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt"
+			],
+			"key": "XF86Switch_VT_12",
+			"action": "chvt",
+			"arg": 12
+		}
+	],
+	"buttons": [
+		{
+			"click": "ltsymbol",
+			"mod": [],
+			"button": "left",
+			"action": "setlayout",
+			"arg": "[ ]"
+		},
+		{
+			"click": "ltsymbol",
+			"mod": [],
+			"button": "right",
+			"action": "setlayout",
+			"arg": "[M]"
+		},
+		{
+			"click": "title",
+			"mod": [],
+			"button": "middle",
+			"action": "zoom",
+			"arg": null
+		},
+		{
+			"click": "title",
+			"mod": [],
+			"button": "left",
+			"action": "notifyclick",
+			"arg": null
+		},
+		{
+			"click": "title",
+			"mod": [],
+			"button": "right",
+			"action": "notifydismiss",
+			"arg": null
+		},
+		{
+			"click": "status",
+			"mod": [],
+			"button": "middle",
+			"action": "spawn",
+			"arg": [
+				"foot"
+			]
+		},
+		{
+			"click": "tray",
+			"mod": [],
+			"button": "left",
+			"action": "trayactivate",
+			"arg": null
+		},
+		{
+			"click": "tray",
+			"mod": [],
+			"button": "right",
+			"action": "traymenu",
+			"arg": null
+		},
+		{
+			"click": "tagbar",
+			"mod": [],
+			"button": "left",
+			"action": "view",
+			"arg": 0
+		},
+		{
+			"click": "tagbar",
+			"mod": [],
+			"button": "right",
+			"action": "toggleview",
+			"arg": 0
+		},
+		{
+			"click": "tagbar",
+			"mod": [
+				"logo"
+			],
+			"button": "left",
+			"action": "tag",
+			"arg": 0
+		},
+		{
+			"click": "tagbar",
+			"mod": [
+				"logo"
+			],
+			"button": "right",
+			"action": "toggletag",
+			"arg": 0
+		},
+		{
+			"click": "client",
+			"mod": [
+				"logo"
+			],
+			"button": "left",
+			"action": "moveresize",
+			"arg": "move"
+		},
+		{
+			"click": "client",
+			"mod": [
+				"logo"
+			],
+			"button": "middle",
+			"action": "togglefloating",
+			"arg": null
+		},
+		{
+			"click": "client",
+			"mod": [
+				"logo"
+			],
+			"button": "right",
+			"action": "moveresize",
+			"arg": "resize"
+		}
+	],
+	"misc": {
+		"log_level": "error",
+		"bypass_surface_visibility": false
+	}
+}
