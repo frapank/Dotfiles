@@ -60,7 +60,7 @@ _setup_env() {
 
 _setup_path() {
     local _dir
-    for _dir in "$HOME/.cargo/bin" "$HOME/.local/bin" "$HOME/go/bin" "$HOME/bin"; do
+    for _dir in "$HOME/.cargo/bin" "$HOME/.local/bin" "$HOME/go/bin" "$HOME/bin" "$HOME/.zvm/bin"; do
         [[ -d $_dir && :$PATH: != *:$_dir:* ]] && PATH="$_dir:$PATH"
     done
 }
