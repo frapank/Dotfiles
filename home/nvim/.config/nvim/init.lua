@@ -1,10 +1,12 @@
 -- PERFORMANCE
 vim.loader.enable()
 
+-- Skip host search
 for _, provider in ipairs({ "perl", "ruby", "node", "python3" }) do
     vim.g["loaded_" .. provider .. "_provider"] = 0
 end
 
+-- Big files
 vim.api.nvim_create_autocmd("BufReadPre", {
     callback = function(a)
         local stat = vim.uv.fs_stat(a.file)
@@ -16,6 +18,8 @@ vim.api.nvim_create_autocmd("BufReadPre", {
     end,
 })
 
+
+-- Deferred because startup turns highlighting back on a moment later
 vim.api.nvim_create_autocmd("FileType", {
     callback = function(a)
         if vim.b[a.buf].large_file then
@@ -45,14 +49,21 @@ o.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/dist/*", "*/build/*", "
 o.wildignorecase = true
 o.shortmess:append("IcC")
 
-o.grepformat = "%f:%l:%m"
+o.grepformat = "%f:%l:%c:%m,%f:%l:%m"
 o.fileformats = { "unix", "dos" }
 o.nrformats = { "bin", "hex", "unsigned" }
 o.virtualedit = "block"
 o.tags = "./tags;,tags;"
+o.exrc = true -- per-project .nvim.lua (makeprg, :Debug args); prompts for trust
 o.listchars = { tab = "· ", trail = "·", nbsp = "␣" }
 o.laststatus = 2
 o.guicursor = "a:block"
+o.winborder = "single"
+
+o.foldmethod, o.foldlevelstart = "expr", 99
+-- Without this the default foldexpr is "0": every line evaluated, no fold
+-- ever produced. LspAttach replaces it per-window wherever a server folds.
+o.foldexpr = "v:lua.vim.treesitter.foldexpr()"
 
 if vim.fn.has("nvim-0.10") == 0 then o.termguicolors = true end
 vim.cmd("colorscheme dot")
@@ -99,7 +110,7 @@ end
 
 o.grepprg = vim.fn.executable("rg") == 1
     and 'rg --vimgrep --smart-case --glob "!.git/*"'
-    or "grep -n -R -I -E --exclude-dir=.git"
+    or "grep -n -R -I -E --exclude-dir=.git" -- -E, not -P: BSD grep has no perl regex
 
 -- COMMANDS
 local cmd = vim.api.nvim_create_user_command
@@ -108,6 +119,21 @@ cmd("Debug", function(opts)
     vim.cmd("packadd termdebug")
     vim.cmd("Termdebug " .. opts.args)
 end, { nargs = "*", complete = "file" })
+
+-- Jump between a translation unit and its header (clangd extension)
+cmd("Switch", function()
+    local client = vim.lsp.get_clients({ bufnr = 0, name = "clangd" })[1]
+    if not client then
+        return vim.notify("Switch: clangd is not attached", vim.log.levels.WARN)
+    end
+    client:request("textDocument/switchSourceHeader", { uri = vim.uri_from_bufnr(0) },
+        function(err, result)
+            if err or not result then
+                return vim.notify("Switch: no counterpart found", vim.log.levels.WARN)
+            end
+            vim.cmd.edit(vim.fn.fnameescape(vim.uri_to_fname(result)))
+        end, 0)
+end, {})
 
 require("lsp")
 require("terminal")
