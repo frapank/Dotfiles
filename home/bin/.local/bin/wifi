@@ -1,0 +1,5 @@
+#!/bin/sh
+case ${1:-} in
+on | off) exec nmcli radio wifi "$1" ;;
+esac
+exec nm-connection-editor "$@"

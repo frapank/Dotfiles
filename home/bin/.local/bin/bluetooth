@@ -1,0 +1,5 @@
+#!/bin/sh
+case ${1:-} in
+on | off) exec bluetoothctl power "$1" ;;
+esac
+exec blueman-manager "$@"
