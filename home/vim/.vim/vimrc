@@ -57,7 +57,7 @@ augroup VrcStatusline
     autocmd DirChanged * g:cwd_tail = fnamemodify(getcwd(), ':t')
 augroup END
 g:cwd_tail = fnamemodify(getcwd(), ':t')
-set statusline=%#StatusLine#\ %f\ %m%r%=%{g:cwd_tail}\ %L\ %l:%c\
+set statusline=%#StatusLine#\ %f\ %m%r%=%{g:cwd_tail}\ %L\ %l:%c\ 
 
 # KEYMAPS
 g:mapleader = ' '
