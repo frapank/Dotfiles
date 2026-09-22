@@ -52,7 +52,7 @@
 		},
 		"rootcolor": "#0a1224ff",
 		"fullscreen_bg": "#0a1224ff",
-		"wallpaper": "/home/user/Media/Pictures/wallvoid.png",
+		"wallpaper": "/home/user/Media/Pictures/wallrand.png",
 		"tags": [
 			"1",
 			"2",
@@ -117,7 +117,7 @@
 		"traymenucmd": [
 			"wmenu",
 			"-f",
-			"monospace 10",
+			"SF Mono 10",
 			"-N",
 			"000000ff",
 			"-n",
@@ -197,13 +197,30 @@
 	},
 	"autostart": [
 		[
+			"dbus-update-activation-environment",
+			"WAYLAND_DISPLAY",
+			"XDG_CURRENT_DESKTOP"
+		],
+		[
+			"gnome-keyring-daemon",
+			"--start",
+			"--components=secrets"
+		],
+		[
+			"/usr/libexec/polkit-gnome-authentication-agent-1"
+		],
+		[
+			"thunar",
+			"--daemon"
+		],
+		[
 			"swayidle",
 			"-w",
 			"timeout",
 			"300",
-			"gtklock",
+			"gtklock -d",
 			"before-sleep",
-			"gtklock"
+			"gtklock -d"
 		]
 	],
 	"keys": [
@@ -234,7 +251,7 @@
 			"key": "b",
 			"action": "spawn",
 			"arg": [
-				"firefox"
+				"librewolf"
 			]
 		},
 		{
@@ -245,6 +262,28 @@
 				"/bin/sh",
 				"-c",
 				"grim -g \"$(slurp)\" - | swappy -f -"
+			]
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "Print",
+			"action": "spawn",
+			"arg": [
+				"record"
+			]
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "Print",
+			"action": "spawn",
+			"arg": [
+				"record",
+				"region"
 			]
 		},
 		{
