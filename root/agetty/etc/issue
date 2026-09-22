@@ -1,0 +1,10 @@
+
+       \e{lightgray}|\\      _,,,---,,_\e{reset}
+ \e{lightcyan}ZZZzz\e{reset} \e{lightgray}/,`.-'`'    -.  ;-;;,_
+      |,4-  ) )-,_. ,\\ (  `'-'
+     '---''(_/--'  `-'\\_)\e{reset}
+
+  \e{white}Welcome back!\e{reset}\e{gray} login to wake up the cat\e{reset}
+  \e{gray}\S{PRETTY_NAME} \r · \d \t\e{reset}
+
+\e[1;37m
