@@ -1,0 +1,3 @@
+time.cloudflare.com  9.9.9.9,149.112.112.112
+nts.netnod.se        9.9.9.9,149.112.112.112
+ptbtime1.ptb.de      9.9.9.9,149.112.112.112
