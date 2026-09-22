@@ -1,4 +1,4 @@
--- Make :terminal behave like Vim's: <C-w> window nav, autoinsert, autoclose.
+-- Make :terminal behave like Vim
 
 local api = vim.api
 
@@ -6,7 +6,7 @@ local function keycode(s)
     return api.nvim_replace_termcodes(s, true, false, true)
 end
 
--- Direction key (incl. Ctrl-variants and arrows) -> winnr() direction letter.
+-- Direction key
 local WIN_DIR = {
     h = "h", [keycode("<C-h>")] = "h", [keycode("<Left>")] = "h",
     j = "j", [keycode("<C-j>")] = "j", [keycode("<Down>")] = "j",
@@ -16,8 +16,7 @@ local WIN_DIR = {
 
 local LITERAL = keycode("<C-w>")
 
--- <C-w><dir>: leave terminal mode and move, like Vim's terminal does.
--- <C-w><C-w>/w: cycle windows. <C-w>. sends a literal <C-w> to the job.
+-- Leave terminal mode and move
 vim.keymap.set("t", "<C-w>", function()
     local ch = vim.fn.getcharstr()
 
@@ -48,7 +47,7 @@ api.nvim_create_autocmd("TermOpen", {
     end,
 })
 
--- Re-enter insert mode when returning to a terminal window left in insert mode.
+-- Re-enter insert mode when returning to a terminal window left in insert mode
 api.nvim_create_autocmd("WinEnter", {
     group = group,
     callback = function()
@@ -58,14 +57,12 @@ api.nvim_create_autocmd("WinEnter", {
     end,
 })
 
--- Close the window on a normal shell exit (0) or Ctrl-C (130), like Vim does.
--- One-off command terminals (:term <cmd>) are left open so output stays visible.
+-- The shell closing takes its window with it
 api.nvim_create_autocmd("TermClose", {
     group = group,
     callback = function(a)
         local shell_cmd = a.file:gsub("^%S*:", "")
-        local code = vim.v.event.status
-        if shell_cmd == vim.o.shell and (code == 0 or code == 130) and api.nvim_buf_is_valid(a.buf) then
+        if shell_cmd == vim.o.shell and api.nvim_buf_is_valid(a.buf) then
             vim.api.nvim_buf_delete(a.buf, { force = true })
         end
     end,

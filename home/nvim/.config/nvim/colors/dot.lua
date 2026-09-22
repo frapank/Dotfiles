@@ -66,7 +66,13 @@ local function rgb_to_ansi16(r, g, b)
     return best
 end
 
-local USE_256 = (vim.env.TERM or ''):find('256col') ~= nil
+local TERM = vim.env.TERM or ''
+local USE_256 = not (TERM == ''
+    or TERM == 'ansi'
+    or TERM == 'xterm-color'
+    or TERM:find('linux', 1, true)
+    or TERM:find('dumb', 1, true)
+    or TERM:find('^vt%d'))
 local cterm_cache = {}
 
 local function to_cterm(hex)
@@ -83,10 +89,10 @@ local function to_cterm(hex)
 end
 
 -- Helper
-local function Hi(group, fg, bg, attr)
+local function Hi(group, fg, bg, attr, sp)
     attr = attr or 'NONE'
-    vim.cmd(string.format("hi %s guifg=%s guibg=%s gui=%s cterm=%s ctermfg=%s ctermbg=%s",
-        group, fg, bg, attr, attr, to_cterm(fg), to_cterm(bg)))
+    vim.cmd(string.format("hi %s guifg=%s guibg=%s guisp=%s gui=%s cterm=%s ctermfg=%s ctermbg=%s",
+        group, fg, bg, sp or 'NONE', attr, attr, to_cterm(fg), to_cterm(bg)))
 end
 
 -- Base groups
@@ -187,12 +193,10 @@ Hi('DiagnosticWarn',           MUTED,  BG)
 Hi('DiagnosticInfo',           DIM,    BG)
 Hi('DiagnosticHint',           NOISE,  BG)
 Hi('DiagnosticOk',             DIM,    BG)
-Hi('DiagnosticUnderlineError', 'NONE', BG, 'undercurl')
-Hi('DiagnosticUnderlineWarn',  'NONE', BG, 'undercurl')
-Hi('DiagnosticUnderlineInfo',  'NONE', BG, 'underline')
-Hi('DiagnosticUnderlineHint',  'NONE', BG, 'underline')
-vim.cmd('hi DiagnosticUnderlineError guisp=' .. ACCENT)
-vim.cmd('hi DiagnosticUnderlineWarn guisp=' .. MUTED)
+Hi('DiagnosticUnderlineError', 'NONE', 'NONE', 'undercurl', ACCENT)
+Hi('DiagnosticUnderlineWarn',  'NONE', 'NONE', 'undercurl', MUTED)
+Hi('DiagnosticUnderlineInfo',  'NONE', 'NONE', 'underline', DIM)
+Hi('DiagnosticUnderlineHint',  'NONE', 'NONE', 'underline', NOISE)
 
 -- Terminal colors
 local T_RED     = '#cc6666'
