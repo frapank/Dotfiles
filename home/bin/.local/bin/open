@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+usage() {
+	cat <<EOF
+Usage: open [OPTION]... [FILE]...
+Open each FILE with its default app.
+Files of the same kind are opened together in one app.
+
+With no FILE, or when FILE is -, read standard input and open it by content.
+
+  -e, --edit      open every FILE in the text editor (vim)
+  -x, --hex       show every FILE as a hex dump
+  -n, --dry-run   print the commands, do not run them
+  -h, --help      display this help and exit
+      --version   output version information and exit
+
+Apps:
+  images          loupe       png jpg gif webp svg avif heic jxl ...
+  video, audio    showtime    mp4 mkv webm avi mov mp3 flac ogg wav ...
+  documents       papers      pdf djvu cbz cbr tiff
+  office          libreoffice odt docx ods xlsx odp pptx rtf csv ...
+  archives        xarchiver   zip tar gz xz zst 7z rar iso ...
+  web pages, URLs librewolf   html htm, http:// https://
+  directories     thunar
+  text, code      vim         in this terminal, or in a new foot window
+  binary          xxd | less  offsets, hex bytes and characters side by side
+
+Exit status is 0 if every FILE was opened, 1 if some failed, 2 on bad usage.
+EOF
+}
+
+err() { printf 'open: %s\n' "$*" >&2; status=1; }
+try() { echo "Try 'open --help' for more information." >&2; exit 2; }
+
+status=0 dry=0 force=
+
+# command line
+args=()
+while (($#)); do
+	case $1 in
+	--) shift; args+=("$@"); break ;;
+	--help) usage; exit 0 ;;
+	--version) echo "open (dotfiles) 1.0"; exit 0 ;;
+	--dry-run) dry=1 ;;
+	--edit) force=text ;;
+	--hex) force=hex ;;
+	--*) echo "open: unrecognized option '$1'" >&2; try ;;
+	-?*)
+		opts=${1#-}
+		while [[ -n $opts ]]; do
+			o=${opts:0:1} opts=${opts:1}
+			case $o in
+			n) dry=1 ;;
+			e) force=text ;;
+			x) force=hex ;;
+			h) usage; exit 0 ;;
+			*) echo "open: invalid option -- '$o'" >&2; try ;;
+			esac
+		done ;;
+	*) args+=("$1") ;;
+	esac
+	shift
+done
+if ((${#args[@]} == 0)); then
+	[[ -t 0 ]] && { echo "open: missing file operand" >&2; try; }
+	args=(-)
+fi
+
+# what kind of file is it
+
+kind_of_ext() {
+	case ${1,,} in
+	png|jpg|jpeg|jpe|jfif|gif|webp|apng|bmp|jp2|qoi|ico|dds|exr|pnm|pbm|pgm|ppm|tga|xbm|xpm|svg|svgz|avif|heic|heif|jxl)
+		echo image ;;
+	mp4|m4v|mkv|webm|avi|mov|wmv|flv|mpg|mpeg|m2ts|mts|3gp|3g2|ogv|vob|divx|asf|mp3|flac|ogg|oga|opus|wav|m4a|aac|wma|aiff|aif|ape|mka)
+		echo video ;;
+	pdf|djvu|djv|cbz|cbr|cb7|cbt|tif|tiff|ai) echo pdf ;;
+	odt|ods|odp|odg|ott|ots|otp|doc|docx|xls|xlsx|ppt|pptx|rtf|csv|tsv) echo office ;;
+	zip|jar|tar|gz|tgz|bz2|tbz|tbz2|xz|txz|zst|tzst|7z|rar|lz|lz4|cpio|iso|deb|rpm|cab) echo archive ;;
+	html|htm|xhtml|shtml) echo web ;;
+	bin|o|so|a|ko|exe|dll|elf|out|class|pyc|wasm|dat|img|obj|dex|efi) echo hex ;;
+	txt|text|md|markdown|rst|org|tex|bib|c|h|cc|cpp|cxx|hh|hpp|hxx|rs|go|zig|py|lua|rb|pl|java|kt|js|mjs|cjs|jsx|tsx|css|scss|sh|bash|zsh|fish|vim|json|jsonc|toml|yaml|yml|xml|ini|conf|cfg|log|mk|cmake|diff|patch|sql|nix|lock|env|desktop|service|gitignore|s|asm|ld)
+		echo text ;;
+	esac
+}
+
+kind_of_content() {
+	local mime
+	mime=$(file -b -L --mime-type -- "$1" 2>/dev/null) || return
+	case $mime in
+	image/*) echo image ;;
+	video/*|audio/*) echo video ;;
+	application/pdf|image/vnd.djvu*) echo pdf ;;
+	application/vnd.oasis.opendocument.*|application/vnd.openxmlformats-officedocument.*|application/msword|application/vnd.ms-*|text/rtf|text/csv)
+		echo office ;;
+	application/zip|application/x-tar|application/gzip|application/x-xz|application/x-bzip2|application/zstd|application/x-7z-compressed|application/vnd.rar|application/x-rar|application/x-iso9660-image)
+		echo archive ;;
+	text/html) echo web ;;
+	text/*|application/json|application/x-shellscript|application/javascript|application/xml|application/toml|inode/x-empty)
+		echo text ;;
+	*)
+		if [[ $(file -b -L --mime-encoding -- "$1" 2>/dev/null) == binary ]]; then
+			echo hex
+		else
+			echo text
+		fi ;;
+	esac
+}
+
+kind_of() {
+	local f=$1 base ext= k=
+	if [[ -d $f ]]; then echo dir; return; fi
+	base=${f##*/}
+	[[ $base == ?*.* ]] && ext=${base##*.} && k=$(kind_of_ext "$ext")
+	# .ts is both MPEG-TS video and TypeScript
+	if [[ ${ext,,} == ts ]]; then
+		case $(file -b -L --mime-type -- "$f" 2>/dev/null) in
+		video/*) k=video ;;
+		*) k=text ;;
+		esac
+	fi
+	[[ -n $k ]] || k=$(kind_of_content "$f")
+	echo "$k"
+}
+
+# which app opens it
+
+gui_app() {
+	case $1 in
+	image) echo loupe ;;
+	video) echo showtime ;;
+	pdf) echo papers ;;
+	office) echo libreoffice ;;
+	archive) echo xarchiver ;;
+	web|url) echo librewolf ;;
+	dir) echo thunar ;;
+	esac
+}
+
+have_gui() { [[ -n ${WAYLAND_DISPLAY:-} || -n ${DISPLAY:-} ]]; }
+
+show() { printf '%q' "$1"; shift; (($#)) && printf ' %q' "$@"; echo; }
+
+detached() {
+	local a
+	for a; do [[ $a == "$stdin" ]] && keep=1; done
+	return 0
+}
+
+launch() {
+	if ((dry)); then show "$@"; return; fi
+	detached "$@"
+	setsid -f "$@" </dev/null >/dev/null 2>&1
+}
+
+in_terminal() {
+	if ((dry)); then show "$@"; return 0; fi
+	if [[ -t 0 && -t 1 ]]; then
+		"$@"
+	elif have_gui && command -v foot >/dev/null; then
+		detached "$@"
+		setsid -f foot -- "$@" </dev/null >/dev/null 2>&1
+	else
+		echo "open: no terminal to run $1 in" >&2; return 1
+	fi
+}
+
+hexdump() {
+	local f color=never
+	[[ -t 1 ]] && color=always
+	for f; do
+		if [[ $f == "$stdin" ]]; then
+			printf '==> standard input <==\n'
+		else
+			printf '==> %s <==\n' "$f"
+		fi
+		printf 'type: %s\n' "$(file -b -L -- "$f")"
+		printf 'size: %s bytes\n\n' "$(stat -L -c %s -- "$f")"
+		xxd -g 1 -c 16 -R "$color" -- "$f" || return
+		echo
+	done
+}
+
+stdin= keep=0
+read_stdin() {
+	local d
+	d=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/open.XXXXXX") || return
+	stdin=$d/stdin
+	trap '((keep)) || rm -rf -- "${stdin%/*}"' EXIT
+	cat >"$stdin" || { err "-: cannot read standard input"; return 1; }
+	# give the keyboard back to vim and less
+	{ exec </dev/tty; } 2>/dev/null || exec </dev/null
+}
+
+kinds=() paths=()
+for f in "${args[@]}"; do
+	case $f in
+	'') err "'': No such file or directory"; continue ;;
+	-)
+		if [[ -n $stdin ]]; then err "-: standard input given more than once"; continue; fi
+		read_stdin || continue
+		kinds+=("${force:-$(kind_of_content "$stdin")}") paths+=("$stdin")
+		continue ;;
+	http://*|https://*) k=url ;;
+	www.*) [[ -e $f ]] && k= || k=url ;;
+	*) k= ;;
+	esac
+	if [[ -z $k ]]; then
+		if [[ ! -e $f ]]; then
+			if [[ -L $f ]]; then err "$f: Broken symbolic link"
+			else err "$f: No such file or directory"; fi
+			continue
+		fi
+		if [[ ! -r $f ]]; then err "$f: Permission denied"; continue; fi
+		if [[ ! -f $f && ! -d $f ]]; then err "$f: Not a regular file or directory"; continue; fi
+		[[ $f == -* ]] && f=./$f
+		if [[ $force == hex && -d $f ]]; then err "$f: Is a directory"; continue; fi
+		k=${force:-$(kind_of "$f")}
+	fi
+	kinds+=("$k") paths+=("$f")
+done
+
+list() {
+	local i
+	list=()
+	for i in "${!kinds[@]}"; do
+		[[ ${kinds[i]} == "$1" ]] && list+=("${paths[i]}")
+	done
+	((${#list[@]}))
+}
+
+for k in dir image video pdf office archive web url; do
+	list "$k" || continue
+	cmd=$(gui_app "$k")
+	if ! command -v -- "$cmd" >/dev/null; then
+		err "$cmd: command not found (needed for ${list[*]})"; continue
+	fi
+	if ! ((dry)) && ! have_gui; then
+		err "no graphical session to run $cmd (needed for ${list[*]})"; continue
+	fi
+	if [[ $k == archive ]]; then
+		for f in "${list[@]}"; do launch "$cmd" "$f" || err "$f: cannot run $cmd"; done
+	else
+		launch "$cmd" "${list[@]}" || err "cannot run $cmd"
+	fi
+done
+
+if list hex; then
+	if ((dry)); then
+		for f in "${list[@]}"; do printf 'xxd -g 1 -c 16 %q | less -R\n' "$f"; done
+	elif [[ -t 1 ]]; then
+		hexdump "${list[@]}" | less -R
+	elif [[ -t 0 ]]; then
+		# run from a terminal with the output to a pipe or a file: no pager
+		hexdump "${list[@]}" || status=1
+	else
+		in_terminal "$0" --hex -- "${list[@]}" || status=1
+	fi
+fi
+
+if list text; then
+	if command -v vim >/dev/null; then
+		in_terminal vim -p -- "${list[@]}" || status=1
+	else
+		err "vim: command not found (needed for ${list[*]})"
+	fi
+fi
+
+exit "$status"
