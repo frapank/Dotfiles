@@ -63,7 +63,7 @@ PKG_FONTS=(fontconfig nerd-fonts noto-fonts-ttf noto-fonts-emoji noto-fonts-cjk)
 PKG_LOCALE=(glibc-locales)
 PKG_HW=(fwupd)
 PKG_POWER=(power-profiles-daemon)
-PKG_LOGS=(socklog-void)
+PKG_LOGS=(socklog-void pulseaudio-utils)
 PKG_DIRS=(xdg-user-dirs)
 PKG_SWAP=(zramen)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
@@ -709,6 +709,12 @@ plan() {
 		Packages: ${PKG_LOGS[*]}; services socklog-unix and nanoklogd on: logs in
 		  /var/log/socklog (kernel, daemons, firewall drops). $TUSER in the socklog
 		  group, read them with 'svlogtail'.
+		Service watchdog: notifications to the g0wm session for crashes, disk and
+		  filesystem errors, overheating, USB plug/unplug/errors (kernel log, a
+		  click opens it in foot), runit services restarting in a loop, batteries
+		  at 20%/10%, disks over 90%, microphone and webcam in use.
+		  /etc/sysctl.d/60-watchdog.conf: print-fatal-signals=1, so crashes that
+		  a program catches and re-raises get logged too.
 	EOF
 	zram_size
 	section swap "Swap in compressed RAM (zramen)" <<-EOF
@@ -1409,6 +1415,10 @@ do_services() {
 	if ((DO[logs])); then
 		sv_enable socklog-unix
 		sv_enable nanoklogd
+		save_sysctl "$REPO"/root/watchdog/etc/sysctl.d/*.conf
+		put_tree watchdog
+		try "sysctl -p 60-watchdog.conf" sysctl -p /etc/sysctl.d/60-watchdog.conf
+		sv_enable watchdog
 	fi
 	return 0
 }
@@ -1518,6 +1528,7 @@ verify() {
 	fi
 	if ((DO[logs])); then
 		[[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || { warn "socklog not enabled"; bad=1; }
+		[[ -L $SVDIR/watchdog ]] || { warn "watchdog not enabled"; bad=1; }
 	fi
 	if ((DO[session])); then
 		for c in nm-connection-editor blueman-manager gnome-keyring-daemon; do
