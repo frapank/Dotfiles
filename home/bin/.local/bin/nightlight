@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+temp=4000
+uid=$(id -u)
+
+running() { pgrep -u "$uid" -x wlsunset >/dev/null; }
+
+off() {
+    pkill -u "$uid" -x wlsunset || true
+    notify-send -i weather-clear -t 1500 "Night light off" || true
+}
+
+on() {
+    running && return 0
+    setsid -f wlsunset -t "$temp" -T "$((temp + 1))" -S 06:00 -s 18:00 </dev/null >/dev/null 2>&1
+    notify-send -i weather-clear-night -t 1500 "Night light on" "${temp}K" || true
+}
+
+case ${1:-toggle} in
+on) on ;;
+off) off ;;
+toggle) if running; then off; else on; fi ;;
+*) echo "usage: nightlight [on|off|toggle]" >&2; exit 2 ;;
+esac

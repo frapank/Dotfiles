@@ -47,8 +47,8 @@ PKG_APPS=(
 	gvfs gvfs-mtp udisks2 xarchiver
 	# default apps
 	xdg-utils gtk+3 desktop-file-utils shared-mime-info
-	# screen recording
-	wf-recorder libnotify
+	# screen recording, night light
+	wf-recorder libnotify wlsunset
 	# terminal tools
 	tree bat htop unzip zip 7zip wget curl rsync jq file lsof strace psmisc
 	ncdu fastfetch
@@ -765,9 +765,10 @@ plan() {
 		  fastfetch: Void logo in the dwl colors, icon keys grouped in boxes,
 		    usage bars for memory and disk;
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
-		    record extract compress open (the xdg ones start the default app, or
-		    open the files given; wifi/bluetooth on|off switch the radio; Super+Print
-		    runs record; extract/compress wrap tar 7z unrar gpg age; open FILE...
+		    record nightlight extract compress open (the xdg ones start the default
+		    app, or open the files given; wifi/bluetooth on|off switch the radio;
+		    Super+Print runs record; Super+= toggles nightlight, a 4000K blue light
+		    filter via wlsunset; extract/compress wrap tar 7z unrar gpg age; open FILE...
 		    picks the app from the extension: Loupe, Showtime, Papers, LibreOffice,
 		    xarchiver, librewolf, Thunar, vim for text, xxd | less for binaries).
 		Writes ~/.config/mimeapps.list in place (${#MIME_DEFAULTS[@]} types: images Loupe,
