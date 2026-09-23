@@ -69,7 +69,7 @@ PKG_SWAP=(zramen)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
 HOME_CLI=(bash ctags nvim vim tmux)
 HOME_DESKTOP=(foot g0wm gtklock)
-HOME_APPS=(thunar mime bin)
+HOME_APPS=(thunar mime bin fastfetch)
 HOME_THEME=(gtk)
 HOME_FONTS=(fontconfig)
 HOME_MEDIA=(portal)
@@ -762,6 +762,8 @@ plan() {
 		Copies home/{$(join , "${HOME_APPS[@]}")}:
 		  Thunar: 'Open Terminal Here' runs foot, thunar-volman automounts drives;
 		  nvim-foot.desktop, so text files open nvim inside foot;
+		  fastfetch: Void logo in the dwl colors, icon keys grouped in boxes,
+		    usage bars for memory and disk;
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
 		    record extract compress open (the xdg ones start the default app, or
 		    open the files given; wifi/bluetooth on|off switch the radio; Super+Print
