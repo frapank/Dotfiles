@@ -364,6 +364,7 @@ rollback() {
 		hremove) as_user rm -rf -- "$a" ;;
 		hmove) as_user rm -rf -- "$a" && as_user mv -- "$UBAK$a" "$a" ;;
 		hrmdir) as_user rmdir -- "$a" ;;
+		hchmod) as_user chmod -- "$b" "$a" ;;
 		pkgback) read -ra a <<<"$a"; xbps-install -y -- "${a[@]}" ;;
 		gset) as_user dbus-run-session gsettings set "${c:-org.gnome.desktop.interface}" "$a" "$b" ;;
 		esac >>"$LOG" 2>&1 || printf '  %s! could not undo: %s %s%s\n' "$C_Y" "$op" "$a" "$C_0" >&2
@@ -657,7 +658,8 @@ plan() {
 		  ones, are moved to ~/_backup/$TS.
 		~/.bash_profile (from home/bash): sources ~/.bashrc, sets the Qt dark style
 		  and on tty1 runs start-g0wm, so boot goes grub -> plymouth/LUKS ->
-		  agetty with the cat in /etc/issue -> login -> g0wm.
+		  agetty with the cat in /etc/issue -> login -> g0wm. It also starts one
+		  ssh-agent per user on \$XDG_RUNTIME_DIR/ssh-agent.socket (SSH_AUTH_SOCK).
 		Login shell /bin/bash.
 	EOF
 	section lsp "Language servers for nvim" <<-EOF
@@ -669,7 +671,10 @@ plan() {
 		/etc/nftables/nft_base_desktop.conf (0600), included by /etc/nftables.conf:
 		  input and forward dropped, output allowed. Checked with nft -c.
 		/etc/ssh/ssh_config.d/10-local.conf, plus the Include line that Void's
-		  /etc/ssh/ssh_config lacks (without it the file is ignored).
+		  /etc/ssh/ssh_config lacks (without it the file is ignored): TERM
+		  xterm-256color on remote hosts, keys go to the agent on first use, only
+		  the configured keys are offered, known_hosts hashed, no agent forwarding.
+		~/.ssh created 0700 (or fixed to 0700), no keys generated.
 		Service: nftables.
 	EOF
 	section net "Network, DNS and time" <<-EOF
@@ -924,6 +929,26 @@ do_harden() {
 		)
 	fi
 	run "ssh config parses" ssh -G localhost
+	ssh_dir
+}
+
+ssh_dir() {
+	local d=$THOME/.ssh m
+	[[ ! -L $d ]] || die "$d is a symlink, refusing"
+	if [[ ! -e $d ]]; then
+		umkdir "$d"
+		ok "created ~/.ssh (700)"
+		return 0
+	fi
+	[[ -d $d ]] || die "$d exists and is not a directory"
+	m=$(stat -c %a -- "$d")
+	if [[ $m == 700 ]]; then
+		skip "~/.ssh (700)"
+		return 0
+	fi
+	jot hchmod "$d" "$m"
+	as_user chmod 0700 -- "$d"
+	ok "~/.ssh $m -> 700"
 }
 
 do_net_files() {
@@ -1544,6 +1569,7 @@ verify() {
 	fi
 	if ((DO[harden])); then
 		[[ $(stat -c '%a %U' /etc/nftables.conf) == '600 root' ]] || { warn "/etc/nftables.conf permissions"; bad=1; }
+		[[ $(stat -c '%a %U' "$THOME/.ssh") == "700 $TUSER" ]] || { warn "~/.ssh permissions"; bad=1; }
 	fi
 	if ((DO[doas])); then
 		[[ $(stat -c '%a %U %G' /etc/doas.conf) == '400 root root' ]] || { warn "/etc/doas.conf permissions"; bad=1; }
