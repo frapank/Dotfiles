@@ -296,6 +296,7 @@
 		},
 		{
 			"mod": [
+				"shift",
 				"logo"
 			],
 			"key": "v",
@@ -304,6 +305,7 @@
 		},
 		{
 			"mod": [
+				"shift",
 				"logo"
 			],
 			"key": "g",
@@ -338,9 +340,10 @@
 		},
 		{
 			"mod": [
+				"shift",
 				"logo"
 			],
-			"key": "e",
+			"key": "f",
 			"action": "togglefullscreen",
 			"arg": null
 		},
@@ -431,8 +434,7 @@
 		},
 		{
 			"mod": [
-				"shift",
-				"alt",
+				"ctrl",
 				"logo"
 			],
 			"key": "h",
@@ -441,8 +443,7 @@
 		},
 		{
 			"mod": [
-				"shift",
-				"alt",
+				"ctrl",
 				"logo"
 			],
 			"key": "l",
@@ -451,8 +452,7 @@
 		},
 		{
 			"mod": [
-				"shift",
-				"alt",
+				"ctrl",
 				"logo"
 			],
 			"key": "k",
@@ -461,8 +461,7 @@
 		},
 		{
 			"mod": [
-				"shift",
-				"alt",
+				"ctrl",
 				"logo"
 			],
 			"key": "j",
@@ -471,61 +470,43 @@
 		},
 		{
 			"mod": [
-				"ctrl",
-				"logo"
-			],
-			"key": "h",
-			"action": "setmfact",
-			"arg": -0.05
-		},
-		{
-			"mod": [
-				"ctrl",
-				"logo"
-			],
-			"key": "l",
-			"action": "setmfact",
-			"arg": 0.05
-		},
-		{
-			"mod": [
 				"logo"
 			],
 			"key": "o",
 			"action": "setopacityfocus",
 			"arg": 0.05
-		},
-		{
-			"mod": [
-				"shift",
-				"logo"
-			],
-			"key": "O",
-			"action": "setopacityfocus",
-			"arg": -0.05
-		},
-		{
-			"mod": [
-				"ctrl",
-				"logo"
-			],
-			"key": "o",
-			"action": "setopacityunfocus",
-			"arg": 0.05
-		},
-		{
-			"mod": [
-				"shift",
-				"ctrl",
-				"logo"
-			],
-			"key": "O",
-			"action": "setopacityunfocus",
-			"arg": -0.05
 		},
 		{
 			"mod": [
 				"alt",
+				"logo"
+			],
+			"key": "o",
+			"action": "setopacityfocus",
+			"arg": -0.05
+		},
+		{
+			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "o",
+			"action": "setopacityunfocus",
+			"arg": 0.05
+		},
+		{
+			"mod": [
+				"ctrl",
+				"alt",
+				"logo"
+			],
+			"key": "o",
+			"action": "setopacityunfocus",
+			"arg": -0.05
+		},
+		{
+			"mod": [
+				"shift",
 				"logo"
 			],
 			"key": "o",
@@ -1060,7 +1041,7 @@
 				"shift",
 				"logo"
 			],
-			"key": "q",
+			"key": "Escape",
 			"action": "quit",
 			"arg": null
 		},
