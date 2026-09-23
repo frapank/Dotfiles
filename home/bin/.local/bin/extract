@@ -1,0 +1,109 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat <<EOF
+Usage: extract ARCHIVE
+  or:  extract ARCHIVE... DIR
+  or:  extract -d DIR ARCHIVE...
+Extract each ARCHIVE into DIR (default: the current directory); the format
+comes from the ARCHIVE extension. Passwords are asked when needed.
+Existing files are never overwritten.
+
+  -d DIR  extract into DIR, all operands are ARCHIVEs
+
+Formats:
+  .tar .tar.gz .tgz .tar.bz2 .tbz2 .tar.xz .txz .tar.zst .tzst .tar.lz .tar.lz4
+  .zip .7z .rar .gz .bz2 .xz .zst .lz .lz4 .gpg .age .tar.gpg .tar.age
+  .iso .cpio .deb .rpm .cab
+EOF
+}
+
+die() { echo "extract: $*" >&2; exit 1; }
+try() { echo "Try 'extract --help' for more information." >&2; exit 2; }
+
+askpw() {
+    trap 'stty echo </dev/tty' EXIT
+    trap 'exit 130' INT TERM
+    stty -echo </dev/tty
+    printf 'Enter password for %s: ' "$1" >/dev/tty; IFS= read -r pw </dev/tty; echo >/dev/tty
+    stty echo </dev/tty
+}
+
+un7z() {
+    if 7z l -slt -p- -- "$f" 2>/dev/null | grep -q '^Encrypted = +' ||
+        ! 7z l -p- -- "$f" >/dev/null 2>&1; then
+        askpw "$f"
+        7z x -aos -bso0 -bsp0 -p"$pw" -o"$dir" -- "$f"
+    else
+        7z x -aos -bso0 -bsp0 -o"$dir" -- "$f"
+    fi
+}
+
+single() {
+    out=$dir/$1
+    [ ! -e "$out" ] || die "$out: File exists"
+    shift
+    "$@" >"$out" || { rm -f -- "$out"; exit 1; }
+}
+
+gpg() { command gpg -q --no-symkey-cache --pinentry-mode loopback "$@"; }
+
+case ${1:-} in help|--help) usage; exit 0 ;; esac
+
+dir=
+while getopts d:h o; do
+    case $o in
+    d) dir=$OPTARG ;;
+    h) usage; exit 0 ;;
+    *) try ;;
+    esac
+done
+shift $((OPTIND - 1))
+[ $# -ge 1 ] || { echo "extract: missing file operand" >&2; try; }
+
+if [ -z "$dir" ]; then
+    if [ $# -eq 1 ]; then
+        dir=.
+    else
+        eval "dir=\${$#}"
+        n=$# i=0
+        for a; do i=$((i + 1)); [ $i -lt $n ] && set -- "$@" "$a"; done
+        shift $n
+    fi
+fi
+[ ! -e "$dir" ] || [ -d "$dir" ] || die "target '$dir' is not a directory"
+
+for f; do
+    [ -f "$f" ] || die "$f: No such file or directory"
+done
+mkdir -p -- "$dir"
+
+for f; do
+    base=${f##*/}
+    case $(printf '%s' "$base" | tr '[:upper:]' '[:lower:]') in
+    *.tar.gpg) gpg -d -- "$f" | tar -xf - -C "$dir" --skip-old-files ;;
+    *.tar.age) age -d -- "$f" | tar -xf - -C "$dir" --skip-old-files ;;
+    *.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz|*.tbz2|*.tar.xz|*.txz|*.tar.zst|*.tzst|*.tar.lz|*.tar.lz4)
+        tar -xf "$f" -C "$dir" --skip-old-files ;;
+    *.zip|*.jar|*.7z) un7z ;;
+    *.rar) unrar x -o- -idq -- "$f" "$dir/" ;;
+    *.iso|*.cpio|*.deb|*.rpm|*.cab|*.xar) bsdtar -xkf "$f" -C "$dir" ;;
+    *.gz)  single "${base%.*}" gzip -dc -- "$f" ;;
+    *.bz2) single "${base%.*}" bzip2 -dc -- "$f" ;;
+    *.xz)  single "${base%.*}" xz -dc -- "$f" ;;
+    *.zst) single "${base%.*}" zstd -qdc -- "$f" ;;
+    *.lz)  single "${base%.*}" lzip -qdc -- "$f" ;;
+    *.lz4) single "${base%.*}" lz4 -qdc -- "$f" ;;
+    *.gpg|*.pgp|*.asc)
+        out=$dir/${base%.*}
+        [ ! -e "$out" ] || die "$out: File exists"
+        gpg -o "$out" -d -- "$f" ;;
+    *.age)
+        out=$dir/${base%.*}
+        [ ! -e "$out" ] || die "$out: File exists"
+        age -d -o "$out" -- "$f" ;;
+    *.*) die "$f: Unknown archive format" ;;
+    *) die "$f: Missing archive extension" ;;
+    esac
+done
