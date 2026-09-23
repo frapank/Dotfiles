@@ -10,6 +10,7 @@ readonly SFPRO_URL=https://github.com/sahibjotsaggu/San-Francisco-Pro-Fonts.git
 readonly ICONS_URL=https://gitlab.gnome.org/GNOME/adwaita-icon-theme-legacy.git
 readonly ICONS_TAG=46.2
 readonly ICONS_DIR=/usr/share/icons/AdwaitaLegacy
+readonly RAR_PAGE=https://www.rarlab.com/download.htm
 readonly TS=$(date +%Y%m%d-%H%M%S)
 readonly LOG=/var/log/void-postinstall-$TS.log
 readonly BAK=/var/backups/void-postinstall/$TS
@@ -51,6 +52,8 @@ PKG_APPS=(
 	# terminal tools
 	tree bat htop unzip zip 7zip wget curl rsync jq file lsof strace psmisc
 	ncdu fastfetch
+	# archives
+	tar gzip bzip2 xz zstd lz4 lzip bsdtar cpio unrar gnupg age
 )
 PKG_SESSION=(gnome-keyring libsecret polkit-gnome network-manager-applet
 	bluez blueman libspa-bluetooth)
@@ -747,13 +750,16 @@ plan() {
 	section apps "User apps, Thunar, default apps, shortcuts" <<-EOF
 		Adds the librewolf repo (index-0/librewolf-void, prebuilt) with its
 		  signing key pinned from the repo: no key prompt, and a changed key fails.
+		Adds the Void nonfree repo (void-repo-nonfree): unrar lives there.
+		Installs rar (trial) from rarlab.com into /usr/local/bin: not in the repos.
 		Packages: ${PKG_APPS[*]}
 		Copies home/{$(join , "${HOME_APPS[@]}")}:
 		  Thunar: 'Open Terminal Here' runs foot, thunar-volman automounts drives;
 		  nvim-foot.desktop, so text files open nvim inside foot;
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
-		    record (the xdg ones start the default app, or open the files given;
-		    wifi/bluetooth on|off switch the radio; Super+Print runs record).
+		    record extract compress (the xdg ones start the default app, or open
+		    the files given; wifi/bluetooth on|off switch the radio; Super+Print
+		    runs record; extract/compress wrap tar 7z unrar gpg age).
 		Writes ~/.config/mimeapps.list in place (${#MIME_DEFAULTS[@]} types: images Loupe,
 		  video Showtime, PDF Papers, web librewolf, folders Thunar, archives
 		  xarchiver, documents LibreOffice, text nvim); entries it does not set
@@ -1292,8 +1298,25 @@ write_mimeapps() {
 	rm -f -- "$ours" "$new"
 }
 
+# rar (to create .rar) is not in the Void repos: take the rarlab build
+do_rar() {
+	local tmp page url
+	if [[ -x /usr/local/bin/rar ]]; then
+		skip "/usr/local/bin/rar"
+		return 0
+	fi
+	page=$(curl -fsSL "$RAR_PAGE") || die "cannot fetch $RAR_PAGE"
+	url=$(grep -m 1 -o 'rar/rarlinux-x64-[0-9]*\.tar\.gz' <<<"$page") ||
+		die "no rarlinux-x64 download on $RAR_PAGE"
+	tmp=$(mktemp -d)
+	run "download ${url##*/}" curl -fsSLo "$tmp/rar.tar.gz" "https://www.rarlab.com/$url"
+	run "unpack ${url##*/}" tar -xzf "$tmp/rar.tar.gz" -C "$tmp"
+	put "$tmp/rar/rar" /usr/local/bin/rar 0755
+	rm -rf -- "$tmp"
+}
 do_apps() {
 	step "User apps"
+	do_rar
 	do_home "${HOME_APPS[@]}"
 	write_mimeapps
 	local mime want got
@@ -1351,7 +1374,7 @@ do_repos() {
 	((DO[apps])) && put_tree librewolf
 	run "sync repository index (network check)" xbps-install -S
 	try "update xbps itself" xbps-install -uy xbps
-	if ((DO[hw] && NONFREE)); then
+	if ((DO[hw] && NONFREE || DO[apps])); then
 		if installed void-repo-nonfree; then
 			skip "nonfree repo"
 		else
