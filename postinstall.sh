@@ -757,9 +757,11 @@ plan() {
 		  Thunar: 'Open Terminal Here' runs foot, thunar-volman automounts drives;
 		  nvim-foot.desktop, so text files open nvim inside foot;
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
-		    record extract compress (the xdg ones start the default app, or open
-		    the files given; wifi/bluetooth on|off switch the radio; Super+Print
-		    runs record; extract/compress wrap tar 7z unrar gpg age).
+		    record extract compress open (the xdg ones start the default app, or
+		    open the files given; wifi/bluetooth on|off switch the radio; Super+Print
+		    runs record; extract/compress wrap tar 7z unrar gpg age; open FILE...
+		    picks the app from the extension: Loupe, Showtime, Papers, LibreOffice,
+		    xarchiver, librewolf, Thunar, vim for text, xxd | less for binaries).
 		Writes ~/.config/mimeapps.list in place (${#MIME_DEFAULTS[@]} types: images Loupe,
 		  video Showtime, PDF Papers, web librewolf, folders Thunar, archives
 		  xarchiver, documents LibreOffice, text nvim); entries it does not set
@@ -1505,6 +1507,7 @@ verify() {
 		for c in librewolf loupe papers showtime soffice pavucontrol swaylock tree thunar xdg-open gtk-launch; do
 			command -v "$c" >/dev/null || { warn "$c missing"; bad=1; }
 		done
+		[[ -x $THOME/.local/bin/open ]] || { warn "~/.local/bin/open missing"; bad=1; }
 	fi
 	if ((DO[power])); then
 		command -v tlp >/dev/null && { warn "tlp still installed"; bad=1; }
