@@ -290,6 +290,16 @@
 			"mod": [
 				"logo"
 			],
+			"key": "equal",
+			"action": "spawn",
+			"arg": [
+				"nightlight"
+			]
+		},
+		{
+			"mod": [
+				"logo"
+			],
 			"key": "c",
 			"action": "killclient",
 			"arg": null
