@@ -1,0 +1,109 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat <<EOF
+Usage: compress [-p] FILE... ARCHIVE
+  or:  compress [-p] -o ARCHIVE FILE...
+Pack FILEs into ARCHIVE; the format comes from the ARCHIVE extension.
+
+  -p          ask for a password (.zip .7z .rar; .gpg and .age always ask)
+  -o ARCHIVE  write to ARCHIVE, all operands are FILEs
+
+Formats:
+  .tar .tar.gz .tgz .tar.bz2 .tbz2 .tar.xz .txz .tar.zst .tzst .tar.lz .tar.lz4
+  .zip .7z .rar                 archive; -p: zip classic, 7z and rar AES-256
+  .gz .bz2 .xz .zst .lz .lz4    compress a single file
+  .gpg .age                     encrypt a single file
+  .tar.gpg .tar.age             encrypt a tar archive
+EOF
+}
+
+die() { echo "compress: $*" >&2; exit 1; }
+try() { echo "Try 'compress --help' for more information." >&2; exit 2; }
+
+askpw() {
+    trap 'stty echo </dev/tty' EXIT
+    trap 'exit 130' INT TERM
+    stty -echo </dev/tty
+    printf 'Enter password: ' >/dev/tty; IFS= read -r pw </dev/tty; echo >/dev/tty
+    printf 'Verify password: ' >/dev/tty; IFS= read -r pw2 </dev/tty; echo >/dev/tty
+    stty echo </dev/tty
+    [ -n "$pw" ] || die "Empty password"
+    [ "$pw" = "$pw2" ] || die "Passwords do not match"
+}
+
+case ${1:-} in help|--help) usage; exit 0 ;; esac
+
+p= out=
+while getopts po:h o; do
+    case $o in
+    p) p=1 ;;
+    o) out=$OPTARG ;;
+    h) usage; exit 0 ;;
+    *) try ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+if [ -z "$out" ]; then
+    [ $# -ge 2 ] || { echo "compress: missing file operand" >&2; try; }
+    eval "out=\${$#}"
+    n=$# i=0
+    for a; do i=$((i + 1)); [ $i -lt $n ] && set -- "$@" "$a"; done
+    shift $n
+fi
+[ $# -ge 1 ] || { echo "compress: missing file operand" >&2; try; }
+
+case $(printf '%s' "${out##*/}" | tr '[:upper:]' '[:lower:]') in
+*.tar.gpg) fmt=tar.gpg ;;
+*.tar.age) fmt=tar.age ;;
+*.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz2|*.tar.xz|*.txz|*.tar.zst|*.tzst|*.tar.lz|*.tar.lz4)
+    fmt=tar ;;
+*.zip) fmt=zip ;;
+*.7z)  fmt=7z ;;
+*.rar) fmt=rar ;;
+*.gz)  fmt=gzip ;;
+*.bz2) fmt=bzip2 ;;
+*.xz)  fmt=xz ;;
+*.zst) fmt=zstd ;;
+*.lz)  fmt=lzip ;;
+*.lz4) fmt=lz4 ;;
+*.gpg) fmt=gpg ;;
+*.age) fmt=age ;;
+*.*) die "$out: Unknown archive format" ;;
+*) die "$out: Missing archive extension" ;;
+esac
+
+case $fmt in
+tar|gzip|bzip2|xz|zstd|lzip|lz4)
+    [ -z "$p" ] || die "-p: Not supported by '$out', use .zip .7z .rar .gpg or .age" ;;
+esac
+for f; do [ -e "$f" ] || [ -L "$f" ] || die "$f: No such file or directory"; done
+case $fmt in
+gzip|bzip2|xz|zstd|lzip|lz4|gpg|age)
+    [ $# -eq 1 ] && [ -f "$1" ] || die "$out: Takes a single file, use ${out%.*}.tar.${out##*.}" ;;
+esac
+[ ! -e "$out" ] || die "$out: File exists"
+command -v "${fmt#tar.}" >/dev/null || die "${fmt#tar.}: Command not found"
+
+case $fmt in 7z) [ -z "$p" ] || askpw ;; gpg|tar.gpg) askpw ;; esac
+gpg() { command gpg -q --batch --no-symkey-cache --pinentry-mode loopback --passphrase-fd 3 "$@"; }
+
+case $fmt in
+tar)     tar -caf "$out" -- "$@" ;;
+tar.gpg) tar -cf - -- "$@" | gpg -c -o "$out" 3<<EOF
+$pw
+EOF
+    ;;
+tar.age) tar -cf - -- "$@" | age -p -o "$out" ;;
+zip)     zip -rq ${p:+-e} "$out" -- "$@" ;;
+7z)      7z a -bso0 -bsp0 ${p:+-p"$pw" -mhe=on} -- "$out" "$@" ;;
+rar)     rar a -r -idq ${p:+-hp} -- "$out" "$@" ;;
+gpg)     gpg -c -o "$out" -- "$1" 3<<EOF
+$pw
+EOF
+    ;;
+age)     age -p -o "$out" -- "$1" ;;
+*)       "$fmt" -qc -- "$1" >"$out" || { rm -f -- "$out"; exit 1; } ;;
+esac
