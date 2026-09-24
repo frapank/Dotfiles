@@ -16,6 +16,7 @@ readonly LOG=/var/log/void-postinstall-$TS.log
 readonly BAK=/var/backups/void-postinstall/$TS
 readonly LOCK=/run/void-postinstall.lock
 readonly SVDIR=/var/service
+readonly STATE=/var/lib/void-postinstall
 
 PKG_CORE=(git base-devel)
 PKG_CLI=(bash bash-completion vim-huge neovim tmux ctags fzf fd ripgrep bat
@@ -217,7 +218,7 @@ SFPRO_DIR=/usr/local/share/fonts/SF-Pro
 
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
-HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0
+HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0
 declare -A DO=()
 
 # output
@@ -263,8 +264,10 @@ usage() {
 		  -h, --help     this message
 
 		Files are copied, not linked: the repo can move or go away. To update,
-		  pull the repo and run this again: unchanged files are skipped, changed
-		  ones replaced after the old copy goes to ~/_backup/<date>.
+		  pull the repo and run this again: what is already in place (files with
+		  the right content, owner and mode, packages, services, g0wm, fonts,
+		  icons, initramfs) is left alone, wrong owners and modes are fixed,
+		  changed files replaced after the old copy goes to ~/_backup/<date>.
 		Log in /var/log/void-postinstall-*.log, backups in /var/backups/void-postinstall.
 	EOF
 	exit "${1:-0}"
@@ -336,6 +339,8 @@ jot() {
 	printf '%s\n' "$*" >>"$BAK/journal"
 }
 
+njot() { grep -vc '^sysctl' -- "$BAK/journal" || true; }
+
 rollback() {
 	trap '' INT TERM HUP
 	[[ -s $BAK/journal ]] || return 0
@@ -365,6 +370,8 @@ rollback() {
 		hmove) as_user rm -rf -- "$a" && as_user mv -- "$UBAK$a" "$a" ;;
 		hrmdir) as_user rmdir -- "$a" ;;
 		hchmod) as_user chmod -- "$b" "$a" ;;
+		hown) chown -- "$b" "$a" ;;
+		perm) chown -- "$c" "$a" && chmod -- "$b" "$a" ;;
 		pkgback) read -ra a <<<"$a"; xbps-install -y -- "${a[@]}" ;;
 		gset) as_user dbus-run-session gsettings set "${c:-org.gnome.desktop.interface}" "$a" "$b" ;;
 		esac >>"$LOG" 2>&1 || printf '  %s! could not undo: %s %s%s\n' "$C_Y" "$op" "$a" "$C_0" >&2
@@ -436,6 +443,16 @@ put_link() {
 	ok "$dst -> $target"
 }
 
+fix_perm() {
+	local p=$1 mode=$2 cur
+	cur=$(stat -c '%a %u:%g' -- "$p")
+	[[ $cur != "${mode#0} 0:0" ]] || return 0
+	jot perm "$p" "${cur% *}" "${cur#* }"
+	chown root:root -- "$p"
+	chmod "$mode" -- "$p"
+	ok "$p ${cur% *} -> ${mode#0} root:root"
+}
+
 mode_for() {
 	case $1 in
 	/etc/nftables/* | /etc/sysctl.d/*) echo 0600 ;;
@@ -477,6 +494,13 @@ move_aside() {
 	ok "moved ${1/#$THOME/\~} to ${UBAK/#$THOME/\~}"
 }
 
+own() {
+	[[ $(stat -c %U -- "$1") != "$TUSER" ]] || return 0
+	jot hown "$1" "$(stat -c %u:%g -- "$1")"
+	chown -- "$TUSER:$TGID" "$1"
+	ok "${1/#$THOME/\~} now owned by $TUSER"
+}
+
 umkdir() {
 	local d=$1 missing=()
 	while [[ $d == "$THOME"/* && ! -d $d ]]; do
@@ -493,9 +517,15 @@ umkdir() {
 
 sv_enable() {
 	[[ -d /etc/sv/$1 ]] || die "service $1 not found in /etc/sv"
-	if [[ -L $SVDIR/$1 ]]; then
+	if [[ -L $SVDIR/$1 && $(readlink -f -- "$SVDIR/$1") == "$(readlink -f -- "/etc/sv/$1")" ]] ||
+		[[ -d $SVDIR/$1 && ! -L $SVDIR/$1 ]]; then
 		skip "service $1"
 		return 0
+	fi
+	if [[ -L $SVDIR/$1 ]]; then
+		jot sv-on "$1" "$(readlink -- "$SVDIR/$1")"
+		rm -f -- "$SVDIR/$1"
+		warn "service $1 pointed elsewhere, relinked to /etc/sv/$1"
 	fi
 	jot sv-off "$1"
 	ln -s -- "/etc/sv/$1" "$SVDIR/$1"
@@ -692,8 +722,9 @@ plan() {
 		/etc/dracut.conf.d/00-hostonly.conf, plymouth theme void-minimal,
 		  /etc/issue, tty1 agetty conf (clean login, plymouth quits there).
 		GRUB: adds 'quiet splash' if missing, then update-grub.
-		Rebuilds the initramfs of every installed kernel; the old images are
-		  backed up and put back if anything fails.
+		Rebuilds the initramfs of every installed kernel when the dracut or
+		  plymouth config changed, or an image is missing or has no plymouth;
+		  the old images are backed up and put back if anything fails.
 	EOF
 	detect_hw
 	section hw "Hardware: microcode, GPU drivers, firmware updates" <<-EOF
@@ -735,7 +766,8 @@ plan() {
 		Copies home/{$(join , "${HOME_DIRS[@]}")}: ~/.config/user-dirs.dirs and user-dirs.locale
 		  from this machine (Get, Random, Media/{Music,Pictures,Videos}...), and
 		  creates those folders. Standard ones not used by it
-		  ($(join ' ' "${XDG_DEFAULT_DIRS[@]}")) are moved to ~/_backup/$TS.
+		  ($(join ' ' "${XDG_DEFAULT_DIRS[@]}")) are moved to ~/_backup/$TS
+		  if empty; the ones with files in them are left where they are.
 	EOF
 	section desktop "Desktop: g0wm" <<-EOF
 		Packages: g0wm build deps, the session (dbus elogind polkit pipewire
@@ -746,6 +778,9 @@ plan() {
 		Copies home/{$(join , "${HOME_DESKTOP[@]}")} (gtklock theme too), clones $G0WM_URL
 		  into ~/.local/src/g0wm: ./configure, make, make test, make install
 		  (into ~/.local/bin). Start it from tty1 with start-g0wm.
+		If g0wm and start-g0wm are already in your PATH, built from another
+		  folder, they are left alone; a clone in ~/.local/src/g0wm is pulled and
+		  rebuilt only when it has new commits.
 	EOF
 	section media "Screen sharing and audio (Wayland)" <<-EOF
 		Packages: ${PKG_MEDIA[*]}
@@ -941,6 +976,7 @@ ssh_dir() {
 		return 0
 	fi
 	[[ -d $d ]] || die "$d exists and is not a directory"
+	own "$d"
 	m=$(stat -c %a -- "$d")
 	if [[ $m == 700 ]]; then
 		skip "~/.ssh (700)"
@@ -963,9 +999,16 @@ do_net_files() {
 
 do_boot() {
 	step "Boot"
+	local n p grub=0
+	n=$(njot)
 	put_tree dracut
-	put_tree agetty
 	put_tree plymouth
+	((n == $(njot))) || REGEN=1
+	for p in "${PKG_BOOT[@]}"; do
+		[[ " ${NEW_PKGS[*]} " == *" $p "* ]] && REGEN=1
+	done
+	initramfs_stale && REGEN=1
+	put_tree agetty
 	run "agetty run script parses" sh -n /etc/sv/agetty-generic/run
 	[[ -f /usr/lib/plymouth/two-step.so ]] || die "plymouth two-step module missing"
 	[[ $(plymouth-set-default-theme) == void-minimal ]] || die "plymouth does not pick void-minimal"
@@ -987,16 +1030,39 @@ do_boot() {
 			grep -q "^GRUB_CMDLINE_LINUX_DEFAULT=\".*${add[-1]}\"" /etc/default/grub ||
 				die "could not edit GRUB_CMDLINE_LINUX_DEFAULT"
 			ok "GRUB: added ${add[*]}"
+			grub=1
 		else
 			skip "GRUB has quiet splash"
 		fi
-		[[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
-		run "update-grub" update-grub
+		if ((grub)) || ! grep -qs splash /boot/grub/grub.cfg; then
+			[[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
+			run "update-grub" update-grub
+		else
+			skip "grub.cfg has splash"
+		fi
 	else
 		warn "no /etc/default/grub: add 'quiet splash' to the kernel command line yourself"
 	fi
 
-	regen_initramfs
+	if ((REGEN)); then
+		regen_initramfs
+	else
+		skip "initramfs up to date"
+	fi
+}
+
+initramfs_stale() {
+	local k img
+	for k in /usr/lib/modules/*/modules.dep; do
+		[[ -e $k ]] || continue
+		k=${k%/modules.dep}
+		img=/boot/initramfs-${k##*/}.img
+		[[ -s $img ]] || return 0
+		if command -v lsinitrd >/dev/null; then
+			lsinitrd "$img" 2>/dev/null | grep plymouth >/dev/null || return 0
+		fi
+	done
+	return 1
 }
 
 regen_initramfs() {
@@ -1050,7 +1116,12 @@ do_dirs() {
 		for t in "${targets[@]}"; do
 			[[ $t == "$d" || $t == "$d"/* ]] && used=1
 		done
-		((used)) || move_aside "$d"
+		((used)) && continue
+		if [[ -d $d && ! -L $d && -n $(ls -A -- "$d") ]]; then
+			warn "${d/#$THOME/\~} is not empty, left where it is"
+		else
+			move_aside "$d"
+		fi
 	done
 	for t in $(printf '%s\n' "${targets[@]}" | sort -u); do
 		if [[ -d $t ]]; then
@@ -1137,11 +1208,12 @@ do_home() {
 			for part in "${parts[@]}"; do
 				p=$p/$part
 				[[ -L $p ]] && move_aside "$p"
+				if [[ -d $p ]]; then own "$p"; fi
 			done
 			mode=0600
 			[[ -x $src ]] && mode=0700
 			if [[ -f $dst && ! -L $dst ]] && cmp -s -- "$src" "$dst" &&
-				[[ $(stat -c %a -- "$dst") == "${mode#0}" ]]; then
+				[[ $(stat -c '%a %U' -- "$dst") == "${mode#0} $TUSER" ]]; then
 				continue
 			fi
 			umkdir "${dst%/*}"
@@ -1174,11 +1246,35 @@ do_home_cli() {
 	fi
 }
 
+g0wm_where() {
+	local g out
+	g=$(as_user sh -c 'PATH=$PATH:$HOME/bin; command -v start-g0wm >/dev/null && command -v g0wm') ||
+		return 1
+	out=$(as_user timeout 5 "$g" -v 2>&1) || true
+	[[ $out == g0wm\ * ]] || return 1
+	echo "${g%/*}"
+}
+
+g0wm_clone() {
+	[[ -d $1/.git ]] &&
+		[[ $(as_user git -C "$1" remote get-url origin 2>/dev/null) == "$G0WM_URL" ]] &&
+		[[ -z $(as_user git -C "$1" status --porcelain --untracked-files=no 2>&1) ]]
+}
+
 do_g0wm() {
 	step "Desktop: g0wm"
 	do_home "${HOME_DESKTOP[@]}"
 
-	local src=$THOME/.local/src/g0wm bin=$THOME/.local/bin before= rev out f
+	local wp
+	wp=$(grep -o '"wallpaper": *"[^"]*"' "$REPO/home/g0wm/.config/g0wm/settings.json" | cut -d'"' -f4 || true)
+	[[ -z $wp || -f $wp ]] || warn "wallpaper $wp does not exist, set it in settings.json"
+
+	local src=$THOME/.local/src/g0wm bin=$THOME/.local/bin before= rev out f where=
+	where=$(g0wm_where) || where=
+	if [[ -n $where ]] && ! g0wm_clone "$src"; then
+		skip "g0wm in ${where/#$THOME/\~}, built elsewhere: not cloned nor rebuilt"
+		return 0
+	fi
 	if [[ -d $src/.git ]]; then
 		[[ $(as_user git -C "$src" remote get-url origin) == "$G0WM_URL" ]] ||
 			die "$src is not a clone of $G0WM_URL"
@@ -1186,6 +1282,8 @@ do_g0wm() {
 			die "$src has local changes, commit or stash them first"
 		before=$(as_user git -C "$src" rev-parse HEAD)
 		try "update g0wm source" as_user git -C "$src" pull --ff-only
+	elif [[ -e $src || -L $src ]]; then
+		die "$src exists and is not a git clone, move it away"
 	else
 		as_user mkdir -p -- "$THOME/.local/src"
 		jot hremove "$src"
@@ -1193,7 +1291,7 @@ do_g0wm() {
 	fi
 	rev=$(as_user git -C "$src" rev-parse HEAD)
 	log "g0wm at $rev"
-	if [[ $before == "$rev" && -x $bin/g0wm ]]; then
+	if [[ -n $where && $before == "$rev" ]]; then
 		skip "g0wm ${rev:0:12} installed"
 		return 0
 	fi
@@ -1206,14 +1304,23 @@ do_g0wm() {
 	out=$(as_user "$bin/g0wm" -v 2>&1 || true)
 	[[ $out == g0wm\ * ]] || die "the installed g0wm does not run: $out"
 	ok "${out%%$'\n'*}"
+}
 
-	local wp
-	wp=$(grep -o '"wallpaper": *"[^"]*"' "$REPO/home/g0wm/.config/g0wm/settings.json" | cut -d'"' -f4 || true)
-	[[ -z $wp || -f $wp ]] || warn "wallpaper $wp does not exist, set it in settings.json"
+fonts_ok() {
+	[[ -d $1 && ! -L $1 ]] || return 1
+	[[ -n $(find "$1" -type f \( -name '*.otf' -o -name '*.ttf' \) -print -quit) ]] || return 1
+	[[ -z $(find "$1" \( -type l -o ! -user root -o ! -group root -o \
+		-type f ! -perm 0644 -o -type d ! -perm 0755 \) -print -quit) ]]
 }
 
 font_repo() {
 	local tmp f n=0
+	if fonts_ok "$2"; then
+		skip "$2"
+		return 0
+	fi
+	[[ -d $2 && ! -L $2 ]] && fix_perm "$2" 0755
+	FONTS_NEW=1
 	tmp=$(as_user mktemp -d)
 	run "clone ${1##*/}" as_user git clone --depth 1 -- "$1" "$tmp/f"
 	while IFS= read -r -d '' f; do
@@ -1229,7 +1336,11 @@ do_fonts() {
 	local f
 	font_repo "$FONT_URL" "$SF_DIR"
 	font_repo "$SFPRO_URL" "$SFPRO_DIR"
-	run "refresh the font cache" fc-cache -f
+	if ((FONTS_NEW)); then
+		run "refresh the font cache" fc-cache -f
+	else
+		skip "font cache"
+	fi
 	do_home "${HOME_FONTS[@]}"
 	f=$(as_user fc-match -f '%{family}' monospace 2>/dev/null || true)
 	[[ $f == *"SF Mono"* ]] || die "monospace resolves to '$f', not SF Mono"
@@ -1248,7 +1359,13 @@ gset() {
 }
 
 legacy_icons() {
-	local tmp stage
+	local tmp stage mark=$STATE/adwaita-legacy
+	if [[ -f $ICONS_DIR/index.theme && ! -L $ICONS_DIR && $(cat -- "$mark" 2>/dev/null) == "$ICONS_TAG" ]] &&
+		[[ -z $(find "$ICONS_DIR" \( -type l -o ! -user root -o ! -group root -o \
+			-type f ! -perm 0644 -o -type d ! -perm 0755 \) -print -quit) ]]; then
+		skip "$ICONS_DIR ($ICONS_TAG)"
+		return 0
+	fi
 	tmp=$(as_user mktemp -d)
 	run "clone AdwaitaLegacy $ICONS_TAG" as_user git -c advice.detachedHead=false clone --depth 1 --branch "$ICONS_TAG" -- "$ICONS_URL" "$tmp/src"
 	[[ -f $tmp/src/index.theme && -d $tmp/src/AdwaitaLegacy/48x48 ]] || die "unexpected layout in $ICONS_URL"
@@ -1264,13 +1381,14 @@ legacy_icons() {
 	if [[ -d $ICONS_DIR ]] && diff -rq -x icon-theme.cache "$stage" "$ICONS_DIR" >/dev/null; then
 		rm -rf -- "$stage"
 		skip "$ICONS_DIR"
-		return 0
+	else
+		backup "$ICONS_DIR"
+		rm -rf -- "$ICONS_DIR"
+		mv -T -- "$stage" "$ICONS_DIR"
+		ok "$ICONS_DIR ($ICONS_TAG)"
+		try "icon cache" gtk-update-icon-cache -f -q "$ICONS_DIR"
 	fi
-	backup "$ICONS_DIR"
-	rm -rf -- "$ICONS_DIR"
-	mv -T -- "$stage" "$ICONS_DIR"
-	ok "$ICONS_DIR ($ICONS_TAG)"
-	try "icon cache" gtk-update-icon-cache -f -q "$ICONS_DIR"
+	put_text "$mark" 0644 <<<"$ICONS_TAG"
 }
 
 do_theme() {
@@ -1322,7 +1440,8 @@ write_mimeapps() {
 			awk '/^\[/ { s = $0 } s != "" && s != "[Default Applications]"' "$mf"
 		fi
 	} >"$new"
-	if [[ -f $mf && ! -L $mf ]] && cmp -s "$new" "$mf"; then
+	if [[ -f $mf && ! -L $mf ]] && cmp -s "$new" "$mf" &&
+		[[ $(stat -c '%a %U' -- "$mf") == "600 $TUSER" ]]; then
 		skip "~/.config/mimeapps.list"
 	else
 		stash "$mf"
@@ -1334,10 +1453,10 @@ write_mimeapps() {
 	rm -f -- "$ours" "$new"
 }
 
-# rar (to create .rar) is not in the Void repos: take the rarlab build
 do_rar() {
 	local tmp page url
-	if [[ -x /usr/local/bin/rar ]]; then
+	if [[ -f /usr/local/bin/rar && ! -L /usr/local/bin/rar ]]; then
+		fix_perm /usr/local/bin/rar 0755
 		skip "/usr/local/bin/rar"
 		return 0
 	fi
@@ -1537,7 +1656,7 @@ verify() {
 			{ warn "~/.bashrc is not the repo's copy"; bad=1; }
 	fi
 	if ((DO[desktop])); then
-		[[ -x $THOME/.local/bin/g0wm ]] || { warn "g0wm missing"; bad=1; }
+		g0wm_where >/dev/null || { warn "g0wm or start-g0wm missing from $TUSER's PATH"; bad=1; }
 		[[ -f $THOME/.config/g0wm/settings.json && ! -L $THOME/.config/g0wm/settings.json ]] ||
 			{ warn "g0wm settings not installed"; bad=1; }
 	fi
@@ -1634,7 +1753,16 @@ main() {
 
 	trap - ERR INT TERM HUP
 	rm -rf -- "$BAK/boot"
-	printf '\n%sdone.%s reboot now.\n' "$C_G" "$C_0"
+	local n
+	n=$(njot)
+	if ((n == 0)); then
+		rm -rf -- "$BAK"
+		printf '\n%sdone.%s nothing to change, already up to date.\n' "$C_G" "$C_0"
+		printf '  log:        %s\n' "$LOG"
+		log "done, no changes"
+		return 0
+	fi
+	printf '\n%sdone.%s %d change(s), reboot now.\n' "$C_G" "$C_0" "$n"
 	printf '  log:        %s\n  backups:    %s\n' "$LOG" "$BAK"
 	[[ ! -d $UBAK ]] || printf '  your files: %s\n' "$UBAK"
 	((DO[desktop] == 0)) || printf '  desktop:    log in on tty1, g0wm starts by itself\n'
