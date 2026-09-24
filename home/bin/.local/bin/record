@@ -2,9 +2,11 @@
 set -eu
 
 last=${XDG_RUNTIME_DIR:-/tmp}/record.last
+pid=${XDG_RUNTIME_DIR:-/tmp}/record.pid
 
 if pgrep -u "$(id -u)" -x wf-recorder >/dev/null; then
     pkill -INT -u "$(id -u)" -x wf-recorder
+    rm -f "$pid"
     notify-send -i video-x-generic -t 3000 "Recording saved" "$(cat "$last" 2>/dev/null)" || true
     exit 0
 fi
@@ -24,4 +26,5 @@ out=$dir/rec-$(date +%Y%m%d-%H%M%S).mp4
 printf '%s\n' "$out" >"$last"
 
 notify-send -i video-x-generic -t 2000 "Recording" "Super+Print again to stop" || true
+printf '%s\n' "$$" >"$pid"
 exec wf-recorder $audio ${geo:+-g "$geo"} -f "$out"
