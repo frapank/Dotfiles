@@ -1,0 +1,196 @@
+#!/bin/sh
+set -u
+umask 077
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
+
+SNAPDIR=/home/.snapshots
+KEEP=14
+KEEP_LOW=3
+MIN_FREE=10
+SCRUB_LIMIT=300m
+STATE=/var/lib/maint
+DAY=86400
+
+log() { printf '%s\n' "$*"; }
+
+as_user() {
+	pid=$(pgrep -xo g0wm) || return 1
+	user=$(stat -c %U "/proc/$pid")
+	env=$(tr '\0' '\n' <"/proc/$pid/environ" |
+		grep -E '^(HOME|DBUS_SESSION_BUS_ADDRESS|WAYLAND_DISPLAY|XDG_RUNTIME_DIR)=')
+	# shellcheck disable=SC2086
+	setpriv --reuid="$user" --regid="$user" --init-groups \
+		env -i PATH=/usr/bin:/bin $env "$@"
+}
+
+notify() { as_user notify-send -a Maintenance -u critical "$1" "$2" >/dev/null 2>&1 || true; }
+
+on_ac() {
+	found=0
+	for s in /sys/class/power_supply/*; do
+		[ "$(cat "$s/type" 2>/dev/null)" = Mains ] || continue
+		found=1
+		[ "$(cat "$s/online" 2>/dev/null)" = 1 ] && return 0
+	done
+	[ "$found" = 0 ]
+}
+
+# home
+
+snapshots() {
+	find "$SNAPDIR" -mindepth 1 -maxdepth 1 -type d -name 'home-*' -printf '%f\n' |
+		grep -xE 'home-[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{4}' | sort
+}
+
+prune() {
+	n=$(snapshots | wc -l)
+	[ "$n" -gt "$1" ] || return 0
+	rc=0
+	for s in $(snapshots | head -n "$((n - $1))"); do
+		if [ "$(btrfs property get -ts "$SNAPDIR/$s" ro 2>/dev/null)" != ro=true ]; then
+			log "home: $s is not a read-only snapshot, left alone"
+			continue
+		fi
+		if btrfs subvolume delete "$SNAPDIR/$s" >/dev/null; then
+			log "home: deleted $s"
+		else
+			log "home: could not delete $s"
+			rc=1
+		fi
+	done
+	return "$rc"
+}
+
+job_home() {
+	if [ "$(stat -f -c %T /home)" != btrfs ] || ! btrfs subvolume show /home >/dev/null 2>&1; then
+		log "home: /home is not a btrfs subvolume"
+		return 1
+	fi
+	if [ ! -e "$SNAPDIR" ] && [ ! -L "$SNAPDIR" ]; then
+		btrfs subvolume create "$SNAPDIR" >/dev/null || return 1
+		chmod 0700 "$SNAPDIR"
+		log "home: created $SNAPDIR"
+	fi
+	if [ -L "$SNAPDIR" ] || [ ! -d "$SNAPDIR" ] || [ "$(stat -c %u "$SNAPDIR")" != 0 ]; then
+		log "home: $SNAPDIR is not a directory owned by root"
+		return 1
+	fi
+
+	used=$(df --output=pcent /home | tail -n1 | tr -dc 0-9)
+	if [ "$((100 - used))" -lt "$MIN_FREE" ]; then
+		log "home: /home is $used% full, no new snapshot, keeping the newest $KEEP_LOW"
+		prune "$KEEP_LOW"
+		return 2
+	fi
+
+	name=home-$(date +%Y-%m-%d_%H%M)
+	if [ -e "$SNAPDIR/$name" ]; then
+		log "home: $name already there"
+	else
+		btrfs subvolume snapshot -r /home "$SNAPDIR/$name" >/dev/null || return 1
+		log "home: created $name"
+	fi
+	prune "$KEEP"
+}
+
+# kernels
+
+job_kernels() {
+	if [ -z "$(vkpurge list all)" ]; then
+		log "kernels: nothing to remove"
+		return 0
+	fi
+	flock -n -E 75 /var/db/xbps/lock vkpurge rm all
+	rc=$?
+	if [ "$rc" = 75 ]; then
+		log "kernels: xbps is running"
+		return 2
+	fi
+	for k in /boot/vmlinu[xz]-*; do
+		[ -e "$k" ] || continue
+		[ -e "/boot/initramfs-${k#*-}.img" ] || { log "kernels: /boot/initramfs-${k#*-}.img missing"; rc=1; }
+	done
+	return "$rc"
+}
+
+# scrub
+
+job_scrub() {
+	if ! on_ac; then
+		log "scrub: on battery"
+		return 2
+	fi
+	if btrfs scrub status / 2>/dev/null | grep -q 'Status:.*running'; then
+		log "scrub: already running"
+		return 2
+	fi
+	btrfs scrub limit -a -l "$SCRUB_LIMIT" / >/dev/null 2>&1 || true
+	btrfs scrub start -B / 2>&1
+	rc=$?
+	btrfs scrub limit -a -l 0 / >/dev/null 2>&1 || true
+	return "$rc"
+}
+
+# scheduling
+
+due() {
+	[ -e "$STATE/$1" ] || return 0
+	age=$(($(date +%s) - $(stat -c %Y "$STATE/$1")))
+	[ "$age" -lt 0 ] || [ "$age" -ge "$(($2 - 1800))" ]
+}
+
+job() {
+	log "$1: start"
+	"job_$1"
+	rc=$?
+	case $rc in
+	0) log "$1: ok" ;;
+	2) log "$1: skipped, retried within the hour"; return 0 ;;
+	*) log "$1: FAILED ($rc)"
+		date >"$STATE/$1.failed"
+		notify "Maintenance" "$1 failed, see 'maint status'" ;;
+	esac
+	[ "$rc" = 0 ] && rm -f "$STATE/$1.failed"
+	touch "$STATE/$1"
+}
+
+locked() {
+	mkdir -p -m 0700 "$STATE"
+	exec 9>"$STATE/lock"
+	flock -n 9 || { log "maint is already running"; exit 1; }
+}
+
+run_due() {
+	due home "$DAY" && job home
+	due kernels "$((7 * DAY))" && job kernels
+	due scrub "$((30 * DAY))" && job scrub
+	return 0
+}
+
+status() {
+	for j in home kernels scrub; do
+		if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
+		printf '%-8s last %s' "$j" "$last"
+		[ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
+		printf '\n'
+	done
+	printf '\nsnapshots in %s:\n' "$SNAPDIR"
+	snapshots 2>/dev/null | sed 's/^/  /'
+	printf '\n'
+	btrfs scrub status / 2>/dev/null | grep -E '^(Scrub started|Status|Error summary)'
+}
+
+[ "$(id -u)" = 0 ] || { echo "maint: run as root" >&2; exit 1; }
+case ${1:-} in
+status) status ;;
+run) (locked; run_due) ;;
+home | kernels | scrub) (locked; job "$1") ;;
+loop)
+	sleep 900
+	while :; do
+		(locked; run_due)
+		sleep 3600
+	done
+	;;
+*) echo 'usage: maint status | run | home | kernels | scrub' >&2; exit 1 ;;
+esac

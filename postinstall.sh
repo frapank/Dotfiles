@@ -67,6 +67,7 @@ PKG_POWER=(power-profiles-daemon)
 PKG_LOGS=(socklog-void pulseaudio-utils)
 PKG_DIRS=(xdg-user-dirs)
 PKG_SWAP=(zramen)
+PKG_MAINT=(btrfs-progs util-linux)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
 HOME_CLI=(bash ctags nvim vim tmux)
 HOME_DESKTOP=(foot g0wm gtklock)
@@ -76,7 +77,7 @@ HOME_FONTS=(fontconfig)
 HOME_MEDIA=(portal)
 HOME_DIRS=(xdg)
 USER_GROUPS=(wheel video network)
-SECTIONS=(update locale cli lsp harden net boot hw power logs swap dirs desktop media apps session theme fonts doas)
+SECTIONS=(update locale cli lsp harden net boot hw power logs swap maint dirs desktop media apps session theme fonts doas)
 SF_DIR=/usr/local/share/fonts/SF-Mono
 MIME_DEFAULTS=(
 	application/pdf=org.gnome.Papers.desktop
@@ -456,7 +457,7 @@ fix_perm() {
 mode_for() {
 	case $1 in
 	/etc/nftables/* | /etc/sysctl.d/*) echo 0600 ;;
-	/etc/sv/*/run | /etc/sv/*/finish) echo 0755 ;;
+	/etc/sv/*/run | /etc/sv/*/finish | /usr/local/sbin/*) echo 0755 ;;
 	*) echo 0644 ;;
 	esac
 }
@@ -762,6 +763,19 @@ plan() {
 		/etc/sysctl.d/50-zram.conf: swappiness 180, page-cluster 0 (the usual
 		  tuning when swap is RAM, not disk).
 	EOF
+	section maint "Maintenance: home snapshots, btrfs scrub, old kernels" <<-EOF
+		Packages: ${PKG_MAINT[*]}; service maint on, runs /usr/local/sbin/maint
+		  every hour (the first time 15 minutes after boot). Each job runs when
+		  its period has passed, so the days the machine was off are caught up:
+		  daily: read-only snapshot of /home in /home/.snapshots (root, 0700),
+		    keeps the newest 14; under 10% free no new one, keeps the newest 3.
+		    Same disk: undoes mistakes, not a dead or stolen disk.
+		  weekly: vkpurge rm all under the xbps lock (only kernels no package
+		    owns, never the running one), then checks every kernel has its initramfs.
+		  monthly: btrfs scrub of the whole filesystem at most 300 MiB/s, only on
+		    AC power. Failures go to the g0wm session as notifications.
+		Log: svlogtail cron. State: 'doas maint status'. By hand: 'doas maint home'.
+	EOF
 	section dirs "Home folders (custom user-dirs)" <<-EOF
 		Copies home/{$(join , "${HOME_DIRS[@]}")}: ~/.config/user-dirs.dirs and user-dirs.locale
 		  from this machine (Get, Random, Media/{Music,Pictures,Videos}...), and
@@ -855,6 +869,11 @@ plan() {
 		Refused if $TUSER has no usable password: that would lock you out.
 	EOF
 
+	if ((DO[maint])); then
+		[[ $(stat -f -c %T /) == btrfs ]] || die "maint: / is not btrfs"
+		[[ $(stat -f -c %T /home) == btrfs && $(stat -c %i /home) == 256 ]] ||
+			die "maint: /home is not a btrfs subvolume, it cannot be snapshotted"
+	fi
 	if ((DO[doas])); then
 		local st
 		st=$(passwd -S -- "$TUSER" | awk '{print $2}')
@@ -912,6 +931,7 @@ do_packages() {
 	((DO[logs])) && want+=("${PKG_LOGS[@]}")
 	((DO[dirs])) && want+=("${PKG_DIRS[@]}")
 	((DO[swap])) && want+=("${PKG_SWAP[@]}")
+	((DO[maint])) && want+=("${PKG_MAINT[@]}")
 	((DO[fonts])) && want+=("${PKG_FONTS[@]}" git)
 	((DO[doas])) && want+=(opendoas)
 	for p in $(printf '%s\n' "${want[@]}" | sort -u); do
@@ -1151,6 +1171,12 @@ do_swap() {
 	save_sysctl "$REPO"/root/zram/etc/sysctl.d/*.conf
 	put_tree zram
 	try "sysctl -p 50-zram.conf" sysctl -p /etc/sysctl.d/50-zram.conf
+}
+
+do_maint() {
+	step "Maintenance"
+	put_tree maint
+	run "maint parses" sh -n /usr/local/sbin/maint
 }
 
 do_post() {
@@ -1563,6 +1589,7 @@ do_services() {
 		sv_enable power-profiles-daemon
 	fi
 	((DO[swap])) && sv_enable zramen
+	((DO[maint])) && sv_enable maint
 	if ((DO[logs])); then
 		sv_enable socklog-unix
 		sv_enable nanoklogd
@@ -1677,6 +1704,10 @@ verify() {
 	if ((DO[swap])); then
 		[[ -L $SVDIR/zramen ]] || { warn "zramen not enabled"; bad=1; }
 	fi
+	if ((DO[maint])); then
+		[[ -L $SVDIR/maint ]] || { warn "maint not enabled"; bad=1; }
+		[[ $(stat -c '%a %U' /usr/local/sbin/maint) == '755 root' ]] || { warn "/usr/local/sbin/maint permissions"; bad=1; }
+	fi
 	if ((DO[logs])); then
 		[[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || { warn "socklog not enabled"; bad=1; }
 		[[ -L $SVDIR/watchdog ]] || { warn "watchdog not enabled"; bad=1; }
@@ -1740,6 +1771,7 @@ main() {
 	((DO[net])) && do_net_files
 	do_groups
 	((DO[swap])) && do_swap
+	((DO[maint])) && do_maint
 	((DO[dirs])) && do_dirs
 	((DO[cli])) && do_home_cli
 	((DO[desktop])) && do_g0wm
