@@ -38,7 +38,7 @@ every() {
 }
 
 kernel() {
-	tail -Fn0 "$log" | while IFS= read -r line; do
+	tail -Fn0 "$log" 2>/dev/null | while IFS= read -r line; do
 		msg=${line#*] }
 		case $msg in
 		*"segfault at"*) prog=${msg%%\[*} why="segmentation fault" last=$prog ;;
