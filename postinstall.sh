@@ -808,7 +808,9 @@ plan() {
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
 		    record nightlight extract compress open (the xdg ones start the default
 		    app, or open the files given; wifi/bluetooth on|off switch the radio;
-		    Super+Print runs record; Super+= toggles nightlight, a 4000K blue light
+		    Super+Print records the screen (slurp -o picks it with several), Shift
+		    a region, Ctrl without audio; audio is the default sink's monitor plus
+		    the default mic when unmuted; Super+= toggles nightlight, a 4000K blue light
 		    filter via wlsunset; extract/compress wrap tar 7z unrar gpg age; open FILE...
 		    picks the app from the extension: Loupe, Showtime, Papers, LibreOffice,
 		    xarchiver, librewolf, Thunar, vim for text, xxd | less for binaries).

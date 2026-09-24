@@ -288,6 +288,18 @@
 		},
 		{
 			"mod": [
+				"ctrl",
+				"logo"
+			],
+			"key": "Print",
+			"action": "spawn",
+			"arg": [
+				"record",
+				"--no-audio"
+			]
+		},
+		{
+			"mod": [
 				"logo"
 			],
 			"key": "equal",

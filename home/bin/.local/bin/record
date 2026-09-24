@@ -1,8 +1,10 @@
 #!/bin/sh
 set -eu
 
-last=${XDG_RUNTIME_DIR:-/tmp}/record.last
-pid=${XDG_RUNTIME_DIR:-/tmp}/record.pid
+run=${XDG_RUNTIME_DIR:-/tmp}
+last=$run/record.last
+pid=$run/record.pid
+mods=$run/record.modules
 
 if pgrep -u "$(id -u)" -x wf-recorder >/dev/null; then
     pkill -INT -u "$(id -u)" -x wf-recorder
@@ -11,20 +13,76 @@ if pgrep -u "$(id -u)" -x wf-recorder >/dev/null; then
     exit 0
 fi
 
-geo= audio=
+region= sound=1
 for a in "$@"; do
     case $a in
-    region) geo=$(slurp) || exit 0 ;;
-    --audio) audio=-a ;;
-    *) echo "usage: record [region] [--audio]" >&2; exit 2 ;;
+    region) region=1 ;;
+    --no-audio) sound= ;;
+    *) echo "usage: record [region] [--no-audio]" >&2; exit 2 ;;
     esac
 done
 
+geo= out= what=
+if [ -n "$region" ]; then
+    geo=$(slurp) || exit 0
+    what=region
+else
+    set -- $(grep -lx connected /sys/class/drm/card*-*/status 2>/dev/null || :)
+    if [ $# -gt 1 ]; then
+        out=$(slurp -o -f %o) || exit 0
+        what=$out
+    elif [ $# -eq 1 ]; then
+        what=${1%/status}
+        what=${what##*/card*-}
+    else
+        what=screen
+    fi
+fi
+
+unload() {
+    [ -s "$mods" ] || return 0
+    while read -r m; do pactl unload-module "$m" 2>/dev/null || :; done <"$mods"
+    rm -f "$mods"
+}
+unload
+
+audio= label="no audio"
+if [ -n "$sound" ] && sink=$(pactl get-default-sink 2>/dev/null); then
+    audio=$sink.monitor label=system
+    src=$(pactl get-default-source 2>/dev/null || :)
+    case $src in
+    '' | *.monitor) ;;
+    *)
+        if pactl get-source-mute "$src" 2>/dev/null | grep -q 'no$'; then
+            trap unload EXIT
+            {
+                pactl load-module module-null-sink sink_name=record \
+                    sink_properties=device.description=Recording
+                pactl load-module module-loopback source="$sink.monitor" \
+                    sink=record latency_msec=20
+                pactl load-module module-loopback source="$src" \
+                    sink=record latency_msec=20
+            } >"$mods"
+            audio=record.monitor label="system + mic"
+        fi
+        ;;
+    esac
+fi
+
 dir=$(xdg-user-dir VIDEOS 2>/dev/null || echo "$HOME")
 mkdir -p "$dir"
-out=$dir/rec-$(date +%Y%m%d-%H%M%S).mp4
-printf '%s\n' "$out" >"$last"
+file=$dir/rec-$(date +%Y%m%d-%H%M%S).mp4
+printf '%s\n' "$file" >"$last"
 
-notify-send -i video-x-generic -t 2000 "Recording" "Super+Print again to stop" || true
-printf '%s\n' "$$" >"$pid"
-exec wf-recorder $audio ${geo:+-g "$geo"} -f "$out"
+notify-send -i video-x-generic -t 2000 "Recording $what · $label" \
+    "Super+Print again to stop" || true
+
+trap 'kill -INT "$rec" 2>/dev/null' INT TERM
+wf-recorder ${audio:+--audio="$audio"} ${geo:+-g "$geo"} ${out:+-o "$out"} \
+    -f "$file" &
+rec=$!
+# wf-recorder's own pid: g0wm-status.sh shows the rec icon while it runs
+printf '%s\n' "$rec" >"$pid"
+wait "$rec" || wait "$rec" || :
+rm -f "$pid"
+unload
