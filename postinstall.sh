@@ -24,6 +24,8 @@ PKG_CLI=(bash bash-completion vim-huge neovim tmux ctags fzf fd ripgrep bat
 PKG_LSP=(clang-tools-extra rust-analyzer taplo zls bash-language-server
 	yaml-language-server)
 PKG_HARDEN=(nftables openssh)
+HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
+	randomize_kstack_offset=on vsyscall=none debugfs=off)
 PKG_NET=(NetworkManager dnscrypt-proxy chrony dbus)
 PKG_BOOT=(dracut plymouth plymouth-data)
 PKG_DESKTOP=(
@@ -220,7 +222,7 @@ SFPRO_DIR=/usr/local/share/fonts/SF-Pro
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
 HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0
-declare -A DO=()
+declare -A DO=() BACKED=()
 
 # output
 
@@ -387,6 +389,8 @@ rollback() {
 
 backup() {
 	local dst=$1
+	[[ -z ${BACKED[$dst]:-} ]] || return 0
+	BACKED[$dst]=1
 	if [[ -e $dst || -L $dst ]]; then
 		mkdir -p -- "$BAK/files${dst%/*}"
 		cp -a -- "$dst" "$BAK/files$dst"
@@ -706,6 +710,15 @@ plan() {
 		  xterm-256color on remote hosts, keys go to the agent on first use, only
 		  the configured keys are offered, known_hosts hashed, no agent forwarding.
 		~/.ssh created 0700 (or fixed to 0700), no keys generated.
+		/etc/modprobe.d/30-harden.conf: modules nothing current uses that had
+		  exploitable bugs can no longer load: rds tipc atm n_hdlc, firewire,
+		  floppy, filesystems cramfs hfs befs qnx6 adfs ufs (hfsplus, udf, exfat,
+		  ntfs3 still work).
+		Kernel command line (GRUB_CMDLINE_LINUX_DEFAULT, so the recovery entry
+		  boots without them): ${HARDEN_CMDLINE[*]}.
+		  Freed memory is zeroed, a few % slower. Active after the reboot.
+		/boot (the EFI partition, vfat) mounted fmask=0077,dmask=0077 in
+		  /etc/fstab: kernel, initramfs and grub.cfg readable by root only.
 		Service: nftables.
 	EOF
 	section net "Network, DNS and time" <<-EOF
@@ -988,6 +1001,35 @@ do_harden() {
 	fi
 	run "ssh config parses" ssh -G localhost
 	ssh_dir
+
+	put_tree modprobe
+	grub_words "${HARDEN_CMDLINE[@]}"
+	boot_mask
+}
+
+boot_mask() {
+	local mnt new
+	mnt=$(awk '$3 == "vfat" && ($2 == "/boot" || $2 == "/boot/efi") { print $2; exit }' /etc/fstab)
+	if [[ -z $mnt ]]; then
+		skip "no vfat /boot in /etc/fstab"
+		return 0
+	fi
+	new=$(awk -v m="$mnt" '
+		!/^[[:space:]]*#/ && $2 == m && $3 == "vfat" {
+			n = split($4, o, ","); $4 = ""
+			for (i = 1; i <= n; i++)
+				if (o[i] !~ /^(fmask|dmask|umask)=/) $4 = $4 o[i] ","
+			$4 = $4 "fmask=0077,dmask=0077"
+		}
+		{ print }' /etc/fstab)
+	if [[ $new == "$(cat /etc/fstab)" ]]; then
+		skip "$mnt fmask=0077,dmask=0077"
+		return 0
+	fi
+	put_text /etc/fstab 0644 <<<"$new"
+	run "fstab is valid" findmnt --verify
+	try "remount $mnt" mount -o remount "$mnt"
+	[[ $(stat -c %a -- "$mnt") == 700 ]] || warn "$mnt is readable by everyone until the reboot"
 }
 
 ssh_dir() {
@@ -1020,9 +1062,59 @@ do_net_files() {
 	run "NetworkManager config parses" NetworkManager --print-config
 }
 
+grub_words() {
+	local line w add=() stale=0
+	if [[ ! -f /etc/default/grub ]]; then
+		warn "no /etc/default/grub: add '$*' to the kernel command line yourself"
+		return 0
+	fi
+	if grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qv '^GRUB_CMDLINE_LINUX_DEFAULT="[^"]*"[[:space:]]*$'; then
+		die "GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub is not a plain \"...\" value, add '$*' to it yourself"
+	fi
+	line=$(grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub || true)
+	for w in "$@"; do
+		[[ " $line " =~ [\"\'[:space:]]"$w"[\"\'[:space:]] ]] || add+=("$w")
+		grep -qsF -- "$w" /boot/grub/grub.cfg || stale=1
+	done
+	if ((${#add[@]})); then
+		backup /etc/default/grub
+		if grep -q '^GRUB_CMDLINE_LINUX_DEFAULT="' /etc/default/grub; then
+			sed -i -E "s/^(GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*)\"/\1 ${add[*]}\"/" /etc/default/grub
+		else
+			echo "GRUB_CMDLINE_LINUX_DEFAULT=\"${add[*]}\"" >>/etc/default/grub
+		fi
+		grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qF -- "${add[-1]}\"" || die "could not edit GRUB_CMDLINE_LINUX_DEFAULT"
+		ok "GRUB: added ${add[*]}"
+		stale=1
+	else
+		skip "GRUB has $*"
+	fi
+	if ((stale)); then
+		[[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
+		run "update-grub" update-grub
+		grub_check
+	fi
+}
+
+grub_check() {
+	local need root a l n=0 bad=0
+	need=$(tr ' ' '\n' </proc/cmdline | grep -E '^(root|rootflags|rootfstype|rd\.luks\.[a-z.]+|rd\.lvm\.[a-z.]+|rd\.md\.[a-z.]+|cryptdevice|cryptkey|resume|resume_offset)=' | sort -u || true)
+	root=$(grep -m1 '^root=' <<<"$need" || true)
+	[[ -n $root ]] || { warn "no root= on /proc/cmdline, grub.cfg not checked"; return 0; }
+	while IFS= read -r l; do
+		n=$((n + 1))
+		for a in $need; do
+			[[ " $l " == *" $a "* ]] || { warn "grub.cfg lacks $a in: $l"; bad=1; }
+		done
+	done < <(awk -v r="$root" '$1 == "linux" { $1 = ""; if (index($0 " ", " " r " ")) print }' /boot/grub/grub.cfg)
+	((n > 0)) || die "grub.cfg has no entry with $root, the system booted with"
+	((bad == 0)) || die "grub.cfg lost boot arguments the system booted with"
+	ok "grub.cfg: $n entries keep $(tr '\n' ' ' <<<"$need")"
+}
+
 do_boot() {
 	step "Boot"
-	local n p grub=0
+	local n p
 	n=$(njot)
 	put_tree dracut
 	put_tree plymouth
@@ -1037,35 +1129,7 @@ do_boot() {
 	[[ $(plymouth-set-default-theme) == void-minimal ]] || die "plymouth does not pick void-minimal"
 	ok "plymouth theme void-minimal"
 
-	if [[ -f /etc/default/grub ]]; then
-		local line w add=()
-		line=$(grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub || true)
-		for w in quiet splash; do
-			[[ " $line " =~ [\"\'[:space:]]$w[\"\'[:space:]] ]] || add+=("$w")
-		done
-		if ((${#add[@]})); then
-			backup /etc/default/grub
-			if grep -q '^GRUB_CMDLINE_LINUX_DEFAULT="' /etc/default/grub; then
-				sed -i -E "s/^(GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*)\"/\1 ${add[*]}\"/" /etc/default/grub
-			else
-				echo "GRUB_CMDLINE_LINUX_DEFAULT=\"${add[*]}\"" >>/etc/default/grub
-			fi
-			grep -q "^GRUB_CMDLINE_LINUX_DEFAULT=\".*${add[-1]}\"" /etc/default/grub ||
-				die "could not edit GRUB_CMDLINE_LINUX_DEFAULT"
-			ok "GRUB: added ${add[*]}"
-			grub=1
-		else
-			skip "GRUB has quiet splash"
-		fi
-		if ((grub)) || ! grep -qs splash /boot/grub/grub.cfg; then
-			[[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
-			run "update-grub" update-grub
-		else
-			skip "grub.cfg has splash"
-		fi
-	else
-		warn "no /etc/default/grub: add 'quiet splash' to the kernel command line yourself"
-	fi
+	grub_words quiet splash
 
 	if ((REGEN)); then
 		regen_initramfs
@@ -1724,6 +1788,8 @@ verify() {
 	if ((DO[harden])); then
 		[[ $(stat -c '%a %U' /etc/nftables.conf) == '600 root' ]] || { warn "/etc/nftables.conf permissions"; bad=1; }
 		[[ $(stat -c '%a %U' "$THOME/.ssh") == "700 $TUSER" ]] || { warn "~/.ssh permissions"; bad=1; }
+		[[ -f /etc/modprobe.d/30-harden.conf ]] || { warn "modprobe blocklist missing"; bad=1; }
+		modprobe -n -v hfs 2>/dev/null | grep -q false || { warn "modprobe does not block hfs"; bad=1; }
 	fi
 	if ((DO[doas])); then
 		[[ $(stat -c '%a %U %G' /etc/doas.conf) == '400 root root' ]] || { warn "/etc/doas.conf permissions"; bad=1; }
