@@ -3,17 +3,20 @@ set -eu
 
 temp=4000
 uid=$(id -u)
+pid=${XDG_RUNTIME_DIR:-/tmp}/nightlight.pid
 
 running() { pgrep -u "$uid" -x wlsunset >/dev/null; }
 
 off() {
     pkill -u "$uid" -x wlsunset || true
+    rm -f "$pid"
     notify-send -i weather-clear -t 1500 "Night light off" || true
 }
 
 on() {
     running && return 0
-    setsid -f wlsunset -t "$temp" -T "$((temp + 1))" -S 06:00 -s 18:00 </dev/null >/dev/null 2>&1
+    setsid -f sh -c 'echo $$ >"$1"; shift; exec "$@"' _ "$pid" \
+        wlsunset -t "$temp" -T "$((temp + 1))" -S 06:00 -s 18:00 </dev/null >/dev/null 2>&1
     notify-send -i weather-clear-night -t 1500 "Night light on" "${temp}K" || true
 }
 

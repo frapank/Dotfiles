@@ -778,6 +778,7 @@ plan() {
 		Copies home/{$(join , "${HOME_DESKTOP[@]}")} (gtklock theme too), clones $G0WM_URL
 		  into ~/.local/src/g0wm: ./configure, make, make test, make install
 		  (into ~/.local/bin). Start it from tty1 with start-g0wm.
+		Then home/g0wm's g0wm-status.sh replaces the one of make install.
 		If g0wm and start-g0wm are already in your PATH, built from another
 		  folder, they are left alone; a clone in ~/.local/src/g0wm is pulled and
 		  rebuilt only when it has new commits.
@@ -1301,6 +1302,7 @@ do_g0wm() {
 	run "test g0wm" as_user make -C "$src" test
 	for f in g0wm start-g0wm g0wm-status.sh; do stash "$bin/$f"; done
 	run "install g0wm into ~/.local/bin" as_user make -C "$src" install
+	do_home g0wm
 	out=$(as_user "$bin/g0wm" -v 2>&1 || true)
 	[[ $out == g0wm\ * ]] || die "the installed g0wm does not run: $out"
 	ok "${out%%$'\n'*}"
