@@ -113,6 +113,22 @@ job_kernels() {
 	return "$rc"
 }
 
+job_packages() {
+	if ! flock -n /var/db/xbps/lock true; then
+		log "packages: xbps is running"
+		return 2
+	fi
+	keep=linux$(uname -r | cut -d. -f1-2)
+	orphans=$(xbps-query -O | xargs -r -n1 xbps-uhelper getpkgname | grep -vxE "$keep(-headers)?")
+	if [ -n "$orphans" ]; then
+		# shellcheck disable=SC2086
+		xbps-remove -Ry $orphans 2>&1 || return 1
+	else
+		log "packages: no orphans"
+	fi
+	xbps-remove -Oy 2>&1
+}
+
 # scrub
 
 job_scrub() {
@@ -164,12 +180,13 @@ locked() {
 run_due() {
 	due home "$DAY" && job home
 	due kernels "$((7 * DAY))" && job kernels
+	due packages "$((7 * DAY))" && job packages
 	due scrub "$((30 * DAY))" && job scrub
 	return 0
 }
 
 status() {
-	for j in home kernels scrub; do
+	for j in home kernels packages scrub; do
 		if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
 		printf '%-8s last %s' "$j" "$last"
 		[ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
@@ -185,7 +202,7 @@ status() {
 case ${1:-} in
 status) status ;;
 run) (locked; run_due) ;;
-home | kernels | scrub) (locked; job "$1") ;;
+home | kernels | packages | scrub) (locked; job "$1") ;;
 loop)
 	sleep 900
 	while :; do
@@ -193,5 +210,5 @@ loop)
 		sleep 3600
 	done
 	;;
-*) echo 'usage: maint status | run | home | kernels | scrub' >&2; exit 1 ;;
+*) echo 'usage: maint status | run | home | kernels | packages | scrub' >&2; exit 1 ;;
 esac
