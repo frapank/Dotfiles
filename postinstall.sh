@@ -741,7 +741,9 @@ plan() {
 		Packages: ${PKG_HARDEN[*]}
 		/etc/sysctl.d/{10,20,30,40}-*.conf (0600), applied now with sysctl -p.
 		/etc/nftables/nft_base_desktop.conf (0600), included by /etc/nftables.conf:
-		  input and forward dropped, output allowed. Checked with nft -c, and
+		  input and forward dropped, output allowed; ICMPv6 only errors, ping
+		  (rate limited), neighbor discovery and router adverts from the link
+		  (hop limit 255) and MLD queries. Checked with nft -c, and
 		  loaded right away when nftables already runs (it flushes atomically).
 		/etc/ssh/ssh_config.d/10-local.conf, plus the Include line that Void's
 		  /etc/ssh/ssh_config lacks (without it the file is ignored): TERM
