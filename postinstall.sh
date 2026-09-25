@@ -13,6 +13,9 @@ readonly ICONS_URL=https://gitlab.gnome.org/GNOME/adwaita-icon-theme-legacy.git
 readonly ICONS_TAG=46.2
 readonly ICONS_REV=7642b102c4a7c4088f170f548ae37960f2443522
 readonly ICONS_DIR=/usr/share/icons/AdwaitaLegacy
+readonly CURSOR_URL=https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata-Modern-Classic.tar.xz
+readonly CURSOR_SHA256=7d3495864e5bbef02f5e77de760b2905903b63c71495a78ef6306d19a3b556d8
+readonly CURSOR_DIR=/usr/share/icons/Bibata-Modern-Classic
 readonly RAR_PAGE=https://www.rarlab.com/download.htm
 readonly TS=$(date +%Y%m%d-%H%M%S)
 readonly LOG=/var/log/void-postinstall-$TS.log
@@ -64,7 +67,7 @@ PKG_APPS=(
 PKG_SESSION=(gnome-keyring libsecret polkit-gnome network-manager-applet
 	bluez blueman libspa-bluetooth)
 PKG_THEME=(gnome-themes-extra gnome-themes-extra-gtk adwaita-icon-theme gsettings-desktop-schemas
-	dconf glib adwaita-qt adwaita-qt6 git gtk+3 librsvg)
+	dconf glib adwaita-qt adwaita-qt6 git gtk+3 librsvg curl tar xz)
 PKG_FONTS=(fontconfig nerd-fonts noto-fonts-ttf noto-fonts-emoji noto-fonts-cjk)
 PKG_LOCALE=(glibc-locales)
 PKG_HW=(fwupd)
@@ -913,7 +916,11 @@ plan() {
 		Packages: ${PKG_THEME[*]}
 		Copies home/{$(join , "${HOME_THEME[@]}")}: ~/.gtkrc-2.0 and GTK 3/4 settings.ini.
 		gsettings for GTK 4/libadwaita (and the portal): color-scheme prefer-dark,
-		  gtk-theme Adwaita-dark, Adwaita icons and cursor, SF Mono 10 fonts.
+		  gtk-theme Adwaita-dark, Adwaita icons, Bibata-Modern-Classic cursor,
+		  SF Mono 10 fonts.
+		Bibata-Modern-Classic cursor (black, rounded) into $CURSOR_DIR:
+		  ${CURSOR_URL##*/} of Bibata v2.0.7 from GitHub, checked against a fixed
+		  sha256. g0wm, GTK 2/3/4 and XWayland apps all use it.
 		Qt 5/6: adwaita-qt, Adwaita-Dark style via QT_STYLE_OVERRIDE (~/.bash_profile).
 		AdwaitaLegacy $ICONS_TAG from GNOME into $ICONS_DIR: the full-color icons
 		  Adwaita inherits but Void does not package (pavucontrol, Thunar... show
@@ -1599,9 +1606,46 @@ legacy_icons() {
 	put_text "$mark" 0644 <<<"$ICONS_REV"
 }
 
+cursor_theme() {
+	local tmp stage l name=${CURSOR_DIR##*/} mark=$STATE/cursor-${CURSOR_DIR##*/}
+	if [[ -f $CURSOR_DIR/index.theme && ! -L $CURSOR_DIR && $(cat -- "$mark" 2>/dev/null) == "$CURSOR_SHA256" ]] &&
+		[[ -z $(find "$CURSOR_DIR" \( ! -user root -o ! -group root -o \
+			-type f ! -perm 0644 -o -type d ! -perm 0755 \) -print -quit) ]]; then
+		skip "$CURSOR_DIR"
+		return 0
+	fi
+	tmp=$(mktemp -d)
+	run "download ${CURSOR_URL##*/}" curl -fsSLo "$tmp/cursor.tar.xz" "$CURSOR_URL"
+	[[ $(sha256sum -- "$tmp/cursor.tar.xz" | cut -d' ' -f1) == "$CURSOR_SHA256" ]] ||
+		die "${CURSOR_URL##*/} does not match its sha256"
+	run "unpack ${CURSOR_URL##*/}" tar -xJf "$tmp/cursor.tar.xz" -C "$tmp" --no-same-owner --no-same-permissions
+	[[ -f $tmp/$name/index.theme && -f $tmp/$name/cursors/left_ptr ]] || die "unexpected layout in ${CURSOR_URL##*/}"
+	while IFS= read -r -d '' l; do
+		[[ $(readlink -- "$l") =~ ^[A-Za-z0-9_-]+$ && -f ${l%/*}/$(readlink -- "$l") ]] ||
+			die "symlink out of the theme in ${CURSOR_URL##*/}: ${l#"$tmp/"}"
+	done < <(find "$tmp/$name" -type l -print0)
+	stage=$(mktemp -d -p "${CURSOR_DIR%/*}" ".$name.XXXXXX")
+	cp -a -- "$tmp/$name/." "$stage/"
+	rm -rf -- "$tmp"
+	chown -Rh root:root "$stage"
+	find "$stage" -type d -exec chmod 0755 {} +
+	find "$stage" -type f -exec chmod 0644 {} +
+	if [[ -d $CURSOR_DIR ]] && diff -rq --no-dereference "$stage" "$CURSOR_DIR" >/dev/null; then
+		rm -rf -- "$stage"
+		skip "$CURSOR_DIR"
+	else
+		backup "$CURSOR_DIR"
+		rm -rf -- "$CURSOR_DIR"
+		mv -T -- "$stage" "$CURSOR_DIR"
+		ok "$CURSOR_DIR"
+	fi
+	put_text "$mark" 0644 <<<"$CURSOR_SHA256"
+}
+
 do_theme() {
 	step "GTK theme"
 	legacy_icons
+	cursor_theme
 	do_home "${HOME_THEME[@]}"
 	[[ -d /usr/share/themes/Adwaita-dark/gtk-2.0 && -d /usr/share/themes/Adwaita-dark/gtk-3.0 ]] ||
 		die "Adwaita-dark for GTK 2/3 missing (gnome-themes-extra, -gtk)"
@@ -1612,7 +1656,7 @@ do_theme() {
 	gset color-scheme "'prefer-dark'"
 	gset gtk-theme "'Adwaita-dark'"
 	gset icon-theme "'Adwaita'"
-	gset cursor-theme "'Adwaita'"
+	gset cursor-theme "'Bibata-Modern-Classic'"
 	gset font-name "'SF Mono 10'"
 	gset document-font-name "'SF Mono 10'"
 	gset monospace-font-name "'SF Mono 10'"
