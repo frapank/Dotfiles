@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+mode=region
+case $# in
+0) ;;
+1)
+    case $1 in
+    region | screen | edit) mode=$1 ;;
+    *) echo "usage: screenshot [region|screen|edit]" >&2; exit 2 ;;
+    esac
+    ;;
+*) echo "usage: screenshot [region|screen|edit]" >&2; exit 2 ;;
+esac
+
+geo= out=
+if [ "$mode" = screen ]; then
+    # shellcheck disable=SC2046
+    set -- $(grep -lx connected /sys/class/drm/card*-*/status 2>/dev/null || :)
+    if [ $# -gt 1 ]; then
+        out=$(slurp -o -f %o) || exit 0
+    fi
+else
+    geo=$(slurp) || exit 0
+fi
+
+dir=$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME")
+mkdir -p "$dir"
+file=$dir/shot-$(date +%Y%m%d-%H%M%S).png
+
+grim ${geo:+-g "$geo"} ${out:+-o "$out"} "$file"
+[ "$mode" = edit ] && swappy -f "$file" -o "$file"
+wl-copy --type image/png <"$file" || :
+notify-send -i image-x-generic -t 3000 "Screenshot saved" "$file" || true
