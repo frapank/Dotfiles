@@ -749,9 +749,10 @@ plan() {
 		  the configured keys are offered, known_hosts hashed, no agent forwarding.
 		~/.ssh created 0700 (or fixed to 0700), no keys generated.
 		/etc/modprobe.d/30-harden.conf: modules nothing current uses that had
-		  exploitable bugs can no longer load: rds tipc atm n_hdlc, firewire,
-		  floppy, filesystems cramfs hfs befs qnx6 adfs ufs (hfsplus, udf, exfat,
-		  ntfs3 still work).
+		  exploitable bugs can no longer load: rds tipc atm n_hdlc n_gsm sctp,
+		  appletalk psnap llc2 phonet ax25 netrom rose, firewire, floppy,
+		  filesystems cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2
+		  (hfsplus, udf, exfat, ntfs3 still work).
 		Kernel command line (GRUB_CMDLINE_LINUX_DEFAULT, so the recovery entry
 		  boots without them): ${HARDEN_CMDLINE[*]}.
 		  Freed memory is zeroed, a few % slower. Active after the reboot.
