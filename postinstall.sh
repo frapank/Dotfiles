@@ -6,9 +6,12 @@ export LC_ALL=C
 
 readonly G0WM_URL=https://github.com/frapank/g0wm.git
 readonly FONT_URL=https://github.com/supercomputra/SF-Mono-Font.git
+readonly FONT_REV=1409ae79074d204c284507fef9e479248d5367c1
 readonly SFPRO_URL=https://github.com/sahibjotsaggu/San-Francisco-Pro-Fonts.git
+readonly SFPRO_REV=8bfea09aa6f1139479f80358b2e1e5c6dc991a58
 readonly ICONS_URL=https://gitlab.gnome.org/GNOME/adwaita-icon-theme-legacy.git
 readonly ICONS_TAG=46.2
+readonly ICONS_REV=7642b102c4a7c4088f170f548ae37960f2443522
 readonly ICONS_DIR=/usr/share/icons/AdwaitaLegacy
 readonly RAR_PAGE=https://www.rarlab.com/download.htm
 readonly TS=$(date +%Y%m%d-%H%M%S)
@@ -342,31 +345,48 @@ jot() {
 	printf '%s\n' "$*" >>"$BAK/journal"
 }
 
-njot() { grep -vc '^sysctl' -- "$BAK/journal" || true; }
+njot() { grep -vcE '^(sysctl|nft|svr)' -- "$BAK/journal" || true; }
 
 rollback() {
 	trap '' INT TERM HUP
 	[[ -s $BAK/journal ]] || return 0
 	printf '\n%s==> rolling back %d change(s)%s\n' "$C_B" "$(wc -l <"$BAK/journal")" "$C_0" >&2
 	log "=== rollback"
-	local op a b c p pk reset=0
+	local op a b c p pk reset=0 keepdoas=0
 	while IFS=$'\t' read -r op a b c; do
 		log "undo: $op $a $b"
 		case $op in
-		restore) rm -rf -- "$a" && cp -a -- "$BAK/files$a" "$a" ;;
-		remove) rm -rf -- "$a" ;;
+		restore)
+			[[ $a == /etc/doas.conf ]] && ((keepdoas)) && continue
+			rm -rf -- "$a" && cp -a -- "$BAK/files$a" "$a"
+			;;
+		remove)
+			[[ $a == /etc/doas.conf ]] && ((keepdoas)) && continue
+			rm -rf -- "$a"
+			;;
 		rmdir) rmdir -- "$a" ;;
 		sv-off) rm -f -- "$SVDIR/$a" ;;
 		sv-on) ln -sfn -- "$b" "$SVDIR/$a" ;;
-		group) gpasswd -d "$b" "$a" ;;
+		group)
+			[[ $a == wheel ]] && ((keepdoas)) && continue
+			gpasswd -d "$b" "$a"
+			;;
 		shell) usermod -s "$b" "$a" ;;
 		pkgs)
 			pk=()
-			for p in $a; do installed "$p" && pk+=("$p"); done
+			for p in $a; do
+				[[ $p == opendoas ]] && ((keepdoas)) && continue
+				installed "$p" && pk+=("$p")
+			done
 			((${#pk[@]} == 0)) || xbps-remove -Ry -- "${pk[@]}"
 			;;
-		sudo) for p in 1 2 3; do xbps-install -Sy sudo && break; sleep 5; done ;;
+		sudo)
+			for p in 1 2 3; do xbps-install -Sy sudo && break; sleep 5; done
+			installed sudo || { keepdoas=1; false; }
+			;;
 		sysctl) reset=1; sysctl -p "$BAK/sysctl.orig" ;;
+		nft) nft -f /etc/nftables.conf ;;
+		svr) sv restart "$a" ;;
 		initramfs) cp -a -- "$BAK/boot/." /boot/ ;;
 		hrestore) as_user rm -rf -- "$a" && as_user cp -a -- "$UBAK$a" "$a" ;;
 		hremove) as_user rm -rf -- "$a" ;;
@@ -380,6 +400,7 @@ rollback() {
 		esac >>"$LOG" 2>&1 || printf '  %s! could not undo: %s %s%s\n' "$C_Y" "$op" "$a" "$C_0" >&2
 	done < <(tac -- "$BAK/journal")
 	: >"$BAK/journal"
+	((keepdoas == 0)) || printf '  %s! sudo could not be reinstalled: doas, /etc/doas.conf and wheel were kept%s\n' "$C_Y" "$C_0" >&2
 	printf '%srolled back.%s backups: %s  log: %s\n' "$C_B" "$C_0" "$BAK" "$LOG" >&2
 	((reset == 0)) || printf 'reboot to be sure every kernel setting is back.\n' >&2
 	return 0
@@ -472,6 +493,12 @@ put_tree() {
 		dst=/${src#"$REPO/root/$1/"}
 		put "$src" "$dst" "$(mode_for "$dst")"
 	done < <(find "$REPO/root/$1" -type f -print0 | sort -z)
+	while IFS= read -r -d '' src; do
+		dst=/${src#"$REPO/root/$1/"}
+		case $dst in
+		/etc/sv/?* | /usr/share/plymouth/themes/?*) fix_perm "$dst" 0755 ;;
+		esac
+	done < <(find "$REPO/root/$1" -mindepth 1 -type d -print0 | sort -z)
 }
 
 # user files
@@ -545,6 +572,16 @@ sv_disable() {
 		rm -f -- "$SVDIR/$s"
 		ok "service $s disabled"
 	done
+}
+
+sv_refresh() {
+	local s=$1 n on=0
+	shift
+	[[ $(sv status "$s" 2>/dev/null) == run:* ]] && on=1 && jot svr "$s"
+	n=$(njot)
+	"$@"
+	((on && n != $(njot))) || return 0
+	try "restart $s (files changed)" sv restart "$s"
 }
 
 # checks
@@ -704,7 +741,8 @@ plan() {
 		Packages: ${PKG_HARDEN[*]}
 		/etc/sysctl.d/{10,20,30,40}-*.conf (0600), applied now with sysctl -p.
 		/etc/nftables/nft_base_desktop.conf (0600), included by /etc/nftables.conf:
-		  input and forward dropped, output allowed. Checked with nft -c.
+		  input and forward dropped, output allowed. Checked with nft -c, and
+		  loaded right away when nftables already runs (it flushes atomically).
 		/etc/ssh/ssh_config.d/10-local.conf, plus the Include line that Void's
 		  /etc/ssh/ssh_config lacks (without it the file is ignored): TERM
 		  xterm-256color on remote hosts, keys go to the agent on first use, only
@@ -728,7 +766,7 @@ plan() {
 		  /etc/resolv.conf -> nameserver 127.0.0.1.
 		chrony with NTS servers.
 		Services: dbus NetworkManager dnscrypt-proxy chronyd on;
-		  dhcpcd* wpa_supplicant ntpd off. Done last: the network may drop for
+		  dhcpcd* wpa_supplicant ntpd off. Done near the end: the network may drop for
 		  a moment, it is fully up after the reboot.
 	EOF
 	section boot "Boot: initramfs, splash, login screen" <<-EOF
@@ -870,7 +908,8 @@ plan() {
 		Packages: ${PKG_FONTS[*]}
 		  nerd-fonts is the full set: about 15 GB once installed.
 		SF Mono into $SF_DIR, SF Pro into $SFPRO_DIR (root, 0644),
-		  cloned from $FONT_URL and $SFPRO_URL.
+		  from $FONT_URL and $SFPRO_URL at fixed commits
+		  (${FONT_REV:0:12}, ${SFPRO_REV:0:12}), downloaded as root.
 		Copies home/{$(join , "${HOME_FONTS[@]}")}: fontconfig makes SF Mono the monospace,
 		  sans-serif and serif font (Nerd symbols, emoji and CJK as fallback).
 	EOF
@@ -880,6 +919,8 @@ plan() {
 		  puts $TUSER in wheel and checks doas really lets $TUSER in.
 		ignorepkg=sudo in /etc/xbps.d, then removes sudo and /etc/sudoers*.
 		Refused if $TUSER has no usable password: that would lock you out.
+		Done last, after the final check. If a rollback cannot reinstall sudo,
+		  doas, its config and wheel stay, so you are never left without either.
 	EOF
 
 	if ((SEL[maint])); then
@@ -984,11 +1025,17 @@ do_harden() {
 		try "sysctl -p ${f##*/}" sysctl -p "/etc/sysctl.d/${f##*/}"
 	done
 
+	local nft_on=0 n
+	[[ $(sv status nftables 2>/dev/null) == run:* ]] && nft_on=1 && jot nft
+	n=$(njot)
 	put_tree nftables
 	put_text /etc/nftables.conf 0600 <<-'EOF'
 		include "/etc/nftables/nft_base_desktop.conf"
 	EOF
 	run "nftables ruleset is valid" nft -c -f /etc/nftables.conf
+	if ((nft_on && n != $(njot))); then
+		run "load the new nftables ruleset" nft -f /etc/nftables.conf
+	fi
 
 	put_tree ssh
 	if grep -qE '^[[:space:]]*Include[[:space:]]+/etc/ssh/ssh_config\.d/' /etc/ssh/ssh_config; then
@@ -1143,6 +1190,7 @@ initramfs_stale() {
 	for k in /usr/lib/modules/*/modules.dep; do
 		[[ -e $k ]] || continue
 		k=${k%/modules.dep}
+		compgen -G "/boot/vmlinu[xz]-${k##*/}" >/dev/null || continue
 		img=/boot/initramfs-${k##*/}.img
 		[[ -s $img ]] || return 0
 		if command -v lsinitrd >/dev/null; then
@@ -1158,9 +1206,10 @@ regen_initramfs() {
 	for k in /usr/lib/modules/*/modules.dep; do
 		[[ -e $k ]] || continue
 		k=${k%/modules.dep}
+		compgen -G "/boot/vmlinu[xz]-${k##*/}" >/dev/null || continue
 		kvers+=("${k##*/}")
 	done
-	((${#kvers[@]})) || die "no installed kernel found in /usr/lib/modules"
+	((${#kvers[@]})) || die "no kernel in /usr/lib/modules with a /boot/vmlinuz"
 	install -d -m 0700 -- "$BAK/boot"
 	if compgen -G '/boot/initramfs-*.img' >/dev/null; then
 		cp -a /boot/initramfs-*.img "$BAK/boot/" || die "cannot back up /boot/initramfs-*.img (disk full?)"
@@ -1239,7 +1288,7 @@ do_swap() {
 
 do_maint() {
 	step "Maintenance"
-	put_tree maint
+	sv_refresh maint put_tree maint
 	run "maint parses" sh -n /usr/local/sbin/maint
 }
 
@@ -1407,29 +1456,40 @@ fonts_ok() {
 		-type f ! -perm 0644 -o -type d ! -perm 0755 \) -print -quit) ]]
 }
 
+git_at() {
+	run "download ${2##*/} at ${3:0:12}" env GIT_TERMINAL_PROMPT=0 sh -c '
+		git init -q "$1" && cd "$1" &&
+		git fetch -q --depth 1 -- "$2" "$3" &&
+		git -c advice.detachedHead=false checkout -q FETCH_HEAD' _ "$1" "$2" "$3"
+	[[ $(git -C "$1" rev-parse HEAD) == "$3" ]] || die "$2 did not give commit $3"
+	[[ -z $(find "$1" -path "$1/.git" -prune -o -type l -print -quit) ]] || die "symlinks in $2, refusing"
+}
+
 font_repo() {
-	local tmp f n=0
-	if fonts_ok "$2"; then
-		skip "$2"
+	local url=$1 rev=$2 dir=$3 tmp f n=0 j mark=$STATE/fonts-${3##*/}
+	if fonts_ok "$dir" && [[ $(cat -- "$mark" 2>/dev/null) == "$rev" ]]; then
+		skip "$dir (${rev:0:12})"
 		return 0
 	fi
-	[[ -d $2 && ! -L $2 ]] && fix_perm "$2" 0755
-	FONTS_NEW=1
-	tmp=$(as_user mktemp -d)
-	run "clone ${1##*/}" as_user git clone --depth 1 -- "$1" "$tmp/f"
+	[[ -d $dir && ! -L $dir ]] && fix_perm "$dir" 0755
+	tmp=$(mktemp -d)
+	git_at "$tmp/f" "$url" "$rev"
+	j=$(njot)
 	while IFS= read -r -d '' f; do
-		put "$f" "$2/${f##*/}" 0644
+		put "$f" "$dir/${f##*/}" 0644
 		n=$((n + 1))
-	done < <(find "$tmp/f" -type f \( -name '*.otf' -o -name '*.ttf' \) -print0 | sort -z)
-	as_user rm -rf -- "$tmp"
-	((n)) || die "no font files in $1"
+	done < <(find "$tmp/f" -path "$tmp/f/.git" -prune -o -type f \( -name '*.otf' -o -name '*.ttf' \) -print0 | sort -z)
+	rm -rf -- "$tmp"
+	((n)) || die "no font files in $url"
+	((j == $(njot))) || FONTS_NEW=1
+	put_text "$mark" 0644 <<<"$rev"
 }
 
 do_fonts() {
 	step "Fonts"
 	local f
-	font_repo "$FONT_URL" "$SF_DIR"
-	font_repo "$SFPRO_URL" "$SFPRO_DIR"
+	font_repo "$FONT_URL" "$FONT_REV" "$SF_DIR"
+	font_repo "$SFPRO_URL" "$SFPRO_REV" "$SFPRO_DIR"
 	if ((FONTS_NEW)); then
 		run "refresh the font cache" fc-cache -f
 	else
@@ -1454,20 +1514,19 @@ gset() {
 
 legacy_icons() {
 	local tmp stage mark=$STATE/adwaita-legacy
-	if [[ -f $ICONS_DIR/index.theme && ! -L $ICONS_DIR && $(cat -- "$mark" 2>/dev/null) == "$ICONS_TAG" ]] &&
+	if [[ -f $ICONS_DIR/index.theme && ! -L $ICONS_DIR && $(cat -- "$mark" 2>/dev/null) == "$ICONS_REV" ]] &&
 		[[ -z $(find "$ICONS_DIR" \( -type l -o ! -user root -o ! -group root -o \
 			-type f ! -perm 0644 -o -type d ! -perm 0755 \) -print -quit) ]]; then
 		skip "$ICONS_DIR ($ICONS_TAG)"
 		return 0
 	fi
-	tmp=$(as_user mktemp -d)
-	run "clone AdwaitaLegacy $ICONS_TAG" as_user git -c advice.detachedHead=false clone --depth 1 --branch "$ICONS_TAG" -- "$ICONS_URL" "$tmp/src"
+	tmp=$(mktemp -d)
+	git_at "$tmp/src" "$ICONS_URL" "$ICONS_REV"
 	[[ -f $tmp/src/index.theme && -d $tmp/src/AdwaitaLegacy/48x48 ]] || die "unexpected layout in $ICONS_URL"
-	[[ -z $(find "$tmp/src/AdwaitaLegacy" -type l -print -quit) ]] || die "symlinks in $ICONS_URL, refusing"
 	stage=$(mktemp -d -p "${ICONS_DIR%/*}" .AdwaitaLegacy.XXXXXX)
 	cp -r -- "$tmp/src/AdwaitaLegacy/." "$stage/"
 	cp -- "$tmp/src/index.theme" "$stage/index.theme"
-	as_user rm -rf -- "$tmp"
+	rm -rf -- "$tmp"
 	rm -rf -- "$stage/cursors"
 	chown -R root:root "$stage"
 	find "$stage" -type d -exec chmod 0755 {} +
@@ -1482,7 +1541,7 @@ legacy_icons() {
 		ok "$ICONS_DIR ($ICONS_TAG)"
 		try "icon cache" gtk-update-icon-cache -f -q "$ICONS_DIR"
 	fi
-	put_text "$mark" 0644 <<<"$ICONS_TAG"
+	put_text "$mark" 0644 <<<"$ICONS_REV"
 }
 
 do_theme() {
@@ -1658,7 +1717,7 @@ do_services() {
 		sv_enable socklog-unix
 		sv_enable nanoklogd
 		save_sysctl "$REPO"/root/watchdog/etc/sysctl.d/*.conf
-		put_tree watchdog
+		sv_refresh watchdog put_tree watchdog
 		try "sysctl -p 60-watchdog.conf" sysctl -p /etc/sysctl.d/60-watchdog.conf
 		sv_enable watchdog
 	fi
@@ -1791,10 +1850,6 @@ verify() {
 		[[ -f /etc/modprobe.d/30-harden.conf ]] || { warn "modprobe blocklist missing"; bad=1; }
 		modprobe -n -v hfs 2>/dev/null | grep -q false || { warn "modprobe does not block hfs"; bad=1; }
 	fi
-	if ((SEL[doas])); then
-		[[ $(stat -c '%a %U %G' /etc/doas.conf) == '400 root root' ]] || { warn "/etc/doas.conf permissions"; bad=1; }
-		command -v sudo >/dev/null && { warn "sudo still present"; bad=1; }
-	fi
 	((bad == 0)) || die "final check failed"
 	ok "all good"
 }
@@ -1803,7 +1858,10 @@ main() {
 	while (($#)); do
 		case $1 in
 		-y | --yes) YES=1 ;;
-		-u | --user) TUSER=${2:-}; shift ;;
+		-u | --user)
+			[[ -n ${2:-} ]] || { echo "error: $1 needs a USER" >&2; exit 1; }
+			TUSER=$2; shift
+			;;
 		-h | --help) usage 0 ;;
 		*) echo "unknown option: $1" >&2; usage 1 >&2 ;;
 		esac
@@ -1849,9 +1907,9 @@ main() {
 	((SEL[boot])) && do_boot
 	do_services
 	do_post
-	((SEL[doas])) && do_doas
 	((SEL[net])) && do_net_services
 	verify
+	((SEL[doas])) && do_doas
 
 	trap - ERR INT TERM HUP
 	rm -rf -- "${BAK:?}/boot"

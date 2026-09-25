@@ -39,8 +39,8 @@ every() {
 }
 
 kernel() {
-	tail -Fn0 "$log" 2>/dev/null | while IFS= read -r line; do
-		msg=${line#*] }
+	stdbuf -oL dmesg -W -k --color=never 2>/dev/null | while IFS= read -r line; do
+		msg=${line#*] } raw=$msg
 		case $msg in
 		*"segfault at"*) prog=${msg%%\[*} why="segmentation fault" last=$prog ;;
 		traps:*)
@@ -90,7 +90,7 @@ kernel() {
 			;;
 		*) continue ;;
 		esac
-		notify "$prog" "$why" "$line" &
+		notify "$prog" "$why" "$raw" &
 	done
 }
 
