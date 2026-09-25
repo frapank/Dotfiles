@@ -27,6 +27,7 @@ if [ -n "$region" ]; then
     geo=$(slurp) || exit 0
     what=region
 else
+    # shellcheck disable=SC2046
     set -- $(grep -lx connected /sys/class/drm/card*-*/status 2>/dev/null || :)
     if [ $# -gt 1 ]; then
         out=$(slurp -o -f %o) || exit 0

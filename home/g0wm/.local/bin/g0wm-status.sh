@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2034,SC2154
 set -u
 
 warn() { printf 'g0wm-status.sh: %s\n' "$*" >&2; }

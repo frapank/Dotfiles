@@ -17,6 +17,7 @@ as_user() {
 	env=$(tr '\0' '\n' <"/proc/$pid/environ" |
 		grep -E '^(HOME|DBUS_SESSION_BUS_ADDRESS|WAYLAND_DISPLAY|XDG_RUNTIME_DIR)=')
 
+	# shellcheck disable=SC2086
 	setpriv --reuid="$user" --regid="$user" --init-groups \
 		env -i PATH=/usr/bin:/bin $env "$@"
 }
@@ -161,6 +162,7 @@ webcam() {
 	pids=$(fuser /dev/video* 2>/dev/null)
 	if [ -n "$pids" ]; then
 		once cam || return 0
+		# shellcheck disable=SC2086
 		apps=$(ps -o comm= -p "$(echo $pids | tr ' ' ,)" | sort -u | paste -sd, -)
 		notify Webcam "in use by $apps"
 	else

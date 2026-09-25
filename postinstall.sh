@@ -222,7 +222,7 @@ SFPRO_DIR=/usr/local/share/fonts/SF-Pro
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
 HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0
-declare -A DO=() BACKED=()
+declare -A SEL=() BACKED=()
 
 # output
 
@@ -375,7 +375,7 @@ rollback() {
 		hchmod) as_user chmod -- "$b" "$a" ;;
 		hown) chown -- "$b" "$a" ;;
 		perm) chown -- "$c" "$a" && chmod -- "$b" "$a" ;;
-		pkgback) read -ra a <<<"$a"; xbps-install -y -- "${a[@]}" ;;
+		pkgback) read -ra pk <<<"$a"; xbps-install -y -- "${pk[@]}" ;;
 		gset) as_user dbus-run-session gsettings set "${c:-org.gnome.desktop.interface}" "$a" "$b" ;;
 		esac >>"$LOG" 2>&1 || printf '  %s! could not undo: %s %s%s\n' "$C_Y" "$op" "$a" "$C_0" >&2
 	done < <(tac -- "$BAK/journal")
@@ -669,7 +669,7 @@ zram_size() {
 section() {
 	printf '\n%s[%s]%s\n' "$C_B" "$2" "$C_0"
 	sed 's/^/  /'
-	if ask "  apply?"; then DO[$1]=1; else DO[$1]=0; fi
+	if ask "  apply?"; then SEL[$1]=1; else SEL[$1]=0; fi
 }
 
 plan() {
@@ -882,28 +882,28 @@ plan() {
 		Refused if $TUSER has no usable password: that would lock you out.
 	EOF
 
-	if ((DO[maint])); then
+	if ((SEL[maint])); then
 		[[ $(stat -f -c %T /) == btrfs ]] || die "maint: / is not btrfs"
 		[[ $(stat -f -c %T /home) == btrfs && $(stat -c %i /home) == 256 ]] ||
 			die "maint: /home is not a btrfs subvolume, it cannot be snapshotted"
 	fi
-	if ((DO[doas])); then
+	if ((SEL[doas])); then
 		local st
 		st=$(passwd -S -- "$TUSER" | awk '{print $2}')
 		[[ $st == P ]] || die "$TUSER has no usable password (passwd -S: $st), run 'passwd $TUSER' first"
 	fi
 
 	local k any=0
-	for k in "${SECTIONS[@]}"; do ((DO[$k])) && any=1; done
+	for k in "${SECTIONS[@]}"; do ((SEL[$k])) && any=1; done
 	((any)) || { say "nothing selected."; exit 0; }
 
 	local need=6 avail
-	((DO[fonts])) && need=$((need + 16))
-	((DO[apps])) && need=$((need + 2))
+	((SEL[fonts])) && need=$((need + 16))
+	((SEL[apps])) && need=$((need + 2))
 	avail=$(df --output=avail -BG / | tail -n1 | tr -dc 0-9)
 	((avail >= need)) || die "about ${need} GB needed on /, only ${avail} GB free"
 
-	if [[ -n ${SSH_CONNECTION:-} ]] && ((DO[net])); then
+	if [[ -n ${SSH_CONNECTION:-} ]] && ((SEL[net])); then
 		warn "you are on SSH: the network step at the end may drop this connection"
 	fi
 	printf '\n'
@@ -920,7 +920,7 @@ do_update() {
 do_packages() {
 	step "Packages"
 	local want=("${PKG_CORE[@]}") new=() old=() p
-	if ((DO[power])); then
+	if ((SEL[power])); then
 		for p in tlp-rdw tlp; do installed "$p" && old+=("$p"); done
 		if ((${#old[@]})); then
 			sv_disable tlp
@@ -928,25 +928,25 @@ do_packages() {
 			run "remove ${old[*]}" xbps-remove -y -- "${old[@]}"
 		fi
 	fi
-	((DO[cli])) && want+=("${PKG_CLI[@]}")
-	((DO[lsp])) && want+=("${PKG_LSP[@]}")
-	((DO[harden])) && want+=("${PKG_HARDEN[@]}")
-	((DO[net])) && want+=("${PKG_NET[@]}")
-	((DO[boot])) && want+=("${PKG_BOOT[@]}")
-	((DO[desktop])) && want+=("${PKG_DESKTOP[@]}")
-	((DO[media])) && want+=("${PKG_MEDIA[@]}")
-	((DO[apps])) && want+=("${PKG_APPS[@]}")
-	((DO[session])) && want+=("${PKG_SESSION[@]}")
-	((DO[theme])) && want+=("${PKG_THEME[@]}")
-	((DO[locale])) && want+=("${PKG_LOCALE[@]}")
-	((DO[hw])) && want+=("${PKG_HW[@]}" "${HW_PKGS[@]}")
-	((DO[power])) && want+=("${PKG_POWER[@]}")
-	((DO[logs])) && want+=("${PKG_LOGS[@]}")
-	((DO[dirs])) && want+=("${PKG_DIRS[@]}")
-	((DO[swap])) && want+=("${PKG_SWAP[@]}")
-	((DO[maint])) && want+=("${PKG_MAINT[@]}")
-	((DO[fonts])) && want+=("${PKG_FONTS[@]}" git)
-	((DO[doas])) && want+=(opendoas)
+	((SEL[cli])) && want+=("${PKG_CLI[@]}")
+	((SEL[lsp])) && want+=("${PKG_LSP[@]}")
+	((SEL[harden])) && want+=("${PKG_HARDEN[@]}")
+	((SEL[net])) && want+=("${PKG_NET[@]}")
+	((SEL[boot])) && want+=("${PKG_BOOT[@]}")
+	((SEL[desktop])) && want+=("${PKG_DESKTOP[@]}")
+	((SEL[media])) && want+=("${PKG_MEDIA[@]}")
+	((SEL[apps])) && want+=("${PKG_APPS[@]}")
+	((SEL[session])) && want+=("${PKG_SESSION[@]}")
+	((SEL[theme])) && want+=("${PKG_THEME[@]}")
+	((SEL[locale])) && want+=("${PKG_LOCALE[@]}")
+	((SEL[hw])) && want+=("${PKG_HW[@]}" "${HW_PKGS[@]}")
+	((SEL[power])) && want+=("${PKG_POWER[@]}")
+	((SEL[logs])) && want+=("${PKG_LOGS[@]}")
+	((SEL[dirs])) && want+=("${PKG_DIRS[@]}")
+	((SEL[swap])) && want+=("${PKG_SWAP[@]}")
+	((SEL[maint])) && want+=("${PKG_MAINT[@]}")
+	((SEL[fonts])) && want+=("${PKG_FONTS[@]}" git)
+	((SEL[doas])) && want+=(opendoas)
 	for p in $(printf '%s\n' "${want[@]}" | sort -u); do
 		installed "$p" || new+=("$p")
 	done
@@ -1246,17 +1246,17 @@ do_maint() {
 do_post() {
 	step "Final settings"
 	local i
-	if ((DO[power])); then
+	if ((SEL[power])); then
 		for ((i = 0; i < 15; i++)); do
 			powerprofilesctl get >/dev/null 2>&1 && break
 			sleep 1
 		done
 		try "power profile balanced" powerprofilesctl set balanced
 	fi
-	if ((DO[hw])); then
+	if ((SEL[hw])); then
 		try "fwupd metadata" fwupdmgr refresh --force
 	fi
-	if ((DO[swap])); then
+	if ((SEL[swap])); then
 		for ((i = 0; i < 10; i++)); do
 			grep -q '^/dev/zram' /proc/swaps && break
 			sleep 1
@@ -1272,10 +1272,10 @@ do_post() {
 do_groups() {
 	step "Groups"
 	local g groups=()
-	((DO[desktop])) && groups+=("${USER_GROUPS[@]}")
-	((DO[doas])) && groups+=(wheel)
-	((DO[session])) && groups+=(bluetooth)
-	((DO[logs])) && groups+=(socklog)
+	((SEL[desktop])) && groups+=("${USER_GROUPS[@]}")
+	((SEL[doas])) && groups+=(wheel)
+	((SEL[session])) && groups+=(bluetooth)
+	((SEL[logs])) && groups+=(socklog)
 	((${#groups[@]})) || return 0
 	for g in $(printf '%s\n' "${groups[@]}" | sort -u); do
 		getent group "$g" >/dev/null || { warn "group $g does not exist"; continue; }
@@ -1620,10 +1620,10 @@ do_media() {
 
 do_repos() {
 	step "Repositories"
-	((DO[apps])) && put_tree librewolf
+	((SEL[apps])) && put_tree librewolf
 	run "sync repository index (network check)" xbps-install -S
 	try "update xbps itself" xbps-install -uy xbps
-	if ((DO[hw] && NONFREE || DO[apps])); then
+	if ((SEL[hw] && NONFREE || SEL[apps])); then
 		if installed void-repo-nonfree; then
 			skip "nonfree repo"
 		else
@@ -1637,24 +1637,24 @@ do_repos() {
 do_services() {
 	step "Services"
 	[[ -d $SVDIR ]] || die "$SVDIR does not exist, is this system running runit?"
-	if ((DO[desktop] || DO[session] || DO[power] || DO[hw] || DO[media])); then
+	if ((SEL[desktop] || SEL[session] || SEL[power] || SEL[hw] || SEL[media])); then
 		sv_enable dbus
 	fi
-	if ((DO[desktop])); then
+	if ((SEL[desktop])); then
 		sv_disable acpid
 		sv_enable elogind
 		sv_enable polkitd
 		[[ -L $SVDIR/seatd ]] && warn "seatd and elogind are both enabled, consider: rm $SVDIR/seatd"
 	fi
-	((DO[harden])) && sv_enable nftables
-	((DO[session])) && sv_enable bluetoothd
-	if ((DO[power])); then
+	((SEL[harden])) && sv_enable nftables
+	((SEL[session])) && sv_enable bluetoothd
+	if ((SEL[power])); then
 		sv_disable tlp
 		sv_enable power-profiles-daemon
 	fi
-	((DO[swap])) && sv_enable zramen
-	((DO[maint])) && sv_enable maint
-	if ((DO[logs])); then
+	((SEL[swap])) && sv_enable zramen
+	((SEL[maint])) && sv_enable maint
+	if ((SEL[logs])); then
 		sv_enable socklog-unix
 		sv_enable nanoklogd
 		save_sysctl "$REPO"/root/watchdog/etc/sysctl.d/*.conf
@@ -1743,55 +1743,55 @@ do_net_services() {
 verify() {
 	step "Final check"
 	local bad=0 c
-	if ((DO[cli])); then
+	if ((SEL[cli])); then
 		for c in vim nvim tmux fzf rg; do
 			command -v "$c" >/dev/null || { warn "$c missing"; bad=1; }
 		done
 		cmp -s "$REPO/home/bash/.bashrc" "$THOME/.bashrc" && [[ ! -L $THOME/.bashrc ]] ||
 			{ warn "~/.bashrc is not the repo's copy"; bad=1; }
 	fi
-	if ((DO[desktop])); then
+	if ((SEL[desktop])); then
 		g0wm_where >/dev/null || { warn "g0wm or start-g0wm missing from $TUSER's PATH"; bad=1; }
 		[[ -f $THOME/.config/g0wm/settings.json && ! -L $THOME/.config/g0wm/settings.json ]] ||
 			{ warn "g0wm settings not installed"; bad=1; }
 	fi
-	if ((DO[apps])); then
+	if ((SEL[apps])); then
 		for c in librewolf loupe papers showtime soffice pavucontrol swaylock tree thunar xdg-open gtk-launch; do
 			command -v "$c" >/dev/null || { warn "$c missing"; bad=1; }
 		done
 		[[ -x $THOME/.local/bin/open ]] || { warn "~/.local/bin/open missing"; bad=1; }
 	fi
-	if ((DO[power])); then
+	if ((SEL[power])); then
 		command -v tlp >/dev/null && { warn "tlp still installed"; bad=1; }
 		[[ -L $SVDIR/power-profiles-daemon ]] || { warn "power-profiles-daemon not enabled"; bad=1; }
 	fi
-	if ((DO[swap])); then
+	if ((SEL[swap])); then
 		[[ -L $SVDIR/zramen ]] || { warn "zramen not enabled"; bad=1; }
 	fi
-	if ((DO[maint])); then
+	if ((SEL[maint])); then
 		[[ -L $SVDIR/maint ]] || { warn "maint not enabled"; bad=1; }
 		[[ $(stat -c '%a %U' /usr/local/sbin/maint) == '755 root' ]] || { warn "/usr/local/sbin/maint permissions"; bad=1; }
 	fi
-	if ((DO[logs])); then
+	if ((SEL[logs])); then
 		[[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || { warn "socklog not enabled"; bad=1; }
 		[[ -L $SVDIR/watchdog ]] || { warn "watchdog not enabled"; bad=1; }
 	fi
-	if ((DO[session])); then
+	if ((SEL[session])); then
 		for c in nm-connection-editor blueman-manager gnome-keyring-daemon; do
 			command -v "$c" >/dev/null || { warn "$c missing"; bad=1; }
 		done
 		grep -q pam_gnome_keyring /etc/pam.d/login || { warn "keyring not in /etc/pam.d/login"; bad=1; }
 	fi
-	if ((DO[media])); then
+	if ((SEL[media])); then
 		[[ -f $THOME/.config/xdg-desktop-portal/g0wm-portals.conf ]] || { warn "portal config not installed"; bad=1; }
 	fi
-	if ((DO[harden])); then
+	if ((SEL[harden])); then
 		[[ $(stat -c '%a %U' /etc/nftables.conf) == '600 root' ]] || { warn "/etc/nftables.conf permissions"; bad=1; }
 		[[ $(stat -c '%a %U' "$THOME/.ssh") == "700 $TUSER" ]] || { warn "~/.ssh permissions"; bad=1; }
 		[[ -f /etc/modprobe.d/30-harden.conf ]] || { warn "modprobe blocklist missing"; bad=1; }
 		modprobe -n -v hfs 2>/dev/null | grep -q false || { warn "modprobe does not block hfs"; bad=1; }
 	fi
-	if ((DO[doas])); then
+	if ((SEL[doas])); then
 		[[ $(stat -c '%a %U %G' /etc/doas.conf) == '400 root root' ]] || { warn "/etc/doas.conf permissions"; bad=1; }
 		command -v sudo >/dev/null && { warn "sudo still present"; bad=1; }
 	fi
@@ -1820,7 +1820,7 @@ main() {
 	install -o root -g root -m 0600 /dev/null "$LOG"
 	: >"$BAK/journal"
 	local k
-	for k in "${SECTIONS[@]}"; do DO[$k]=0; done
+	for k in "${SECTIONS[@]}"; do SEL[$k]=0; done
 
 	trap on_signal INT TERM HUP
 	trap 'on_err $LINENO' ERR
@@ -1829,32 +1829,32 @@ main() {
 	plan
 
 	do_repos
-	((DO[update])) && do_update
+	((SEL[update])) && do_update
 	do_packages
-	((DO[hw])) && do_hw
-	((DO[locale])) && do_locale
-	((DO[harden])) && do_harden
-	((DO[net])) && do_net_files
+	((SEL[hw])) && do_hw
+	((SEL[locale])) && do_locale
+	((SEL[harden])) && do_harden
+	((SEL[net])) && do_net_files
 	do_groups
-	((DO[swap])) && do_swap
-	((DO[maint])) && do_maint
-	((DO[dirs])) && do_dirs
-	((DO[cli])) && do_home_cli
-	((DO[desktop])) && do_g0wm
-	((DO[media])) && do_media
-	((DO[apps])) && do_apps
-	((DO[session])) && do_session
-	((DO[fonts])) && do_fonts
-	((DO[theme])) && do_theme
-	((DO[boot])) && do_boot
+	((SEL[swap])) && do_swap
+	((SEL[maint])) && do_maint
+	((SEL[dirs])) && do_dirs
+	((SEL[cli])) && do_home_cli
+	((SEL[desktop])) && do_g0wm
+	((SEL[media])) && do_media
+	((SEL[apps])) && do_apps
+	((SEL[session])) && do_session
+	((SEL[fonts])) && do_fonts
+	((SEL[theme])) && do_theme
+	((SEL[boot])) && do_boot
 	do_services
 	do_post
-	((DO[doas])) && do_doas
-	((DO[net])) && do_net_services
+	((SEL[doas])) && do_doas
+	((SEL[net])) && do_net_services
 	verify
 
 	trap - ERR INT TERM HUP
-	rm -rf -- "$BAK/boot"
+	rm -rf -- "${BAK:?}/boot"
 	local n
 	n=$(njot)
 	if ((n == 0)); then
@@ -1867,7 +1867,7 @@ main() {
 	printf '\n%sdone.%s %d change(s), reboot now.\n' "$C_G" "$C_0" "$n"
 	printf '  log:        %s\n  backups:    %s\n' "$LOG" "$BAK"
 	[[ ! -d $UBAK ]] || printf '  your files: %s\n' "$UBAK"
-	((DO[desktop] == 0)) || printf '  desktop:    log in on tty1, g0wm starts by itself\n'
+	((SEL[desktop] == 0)) || printf '  desktop:    log in on tty1, g0wm starts by itself\n'
 	log "done"
 }
 
