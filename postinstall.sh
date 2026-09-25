@@ -33,7 +33,7 @@ PKG_HARDEN=(nftables openssh)
 HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
 	randomize_kstack_offset=on vsyscall=none debugfs=off)
 PKG_NET=(NetworkManager dnscrypt-proxy chrony dbus)
-PKG_BOOT=(dracut plymouth plymouth-data)
+PKG_BOOT=(dracut plymouth plymouth-data terminus-font)
 PKG_DESKTOP=(
 	# g0wm build
 	pkg-config wlroots0.20-devel wayland-devel wayland-protocols
@@ -785,6 +785,9 @@ plan() {
 		Packages: ${PKG_BOOT[*]}
 		/etc/dracut.conf.d/00-hostonly.conf, plymouth theme void-minimal,
 		  /etc/issue, tty1 agetty conf (clean login, plymouth quits there).
+		Terminus on every tty, set at boot by
+		  /etc/runit/core-services/04-console-font.sh: ter-v16n, or ter-v32n
+		  (twice as big) when the screen is 1440 pixels tall or more (2K and up).
 		GRUB: adds 'quiet splash' if missing, then update-grub.
 		Rebuilds the initramfs of every installed kernel when the dracut or
 		  plymouth config changed, or an image is missing or has no plymouth;
@@ -1234,6 +1237,10 @@ do_boot() {
 	initramfs_stale && REGEN=1
 	put_tree agetty
 	run "agetty run script parses" sh -n /etc/sv/agetty-generic/run
+	put_tree console
+	run "console font script parses" sh -n /etc/runit/core-services/04-console-font.sh
+	[[ -f /usr/share/kbd/consolefonts/ter-v16n.psf.gz && -f /usr/share/kbd/consolefonts/ter-v32n.psf.gz ]] ||
+		die "terminus-font did not install ter-v16n and ter-v32n"
 	[[ -f /usr/lib/plymouth/two-step.so ]] || die "plymouth two-step module missing"
 	[[ $(plymouth-set-default-theme) == void-minimal ]] || die "plymouth does not pick void-minimal"
 	ok "plymouth theme void-minimal"
