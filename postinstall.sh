@@ -68,7 +68,8 @@ PKG_SESSION=(gnome-keyring libsecret polkit-gnome network-manager-applet
 	bluez blueman libspa-bluetooth)
 PKG_THEME=(gnome-themes-extra gnome-themes-extra-gtk adwaita-icon-theme gsettings-desktop-schemas
 	dconf glib adwaita-qt adwaita-qt6 git gtk+3 librsvg curl tar xz)
-PKG_FONTS=(fontconfig nerd-fonts noto-fonts-ttf noto-fonts-emoji noto-fonts-cjk)
+PKG_FONTS=(fontconfig nerd-fonts-symbols-ttf noto-fonts-ttf noto-fonts-emoji noto-fonts-cjk)
+NERD_FULL=(nerd-fonts nerd-fonts-ttf nerd-fonts-otf)
 PKG_LOCALE=(glibc-locales)
 PKG_HW=(fwupd)
 PKG_POWER=(power-profiles-daemon)
@@ -931,7 +932,9 @@ plan() {
 	EOF
 	section fonts "Fonts: SF Mono everywhere, Nerd Fonts, emoji, CJK" <<-EOF
 		Packages: ${PKG_FONTS[*]}
-		  nerd-fonts is the full set: about 15 GB once installed.
+		  nerd-fonts-symbols-ttf is Symbols Nerd Font (and its Mono): every
+		  Nerd Fonts icon, a few MB. The full set of patched fonts (${NERD_FULL[*]},
+		  about 8 GB) is removed if installed.
 		SF Mono into $SF_DIR, SF Pro into $SFPRO_DIR (root, 0644),
 		  from $FONT_URL and $SFPRO_URL at fixed commits
 		  (${FONT_REV:0:12}, ${SFPRO_REV:0:12}), downloaded as root.
@@ -964,7 +967,7 @@ plan() {
 	((any)) || { say "nothing selected."; exit 0; }
 
 	local need=6 avail
-	((SEL[fonts])) && need=$((need + 16))
+	((SEL[fonts])) && need=$((need + 1))
 	((SEL[apps])) && need=$((need + 2))
 	avail=$(df --output=avail -BG / | tail -n1 | tr -dc 0-9)
 	((avail >= need)) || die "about ${need} GB needed on /, only ${avail} GB free"
@@ -992,6 +995,14 @@ do_packages() {
 			sv_disable tlp
 			jot pkgback "${old[*]}"
 			run "remove ${old[*]}" xbps-remove -y -- "${old[@]}"
+		fi
+	fi
+	if ((SEL[fonts])); then
+		old=()
+		for p in "${NERD_FULL[@]}"; do installed "$p" && old+=("$p"); done
+		if ((${#old[@]})); then
+			jot pkgback "${old[*]}"
+			run "remove the full Nerd Fonts set: ${old[*]}" xbps-remove -y -- "${old[@]}"
 		fi
 	fi
 	((SEL[cli])) && want+=("${PKG_CLI[@]}")
@@ -1568,6 +1579,9 @@ do_fonts() {
 	f=$(as_user fc-match -f '%{family}' monospace 2>/dev/null || true)
 	[[ $f == *"SF Mono"* ]] || die "monospace resolves to '$f', not SF Mono"
 	ok "monospace is SF Mono"
+	[[ -n $(as_user fc-list 'Symbols Nerd Font Mono' family 2>/dev/null) ]] ||
+		die "Symbols Nerd Font Mono is not installed"
+	ok "Nerd Font symbols available"
 }
 
 gset() {
