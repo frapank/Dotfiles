@@ -89,9 +89,9 @@ kind_of_content() {
 	local mime
 	mime=$(file -b -L --mime-type -- "$1" 2>/dev/null) || return
 	case $mime in
+	application/pdf|image/vnd.djvu*) echo pdf ;;
 	image/*) echo image ;;
 	video/*|audio/*) echo video ;;
-	application/pdf|image/vnd.djvu*) echo pdf ;;
 	application/vnd.oasis.opendocument.*|application/vnd.openxmlformats-officedocument.*|application/msword|application/vnd.ms-*|text/rtf|text/csv)
 		echo office ;;
 	application/zip|application/x-tar|application/gzip|application/x-xz|application/x-bzip2|application/zstd|application/x-7z-compressed|application/vnd.rar|application/x-rar|application/x-iso9660-image)
@@ -182,6 +182,7 @@ hexdump() {
 	done
 }
 
+# shellcheck disable=SC2034
 stdin= keep=0
 read_stdin() {
 	local d

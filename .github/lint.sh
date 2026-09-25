@@ -29,7 +29,7 @@ done
 ((bad)) || pass "${#bash_files[@]} bash, ${#sh_files[@]} sh"
 
 echo "shellcheck $(shellcheck --version | awk '/^version:/ { print $2 }')"
-if shellcheck -x -s bash -- "${bash_files[@]}" && shellcheck -s sh -- "${sh_files[@]}"; then
+if shellcheck --rcfile .github/shellcheckrc -x -s bash -- "${bash_files[@]}" && shellcheck --rcfile .github/shellcheckrc -s sh -- "${sh_files[@]}"; then
 	pass "no warnings"
 else
 	fail "shellcheck"
