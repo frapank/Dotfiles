@@ -53,8 +53,8 @@ PKG_APPS=(
 	gvfs gvfs-mtp udisks2 xarchiver
 	# default apps
 	xdg-utils gtk+3 desktop-file-utils shared-mime-info
-	# screen recording, night light
-	wf-recorder libnotify wlsunset
+	# screenshots, screen recording, night light
+	grim slurp swappy wl-clipboard wf-recorder libnotify wlsunset
 	# terminal tools
 	tree bat htop unzip zip 7zip wget curl rsync jq file lsof strace psmisc
 	ncdu fastfetch
@@ -884,10 +884,12 @@ plan() {
 		  fastfetch: Void logo in the dwl colors, icon keys grouped in boxes,
 		    usage bars for memory and disk;
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
-		    record nightlight extract compress open (the xdg ones start the default
-		    app, or open the files given; wifi/bluetooth on|off switch the radio;
-		    Super+Print records the screen (slurp -o picks it with several), Shift
-		    a region, Ctrl without audio; audio is the default sink's monitor plus
+		    screenshot record nightlight extract compress open (the xdg ones start
+		    the default app, or open the files given; wifi/bluetooth on|off switch
+		    the radio; Print screenshots a region, Shift the whole screen, Ctrl a
+		    region opened in swappy, saved in Pictures and copied to the
+		    clipboard; Super+Print records the screen (slurp -o picks it with
+		    several), Shift a region, Ctrl without audio; audio is the default sink's monitor plus
 		    the default mic when unmuted; Super+= toggles nightlight, a 4000K blue light
 		    filter via wlsunset; extract/compress wrap tar 7z unrar gpg age; open FILE...
 		    picks the app from the extension: Loupe, Showtime, Papers, LibreOffice,

@@ -259,9 +259,29 @@
 			"key": "Print",
 			"action": "spawn",
 			"arg": [
-				"/bin/sh",
-				"-c",
-				"grim -g \"$(slurp)\" - | swappy -f -"
+				"screenshot"
+			]
+		},
+		{
+			"mod": [
+				"shift"
+			],
+			"key": "Print",
+			"action": "spawn",
+			"arg": [
+				"screenshot",
+				"screen"
+			]
+		},
+		{
+			"mod": [
+				"ctrl"
+			],
+			"key": "Print",
+			"action": "spawn",
+			"arg": [
+				"screenshot",
+				"edit"
 			]
 		},
 		{
