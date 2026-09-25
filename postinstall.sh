@@ -762,7 +762,9 @@ plan() {
 	EOF
 	section net "Network, DNS and time" <<-EOF
 		Packages: ${PKG_NET[*]}
-		NetworkManager conf.d: dns=none, random MAC on wifi and ethernet.
+		NetworkManager conf.d: dns=none, random MAC on wifi and ethernet, the
+		  hostname is not sent over DHCP, IPv6 temporary addresses preferred,
+		  the DHCPv6 DUID follows the random MAC.
 		dnscrypt-proxy on 127.0.0.1:53 (DNSSEC, no-log), checked with -check;
 		  /etc/resolv.conf -> nameserver 127.0.0.1.
 		chrony with NTS servers.
