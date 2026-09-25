@@ -1,0 +1,21 @@
+name: lint
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    container: ghcr.io/void-linux/void-glibc-full:latest
+    steps:
+      - name: Install tools
+        run: |
+          xbps-install -Syu xbps
+          xbps-install -Sy bash dash shellcheck python3
+      - uses: actions/checkout@v4
+      - name: Lint
+        run: .github/lint.sh
