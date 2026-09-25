@@ -31,7 +31,8 @@ PKG_LSP=(clang-tools-extra rust-analyzer taplo zls bash-language-server
 	yaml-language-server)
 PKG_HARDEN=(nftables openssh)
 HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
-	randomize_kstack_offset=on vsyscall=none debugfs=off)
+	randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
+	efi=disable_early_pci_dma)
 PKG_NET=(NetworkManager dnscrypt-proxy chrony dbus)
 PKG_BOOT=(dracut plymouth plymouth-data terminus-font)
 PKG_DESKTOP=(
@@ -762,7 +763,10 @@ plan() {
 		  (hfsplus, udf, exfat, ntfs3 still work).
 		Kernel command line (GRUB_CMDLINE_LINUX_DEFAULT, so the recovery entry
 		  boots without them): ${HARDEN_CMDLINE[*]}.
-		  Freed memory is zeroed, a few % slower. Active after the reboot.
+		  Freed memory is zeroed, a few % slower. Devices lose DMA access to
+		  memory as soon as it is unmapped, and PCI bridges cannot do DMA
+		  before the kernel sets up the IOMMU (Thunderbolt/USB4 attacks).
+		  Active after the reboot.
 		/boot (the EFI partition, vfat) mounted fmask=0077,dmask=0077 in
 		  /etc/fstab: kernel, initramfs and grub.cfg readable by root only.
 		/tmp a tmpfs with nosuid,nodev in /etc/fstab (added if missing, left
