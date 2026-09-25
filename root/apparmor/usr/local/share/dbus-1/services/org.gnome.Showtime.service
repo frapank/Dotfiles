@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.gnome.Showtime
+Exec=/usr/local/bin/dbus-filter showtime /usr/bin/showtime --gapplication-service

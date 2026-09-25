@@ -1,0 +1,38 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile bluetoothd /usr/libexec/bluetooth/bluetoothd {
+  include <abstractions/base>
+  include <abstractions/dotfiles/root-secrets>
+
+  capability net_admin,
+  capability net_bind_service,
+  capability net_raw,
+  capability sys_nice,
+  capability sys_resource,
+
+  network bluetooth,
+  network netlink raw,
+  network alg,
+  unix,
+
+  /usr/libexec/bluetooth/bluetoothd mr,
+  /usr/** mr,
+  /etc/ r,
+  /etc/** r,
+  /var/lib/bluetooth/ rw,
+  /var/lib/bluetooth/** rwk,
+  @{run}/dbus/system_bus_socket rw,
+  /etc/sv/bluetoothd/ r,
+
+  /dev/uhid rw,
+  /dev/uinput rw,
+  /dev/rfkill rw,
+  /dev/tty r,
+
+  @{PROC}/** r,
+  @{sys}/** r,
+
+  include if exists <local/bluetoothd>
+}

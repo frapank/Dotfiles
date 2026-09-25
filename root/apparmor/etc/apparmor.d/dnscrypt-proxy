@@ -1,0 +1,34 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile dnscrypt-proxy /usr/bin/dnscrypt-proxy {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  include <abstractions/ssl_certs>
+  include <abstractions/dotfiles/root-secrets>
+
+  capability net_bind_service,
+  capability sys_resource,
+  deny capability net_admin,
+
+  network inet dgram,
+  network inet stream,
+  network inet6 dgram,
+  network inet6 stream,
+  network netlink raw,
+
+  /usr/bin/dnscrypt-proxy mr,
+  /etc/ r,
+  /etc/** r,
+  /usr/share/dnscrypt-proxy/{,**} r,
+  /etc/dnscrypt-proxy/ rw,
+  /etc/dnscrypt-proxy/** rwk,
+  audit deny /etc/dnscrypt-proxy/{dnscrypt-proxy.toml,forwarding-rules.txt} wl,
+  /etc/sv/dnscrypt-proxy/ r,
+
+  @{PROC}/** r,
+  @{sys}/** r,
+
+  include if exists <local/dnscrypt-proxy>
+}

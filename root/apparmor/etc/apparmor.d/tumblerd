@@ -1,0 +1,24 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile tumblerd /usr/lib/tumbler-1/tumblerd flags=(attach_disconnected) {
+  include <abstractions/dotfiles/app-read>
+  include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/persist>
+  include <abstractions/dotfiles/setuid>
+  include <abstractions/dotfiles/browser-data>
+  include <abstractions/dotfiles/no-av>
+
+  @{HOMEDIRS} r,
+  owner @{HOME}/{,**} r,
+  /{mnt,media}/{,**} r,
+  @{run}/media/{,**} r,
+  owner /tmp/** rwk,
+  owner /dev/shm/** rwk,
+
+  /usr/bin/** ix,
+  owner @{run}/user/@{uid}/.dbus-filter/tumblerd/* rw,
+
+  include if exists <local/tumblerd>
+}

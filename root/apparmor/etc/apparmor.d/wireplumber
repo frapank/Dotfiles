@@ -1,0 +1,29 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile wireplumber /usr/bin/wireplumber flags=(attach_disconnected) {
+  include <abstractions/dotfiles/app-read>
+  include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/persist>
+  include <abstractions/dotfiles/setuid>
+  include <abstractions/dotfiles/browser-data>
+
+  capability sys_nice,
+  capability sys_resource,
+  network netlink raw,
+  ptrace (read),
+  deny capability sys_ptrace,
+  network bluetooth,
+
+  /dev/snd/{,**} rw,
+  /dev/video* rw,
+  /dev/media* rw,
+  /dev/dma_heap/{,**} rw,
+  owner /dev/shm/** rwk,
+  owner @{HOME}/.local/state/wireplumber/{,**} rwk,
+
+  /usr/{lib,libexec}/** ix,
+
+  include if exists <local/wireplumber>
+}

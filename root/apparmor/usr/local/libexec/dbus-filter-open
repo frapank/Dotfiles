@@ -1,0 +1,67 @@
+#!/usr/bin/python3
+import os
+import signal
+import subprocess
+
+from gi.repository import Gio, GLib
+
+APPS = {
+    "librewolf": "/usr/local/bin/librewolf",
+    "papers": "/usr/local/bin/papers",
+    "showtime": "/usr/local/bin/showtime",
+    "xarchiver": "/usr/local/bin/xarchiver",
+    "libreoffice": "/usr/local/bin/libreoffice",
+    "loupe": "/usr/bin/loupe",
+}
+FLAGS = {"--new-window", "--private-window", "--writer", "--calc", "--impress", "--draw", "--math", "--base"}
+SCHEMES = ("http://", "https://", "file://")
+XML = """<node><interface name="org.dotfiles.Open">
+<method name="Open"><arg type="s" direction="in"/><arg type="as" direction="in"/></method>
+</interface></node>"""
+IDLE = 60
+
+loop = GLib.MainLoop()
+timer = 0
+
+
+def allowed(arg):
+    if arg in FLAGS:
+        return True
+    if arg.startswith(SCHEMES):
+        return True
+    return os.path.isabs(arg) and os.path.exists(arg)
+
+
+def idle():
+    global timer
+    if timer:
+        GLib.source_remove(timer)
+    timer = GLib.timeout_add_seconds(IDLE, loop.quit)
+
+
+def call(conn, sender, path, iface, method, params, invocation):
+    app, args = params.unpack()
+    idle()
+    if app not in APPS or not all(allowed(a) for a in args):
+        invocation.return_dbus_error("org.dotfiles.Open.Refused", f"refused: {app} {args}")
+        return
+    env = dict(os.environ)
+    bus = env.pop("DBUS_STARTER_ADDRESS", None)
+    env.pop("DBUS_STARTER_BUS_TYPE", None)
+    if bus and "DBUS_SESSION_BUS_ADDRESS" not in env:
+        env["DBUS_SESSION_BUS_ADDRESS"] = bus
+    subprocess.Popen([APPS[app], *args], env=env, cwd="/", start_new_session=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    invocation.return_value(None)
+
+
+def acquired(conn, name):
+    node = Gio.DBusNodeInfo.new_for_xml(XML)
+    conn.register_object_with_closures2("/org/dotfiles/Open", node.interfaces[0], call, None, None)
+
+
+signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+Gio.bus_own_name(Gio.BusType.SESSION, "org.dotfiles.Open", Gio.BusNameOwnerFlags.NONE,
+                 acquired, None, lambda *a: loop.quit())
+idle()
+loop.run()

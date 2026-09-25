@@ -1,0 +1,15 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile foot /usr/bin/foot{,client} {
+  include <abstractions/dotfiles/app-read>
+  include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/browser-data>
+
+  /{usr,opt}/** ux,
+  /usr/bin/foot ix,
+  signal (send) peer=unconfined,
+
+  include if exists <local/foot>
+}

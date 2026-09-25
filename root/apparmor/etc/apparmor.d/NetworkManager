@@ -1,0 +1,61 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile NetworkManager /usr/bin/NetworkManager {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  include <abstractions/ssl_certs>
+
+  capability net_admin,
+  capability net_raw,
+  capability net_bind_service,
+  capability dac_override,
+  capability dac_read_search,
+  capability chown,
+  capability fowner,
+  capability fsetid,
+  capability kill,
+  capability setuid,
+  capability setgid,
+  capability audit_write,
+  capability sys_resource,
+  capability ipc_lock,
+  capability bpf,
+  capability perfmon,
+  ptrace (read),
+  deny capability sys_admin,
+  deny capability sys_ptrace,
+
+  network,
+  unix,
+
+  /usr/** mr,
+  /etc/ r,
+  /etc/** r,
+  /etc/NetworkManager/{,**} rwk,
+  /var/lib/NetworkManager/{,**} rwk,
+  @{run}/NetworkManager/{,**} rwk,
+  @{run}/dbus/system_bus_socket rw,
+  @{run}/udev/{,**} r,
+  @{PROC}/** r,
+  @{PROC}/sys/net/** rw,
+  @{sys}/** r,
+  @{sys}/devices/**/net/** rw,
+  /dev/rfkill rw,
+  /dev/net/tun rw,
+  /etc/sv/NetworkManager/ r,
+
+  /usr/libexec/nm-* ix,
+  /usr/bin/{ip,nft,iptables*,ip6tables*,sysctl} ix,
+  /usr/bin/dnsmasq Px,
+
+  audit deny /home/{,**} mrwkl,
+  audit deny /root/{,**} mrwkl,
+  audit deny /etc/{shadow,gshadow}{,-,+} mrwkl,
+  audit deny /etc/doas.conf mrwkl,
+  audit deny /etc/ssh/*_key mrwkl,
+  audit deny /boot/{,**} mrwkl,
+
+  include if exists <local/NetworkManager>
+}

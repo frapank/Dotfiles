@@ -1,0 +1,13 @@
+  abi <abi/4.0>,
+
+  audit deny @{HOME}/.{bashrc,bash_profile,bash_login,bash_logout,profile,inputrc,pam_environment} wl,
+  audit deny @{HOME}/.{zshrc,zshenv,zprofile,zlogin,xprofile,xinitrc,xsession} wl,
+  audit deny @{HOME}/.{vimrc,exrc,tmux.conf,gitconfig,ctags} wl,
+  audit deny @{HOME}/.{vim,terminfo}/{,**} wl,
+  audit deny @{HOME}/{bin,.local/bin,.local/src,.local/lib,.cargo/bin,.zvm}/{,**} wl,
+  audit deny @{HOME}/.{cargo/env,bash_completion} wl,
+  audit deny @{HOME}/.config/{autostart,environment.d,systemd,g0wm,gtklock,foot,tmux,nvim,git}/{,**} wl,
+  audit deny @{HOME}/.config/{pipewire,wireplumber,fontconfig,Thunar,xfce4,fastfetch}/{,**} wl,
+  audit deny @{HOME}/.config/{xdg-desktop-portal,xdg-desktop-portal-wlr}/{,**} wl,
+  audit deny @{HOME}/.config/{mimeapps.list,user-dirs.dirs} wl,
+  audit deny @{HOME}/.local/share/{applications,dbus-1,thumbnailers,systemd,nvim/site,bash-completion}/{,**} wl,

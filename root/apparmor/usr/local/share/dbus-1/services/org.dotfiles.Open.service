@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.dotfiles.Open
+Exec=/usr/local/libexec/dbus-filter-open

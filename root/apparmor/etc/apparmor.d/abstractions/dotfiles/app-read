@@ -1,0 +1,41 @@
+  abi <abi/4.0>,
+
+  include <abstractions/base>
+
+  / r,
+  /usr/ r,
+  /usr/** mr,
+  /etc/ r,
+  /etc/** r,
+  /var/{lib,cache}/** r,
+  /tmp/ r,
+  /var/tmp/ r,
+  /dev/shm/ r,
+
+  @{PROC}/ r,
+  @{PROC}/** r,
+  owner @{PROC}/@{pid}/{,task/@{tid}/}comm rw,
+  @{sys}/** r,
+  @{run}/udev/{,**} r,
+
+  /dev/ r,
+  /dev/tty rw,
+  /dev/ptmx rw,
+  owner /dev/pts/* rw,
+  /dev/dri/{,**} rw,
+  /dev/nvidia* rw,
+  /dev/udmabuf rw,
+
+  @{run}/dbus/system_bus_socket rw,
+  owner @{run}/user/@{uid}/ r,
+  owner @{run}/user/@{uid}/[^.]** rwk,
+
+  owner @{HOME}/.cache/{,**} rwk,
+  owner @{HOME}/.config/{,**} r,
+  owner @{HOME}/.local/share/{,**} r,
+  owner @{HOME}/.icons/{,**} r,
+  owner @{HOME}/.fonts/{,**} r,
+  owner @{HOME}/.{gtkrc-2.0,XCompose,Xdefaults} r,
+
+  unix,
+  network netlink raw,

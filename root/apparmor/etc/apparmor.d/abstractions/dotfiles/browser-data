@@ -1,0 +1,5 @@
+  abi <abi/4.0>,
+
+  audit deny @{HOME}/.{librewolf,mozilla}/{,**} mrwkl,
+  audit deny @{HOME}/.config/{librewolf,mozilla}/{,**} mrwkl,
+  audit deny @{HOME}/.cache/{librewolf,mozilla}/{,**} mrwkl,

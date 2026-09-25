@@ -1,0 +1,142 @@
+#!/bin/sh
+[ $# -ge 2 ] || { echo "usage: dbus-filter APP PROGRAM [ARGS...]" >&2; exit 2; }
+app=$1 prog=$2
+shift 2
+
+open='--talk=org.dotfiles.Open
+	--call=org.gnome.Loupe=org.freedesktop.Application.Open@/org/gnome/Loupe
+	--call=org.gnome.Loupe=org.freedesktop.Application.Activate@/org/gnome/Loupe
+	--call=org.gnome.Showtime=org.freedesktop.Application.Open@/org/gnome/Showtime
+	--call=org.gnome.Showtime=org.freedesktop.Application.Activate@/org/gnome/Showtime'
+common="--talk=org.freedesktop.portal.* --talk=ca.desrt.dconf --talk=org.gtk.vfs.* $open"
+av=1 net=0
+case $app in
+librewolf)
+	rules="$common --own=org.mozilla.* --own=org.mpris.MediaPlayer2.*
+		--talk=org.freedesktop.Notifications
+		--call=org.freedesktop.FileManager1=org.freedesktop.FileManager1.ShowItems@/org/freedesktop/FileManager1"
+	net=1
+	;;
+showtime) rules="$common --own=org.gnome.Showtime.* --own=org.mpris.MediaPlayer2.*" ;;
+papers) rules="$common --own=org.gnome.Papers.*" av=0 ;;
+libreoffice) rules="$common --own=org.libreoffice.*" av=0 ;;
+xarchiver) rules=$common av=0 ;;
+tumblerd) rules='--own=org.freedesktop.thumbnails.* --talk=org.gtk.vfs.*' av=0 ;;
+*) echo "dbus-filter: unknown app $app" >&2; exit 2 ;;
+esac
+
+run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+bus=${DBUS_SESSION_BUS_ADDRESS:-${DBUS_STARTER_ADDRESS:-}}
+dir=$run/.dbus-filter/$app
+sock=$dir/$$
+
+forward() {
+	[ "$app" != tumblerd ] || return 1
+	list=
+	for a in "$@"; do
+		case $a in
+		-* | *://*) ;;
+		/*) ;;
+		*) a=$PWD/$a ;;
+		esac
+		a=$(printf %s "$a" | sed "s/[\\\\']/\\\\&/g")
+		list="$list${list:+, }'$a'"
+	done
+	exec gdbus call --session -d org.dotfiles.Open -o /org/dotfiles/Open \
+		-m org.dotfiles.Open.Open "$app" "[$list]" >/dev/null
+}
+
+prepare() {
+	mkdir -m 0700 "${dir%/*}" "$dir" 2>/dev/null
+	[ -d "$dir" ] && [ "$(stat -c %u "$dir")" = "$(id -u)" ] || return 1
+	for f in "$dir"/*; do
+		pid=${f##*/}
+		[ -e "$f" ] && [ ! -d "/proc/${pid%%.*}" ] && rm -f "$f"
+	done
+	return 0
+}
+
+start() {
+	[ -n "$bus" ] && command -v xdg-dbus-proxy >/dev/null || return 1
+	rm -f "$sock" "$sock.sync"
+	mkfifo -m 0600 "$sock.sync" || return 1
+	set -f
+	# shellcheck disable=SC2086
+	xdg-dbus-proxy --fd=3 "$bus" "$sock" --filter $rules 3>"$sock.sync" &
+	set +f
+	exec 4<"$sock.sync"
+	rm -f "$sock.sync"
+	[ "$(head -c 1 <&4)" = x ]
+}
+
+mask() {
+	if [ -S "$1" ] || [ -f "$1" ]; then
+		set -- --ro-bind /dev/null "$1"
+	elif [ -d "$1" ]; then
+		set -- --tmpfs "$1"
+	else
+		return 0
+	fi
+	masks="$masks $1 $2 $3"
+}
+
+if [ "$(cat /proc/self/attr/apparmor/current 2>/dev/null || echo unconfined)" != unconfined ]; then
+	forward "$@"
+	exit 1
+fi
+if ! command -v bwrap >/dev/null; then
+	echo "dbus-filter: bwrap missing, $app runs without its sandbox and session bus" >&2
+	DBUS_SESSION_BUS_ADDRESS=disabled: exec "$prog" "$@"
+fi
+own=0 filtered=0
+if prepare; then
+	own=1
+	start && filtered=1
+fi
+[ "$filtered" = 1 ] || echo "dbus-filter: no filtered bus for $app, it runs without a session bus" >&2
+
+masks=
+real=${bus#unix:path=}
+[ "$real" = "$bus" ] || mask "${real%%,*}"
+for f in /tmp/dbus-*; do
+	mask "$f"
+done
+for p in bus ssh-agent.socket gnupg keyring at-spi pipewire-0-manager; do
+	mask "$run/$p"
+done
+mask "${SSH_AUTH_SOCK:-}"
+mask "$HOME/.gnupg"
+if [ "$av" = 0 ]; then
+	mask "$run/pipewire-0"
+	mask "$run/pulse"
+fi
+unshare=
+[ "$net" = 1 ] || unshare=--unshare-net
+x11=
+wl=
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+	mask /tmp/.X11-unix
+	x11='--unsetenv DISPLAY --unsetenv XAUTHORITY'
+	if [ "$own" = 1 ] && /usr/local/libexec/wl-sandbox --probe 2>/dev/null; then
+		wl=$sock.wayland
+		for f in "$run"/wayland-*; do
+			mask "$f"
+		done
+		case $WAYLAND_DISPLAY in /*) mask "$WAYLAND_DISPLAY" ;; esac
+	fi
+fi
+
+if [ "$filtered" = 1 ]; then
+	export DBUS_SESSION_BUS_ADDRESS="unix:path=$sock"
+	[ -z "${DBUS_STARTER_ADDRESS:-}" ] || export DBUS_STARTER_ADDRESS="unix:path=$sock"
+else
+	export DBUS_SESSION_BUS_ADDRESS=disabled:
+	unset DBUS_STARTER_ADDRESS DBUS_STARTER_BUS_TYPE
+fi
+mask "$run/.dbus-filter"
+[ "$own" = 0 ] || masks="$masks --bind $dir $dir"
+set -f
+# shellcheck disable=SC2086
+set -- bwrap --dev-bind / / $masks $unshare $x11 -- "$prog" "$@"
+[ -z "$wl" ] || set -- /usr/local/libexec/wl-sandbox "$app" "$wl" -- "$@"
+exec "$@"

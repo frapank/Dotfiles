@@ -83,6 +83,15 @@ kernel() {
 			rm -f "$st/usb.$port"
 			prog=USB why="$name disconnected"
 			;;
+		*'apparmor="DENIED"'*)
+			prog=${msg#*profile=\"} prog=${prog%%\"*}
+			every "aa.$(printf %s "$prog" | tr -c 'A-Za-z0-9._-' _)" 30 || continue
+			why=${msg#*operation=\"} why="AppArmor blocked ${why%%\"*}"
+			case $msg in
+			*' name="'*) name=${msg#* name=\"} why="$why ${name%%\"*}" ;;
+			*' capname="'*) name=${msg#* capname=\"} why="$why ${name%%\"*}" ;;
+			esac
+			;;
 		"usb "*"error -"* | "usb "*"unable to enumerate"*)
 			every usberr 60 || continue
 			port=${msg#usb } port=${port%%:*}
