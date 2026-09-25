@@ -35,6 +35,10 @@ PKG_HARDEN=(nftables openssh)
 HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
 	randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
 	efi=disable_early_pci_dma)
+PKG_APPARMOR=(apparmor runit-void-apparmor xdg-dbus-proxy bubblewrap python3-gobject
+	wayland-devel wayland-protocols pkg-config)
+AA_KEEP=(bin.ping unix-chkpwd usr.bin.wpa_supplicant usr.sbin.dnsmasq zgrep loupe chromium cam
+	libcamerify usr.bin.dhcpcd usr.sbin.ntpd usr.sbin.traceroute usr.bin.uuidd)
 PKG_NET=(NetworkManager dnscrypt-proxy chrony dbus)
 PKG_BOOT=(dracut plymouth plymouth-data terminus-font)
 PKG_DESKTOP=(
@@ -89,7 +93,7 @@ HOME_FONTS=(fontconfig)
 HOME_MEDIA=(portal)
 HOME_DIRS=(xdg)
 USER_GROUPS=(wheel video network)
-SECTIONS=(update locale cli lsp harden net boot hw power logs swap maint dirs desktop media apps session theme fonts doas)
+SECTIONS=(update locale cli lsp harden apparmor net boot hw power logs swap maint dirs desktop media apps session theme fonts doas)
 SF_DIR=/usr/local/share/fonts/SF-Mono
 MIME_DEFAULTS=(
 	application/pdf=org.gnome.Papers.desktop
@@ -289,6 +293,10 @@ usage() {
 # signals
 
 on_signal() {
+	if [[ $STAGE == preflight ]]; then
+		printf '\n%sinterrupted: nothing changed%s\n' "$C_Y" "$C_0" >&2
+		exit 130
+	fi
 	ABORT=1
 	printf '\n%sinterrupted: finishing the current step, then rolling back%s\n' "$C_Y" "$C_0" >&2
 }
@@ -352,7 +360,7 @@ jot() {
 	printf '%s\n' "$*" >>"$BAK/journal"
 }
 
-njot() { grep -vcE '^(sysctl|nft|svr)' -- "$BAK/journal" || true; }
+njot() { grep -vcE '^(sysctl|nft|svr|aaload)' -- "$BAK/journal" || true; }
 
 rollback() {
 	trap '' INT TERM HUP
@@ -395,6 +403,7 @@ rollback() {
 		nft) nft -f /etc/nftables.conf ;;
 		svr) sv restart "$a" ;;
 		initramfs) cp -a -- "$BAK/boot/." /boot/ ;;
+		aaload) aa-remove-unknown && apparmor_parser -r -- /etc/apparmor.d ;;
 		hrestore) as_user rm -rf -- "$a" && as_user cp -a -- "$UBAK$a" "$a" ;;
 		hremove) as_user rm -rf -- "$a" ;;
 		hmove) as_user rm -rf -- "$a" && as_user mv -- "$UBAK$a" "$a" ;;
@@ -490,7 +499,7 @@ fix_perm() {
 mode_for() {
 	case $1 in
 	/etc/nftables/* | /etc/sysctl.d/*) echo 0600 ;;
-	/etc/sv/*/run | /etc/sv/*/finish | /usr/local/sbin/*) echo 0755 ;;
+	/etc/sv/*/run | /etc/sv/*/finish | /usr/local/sbin/* | /usr/local/bin/* | /usr/local/libexec/*) echo 0755 ;;
 	*) echo 0644 ;;
 	esac
 }
@@ -644,7 +653,7 @@ resolve_user() {
 
 check_repo() {
 	REPO=$(dirname -- "$(readlink -f -- "$0")")
-	[[ -d $REPO/home && -d $REPO/root ]] || die "$REPO does not look like the dotfiles repo"
+	[[ -d $REPO/home && -d $REPO/root && -d $REPO/src ]] || die "$REPO does not look like the dotfiles repo"
 
 	local d=$REPO o bad
 	while :; do
@@ -655,9 +664,9 @@ check_repo() {
 		d=$(dirname -- "$d")
 	done
 
-	bad=$(find "$REPO/home" "$REPO/root" \( -perm /022 -o \( ! -user "$TUSER" ! -user root \) \) -print -quit)
+	bad=$(find "$REPO/home" "$REPO/root" "$REPO/src" \( -perm /022 -o \( ! -user "$TUSER" ! -user root \) \) -print -quit)
 	[[ -z $bad ]] || die "unsafe owner or permissions: $bad (fix: chmod -R go-w '$REPO')"
-	bad=$(find "$REPO/home" "$REPO/root" -type l -print -quit)
+	bad=$(find "$REPO/home" "$REPO/root" "$REPO/src" -type l -print -quit)
 	[[ -z $bad ]] || die "symlink in the repo, refusing: $bad"
 }
 
@@ -776,6 +785,69 @@ plan() {
 		  initramfs mounts it so.
 		Service: nftables.
 	EOF
+	section apparmor "AppArmor: confine the apps that parse untrusted input" <<-EOF
+		Packages: ${PKG_APPARMOR[*]}; /etc/runit/core-services/09-apparmor.sh
+		  loads every profile in /etc/apparmor.d at boot.
+		Kernel command line: $(aa_lsm) (the security modules running now,
+		  plus AppArmor), added to GRUB_CMDLINE_LINUX_DEFAULT like the hardening
+		  flags. GRUB_CMDLINE_LINUX, where root and LUKS live, is not touched, and
+		  grub.cfg is checked to keep every root/LUKS argument this boot used.
+		  Active after the reboot.
+		Profiles, enforced: each app keeps everything it does and loses what an
+		  exploit wants: ~/.ssh, ~/.gnupg, keyrings, history files (read or
+		  write); the files that run code later (shell startup, g0wm autostart,
+		  the programs in the PATH, .desktop and D-Bus launchers, nvim, git,
+		  pipewire configs: read-only); doas, su and the other setuid programs.
+		  librewolf: network, camera, mic, screen sharing as before.
+		  showtime: offline.
+		  papers, libreoffice (soffice.bin), xarchiver (and the 7z/unrar/tar it
+		    runs): offline, no mic or camera. Links open in librewolf; an
+		    archive cannot drop files into ~/.bashrc or ~/.local/bin.
+		  tumblerd (Thunar's thumbnails): reads, writes only ~/.cache, offline.
+		  foot: no network, reads no secrets; the shell and what it runs stay
+		    unconfined, as they are now.
+		  Services as root: dnscrypt-proxy, chronyd, bluetoothd: only their own
+		    config and state, no homes, /root, shadow, doas.conf, host keys or
+		    Wi-Fi passwords, no exec.
+		  NetworkManager, pipewire (and pipewire-pulse), wireplumber, fwupd: only
+		    what they use; no homes (NetworkManager, fwupd), no secrets, no
+		    setuid programs.
+		Void's package enforces some profiles of its own (wpa_supplicant,
+		  unix_chkpwd, ping): wpa_supplicant also gets read access to
+		  certificates, or WPA-Enterprise (eduroam) would stop connecting.
+		Loupe is left to glycin, which decodes images in its own bwrap sandbox.
+		Sockets: Void's AppArmor (4.1) cannot mediate connecting to a Unix socket
+		  on this kernel, and neither dbus nor the agents are aware of it. So
+		  /usr/local/bin/{librewolf,showtime,papers,xarchiver,libreoffice,soffice}
+		  (and the D-Bus activated Showtime and tumblerd, /usr/local/share/dbus-1)
+		  go through /usr/local/bin/dbus-filter: the app runs in a bwrap mount
+		  namespace where the session bus, ssh-agent, gpg-agent, the keyring,
+		  the accessibility bus and PipeWire's manager socket (for papers,
+		  xarchiver, libreoffice, tumblerd also PipeWire and pulse) are
+		  replaced by empty files, and gets its own xdg-dbus-proxy bus instead:
+		  portals, dconf, gvfs, notifications, its own names (MPRIS media keys,
+		  single instance); not the keyring, Thunar, or anything that runs
+		  commands. When a confined app opens another one (a link, a PDF, an
+		  image), /usr/local/libexec/dbus-filter-open (org.dotfiles.Open)
+		  starts it outside, in its own sandbox: only these apps, only existing
+		  files or http/https/file links.
+		Wayland and X11: when g0wm offers wp_security_context_v1, each of these
+		  apps reaches it through its own socket (/usr/local/libexec/wl-sandbox,
+		  built from src/wl-sandbox.c) and the real wayland-* sockets are masked:
+		  g0wm then hides from them the protocols that read the clipboard or the
+		  screen, inject input, draw layers, lock the session or change the
+		  outputs. Copy and paste in the focused window work as always. X11 is
+		  masked (DISPLAY unset); all but librewolf also get no network
+		  namespace at all, which takes away the abstract sockets too.
+		Void's package ships about 150 profiles for programs this machine does
+		  not have (apache, dovecot, samba...): removed, and kept out on updates
+		  by /etc/xbps.d/30-apparmor-noextract.conf. Kept: ${AA_KEEP[*]}.
+		Profile cache (write-cache in /etc/apparmor/parser.conf): the profiles
+		  are compiled once, not at every boot.
+		Blocks are logged in the kernel log ('doas aa-status' lists the
+		  profiles); with the logs section, the watchdog shows each one.
+		  Own changes go in /etc/apparmor.d/local/<profile>, kept on updates.
+	EOF
 	section net "Network, DNS and time" <<-EOF
 		Packages: ${PKG_NET[*]}
 		NetworkManager conf.d: dns=none, random MAC on wifi and ethernet, the
@@ -822,7 +894,8 @@ plan() {
 		Service watchdog: notifications to the g0wm session for crashes, disk and
 		  filesystem errors, overheating, USB plug/unplug/errors (kernel log, a
 		  click opens it in foot), runit services restarting in a loop, batteries
-		  at 20%/10%, disks over 90%, microphone and webcam in use.
+		  at 20%/10%, disks over 90%, microphone and webcam in use, AppArmor
+		  blocking something.
 		  /etc/sysctl.d/60-watchdog.conf: print-fatal-signals=1, so crashes that
 		  a program catches and re-raises get logged too.
 	EOF
@@ -969,6 +1042,7 @@ plan() {
 		st=$(passwd -S -- "$TUSER" | awk '{print $2}')
 		[[ $st == P ]] || die "$TUSER has no usable password (passwd -S: $st), run 'passwd $TUSER' first"
 	fi
+	((SEL[apparmor] == 0)) || aa_check
 
 	local k any=0
 	for k in "${SECTIONS[@]}"; do ((SEL[$k])) && any=1; done
@@ -1016,6 +1090,7 @@ do_packages() {
 	((SEL[cli])) && want+=("${PKG_CLI[@]}")
 	((SEL[lsp])) && want+=("${PKG_LSP[@]}")
 	((SEL[harden])) && want+=("${PKG_HARDEN[@]}")
+	((SEL[apparmor])) && want+=("${PKG_APPARMOR[@]}")
 	((SEL[net])) && want+=("${PKG_NET[@]}")
 	((SEL[boot])) && want+=("${PKG_BOOT[@]}")
 	((SEL[desktop])) && want+=("${PKG_DESKTOP[@]}")
@@ -1188,9 +1263,9 @@ do_net_files() {
 	put_tree networkmanager
 	put_tree dnscrypt
 	put_tree chrony
-	run "dnscrypt-proxy config is valid" dnscrypt-proxy -config /etc/dnscrypt-proxy/dnscrypt-proxy.toml -check
-	try "chrony config parses" chronyd -p -f /etc/chrony.conf
-	run "NetworkManager config parses" NetworkManager --print-config
+	run "dnscrypt-proxy config is valid" env -C / -u PWD dnscrypt-proxy -config /etc/dnscrypt-proxy/dnscrypt-proxy.toml -check
+	try "chrony config parses" env -C / -u PWD chronyd -p -f /etc/chrony.conf
+	run "NetworkManager config parses" env -C / -u PWD NetworkManager --print-config
 }
 
 grub_words() {
@@ -1241,6 +1316,130 @@ grub_check() {
 	((n > 0)) || die "grub.cfg has no entry with $root, the system booted with"
 	((bad == 0)) || die "grub.cfg lost boot arguments the system booted with"
 	ok "grub.cfg: $n entries keep $(tr '\n' ' ' <<<"$need")"
+}
+
+aa_on() { [[ ,$(cat /sys/kernel/security/lsm 2>/dev/null), == *,apparmor,* ]]; }
+
+aa_lsm() {
+	local l=
+	[[ -r /sys/kernel/security/lsm ]] && l=$(</sys/kernel/security/lsm)
+	[[ -n $l ]] || l=landlock,lockdown,yama,integrity,bpf
+	l=,$l,
+	l=${l//,capability,/,}
+	l=${l//,apparmor,/,}
+	l=${l#,}
+	l=${l%,}
+	echo "lsm=${l:+$l,}apparmor"
+}
+
+aa_check() {
+	local line w lsm= n=0 bad
+	bad=$(grep -oE '(^|,)(selinux|smack|tomoyo)(,|$)' /sys/kernel/security/lsm 2>/dev/null | tr -d , || true)
+	[[ -z $bad ]] || die "apparmor: $bad is running, it cannot run next to AppArmor"
+	[[ -f /etc/default/grub ]] || return 0
+	line=$(grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub || true)
+	for w in $(grep -oE '(^|["[:space:]])(lsm|security|apparmor)=[^"[:space:]]*' <<<"$line" | tr -d '"' || true); do
+		case $w in
+		apparmor=1 | security=apparmor) ;;
+		lsm=*) lsm=$w n=$((n + 1)) ;;
+		*) die "apparmor: $w in /etc/default/grub, remove it first" ;;
+		esac
+	done
+	((n <= 1)) || die "apparmor: $n lsm= in /etc/default/grub, keep one"
+	[[ -z $lsm || ,${lsm#lsm=}, == *,apparmor,* ]] && return 0
+	grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qE "[\"[:space:]]${lsm}[\"[:space:]]" ||
+		die "apparmor: $lsm is in GRUB_CMDLINE_LINUX, add ',apparmor' to it yourself"
+}
+
+aa_grub() {
+	local cur
+	cur=$(grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub 2>/dev/null |
+		grep -oE '["[:space:]]lsm=[a-z0-9_,]*' | tr -d '"[:space:]' || true)
+	if [[ -n $cur && ,${cur#lsm=}, != *,apparmor,* ]]; then
+		backup /etc/default/grub
+		sed -i -E "/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/([\"[:space:]])$cur([\"[:space:]])/\1$cur,apparmor\2/" /etc/default/grub
+		cur+=,apparmor
+		grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qF -- "$cur" || die "could not add apparmor to lsm= in /etc/default/grub"
+		ok "GRUB: lsm= now ends in apparmor"
+	fi
+	grub_words "${cur:-$(aa_lsm)}"
+}
+
+do_apparmor() {
+	step "AppArmor"
+	local n f prof=()
+	[[ -f /etc/runit/core-services/09-apparmor.sh ]] || die "runit-void-apparmor did not install 09-apparmor.sh"
+	aa_on && jot aaload
+	n=$(njot)
+	put_tree apparmor
+	for f in /etc/apparmor.d/abstractions/dotfiles/*; do
+		[[ -e $f && ! -e $REPO/root/apparmor$f ]] || continue
+		backup "$f"
+		rm -f -- "$f"
+		ok "removed $f (no longer in the repo)"
+	done
+	for f in "$REPO"/root/apparmor/etc/apparmor.d/*; do
+		[[ -f $f ]] && prof+=("/etc/apparmor.d/${f##*/}")
+	done
+	run "AppArmor profiles compile" apparmor_parser -QK -- "${prof[@]}" /etc/apparmor.d/usr.bin.wpa_supplicant
+	aa_wlsandbox
+	aa_prune
+	aa_cache
+	if ! aa_on; then
+		ok "profiles load at the next boot (AppArmor is not running yet)"
+	elif ((n == $(njot))); then
+		skip "AppArmor profiles loaded"
+	else
+		run "load the AppArmor profiles" apparmor_parser -r -- "${prof[@]}" /etc/apparmor.d/usr.bin.wpa_supplicant
+		run "unload the profiles removed from /etc/apparmor.d" aa-remove-unknown
+		try "compile the profile cache" apparmor_parser -QW -- /etc/apparmor.d
+	fi
+	aa_grub
+}
+
+aa_prune() {
+	local f keep=" ${AA_KEEP[*]} " noext=() n=0
+	while IFS= read -r f; do
+		f=${f%% -> *}
+		[[ $f == /etc/apparmor.d/* && $f != /etc/apparmor.d/*/* ]] || continue
+		[[ $keep == *" ${f##*/} "* || ${f##*/} == README ]] && continue
+		noext+=("noextract=$f")
+		[[ -e $f ]] || continue
+		backup "$f"
+		rm -f -- "$f"
+		n=$((n + 1))
+	done < <(xbps-query -f apparmor)
+	((${#noext[@]})) || die "no profiles listed for the apparmor package"
+	for f in "$REPO"/root/apparmor/etc/apparmor.d/*; do
+		[[ -f $f ]] && noext+=("noextract=/etc/apparmor.d/${f##*/}")
+	done
+	if ((n)); then ok "removed $n profiles of programs not installed"; else skip "unused profiles removed"; fi
+	put_text /etc/xbps.d/30-apparmor-noextract.conf 0644 < <(printf '%s\n' "${noext[@]}")
+}
+
+aa_wlsandbox() {
+	local tmp xml=/usr/share/wayland-protocols/staging/security-context/security-context-v1.xml
+	[[ -f $xml ]] || die "$xml missing (wayland-protocols)"
+	tmp=$(mktemp -d)
+	run "build wl-sandbox" sh -c '
+		cd "$1" &&
+		wayland-scanner client-header "$2" security-context-v1-client-protocol.h &&
+		wayland-scanner private-code "$2" security-context-v1-protocol.c &&
+		cc -O2 -Wall -Wextra -Werror -I. -o wl-sandbox "$3" security-context-v1-protocol.c \
+			$(pkg-config --cflags --libs wayland-client)' _ "$tmp" "$xml" "$REPO/src/wl-sandbox.c"
+	put "$tmp/wl-sandbox" /usr/local/libexec/wl-sandbox 0755
+	rm -rf -- "$tmp"
+}
+
+aa_cache() {
+	local f=/etc/apparmor/parser.conf
+	[[ -f $f ]] || die "$f missing"
+	if grep -qE '^[[:space:]]*write-cache[[:space:]]*$' "$f"; then
+		skip "$f: write-cache"
+	else
+		put_text "$f" 0644 < <(cat -- "$f"; echo write-cache)
+	fi
+	install -d -m 0755 /var/cache/apparmor
 }
 
 do_boot() {
@@ -2047,6 +2246,16 @@ verify() {
 		[[ -f /etc/modprobe.d/30-harden.conf ]] || { warn "modprobe blocklist missing"; bad=1; }
 		modprobe -n -v hfs 2>/dev/null | grep -q false || { warn "modprobe does not block hfs"; bad=1; }
 	fi
+	if ((SEL[apparmor])); then
+		[[ -f /etc/runit/core-services/09-apparmor.sh ]] || { warn "AppArmor boot script missing"; bad=1; }
+		for c in librewolf foot dnscrypt-proxy abstractions/dotfiles/app; do
+			[[ -f /etc/apparmor.d/$c ]] || { warn "/etc/apparmor.d/$c missing"; bad=1; }
+		done
+		[[ -x /usr/local/libexec/wl-sandbox ]] || { warn "/usr/local/libexec/wl-sandbox missing"; bad=1; }
+		if [[ -f /etc/default/grub && -f /boot/grub/grub.cfg ]]; then
+			grep -qE '[[:space:]]lsm=[a-z0-9_,]*apparmor' /boot/grub/grub.cfg || { warn "grub.cfg has no lsm= with apparmor"; bad=1; }
+		fi
+	fi
 	((bad == 0)) || die "final check failed"
 	ok "all good"
 }
@@ -2089,6 +2298,7 @@ main() {
 	((SEL[hw])) && do_hw
 	((SEL[locale])) && do_locale
 	((SEL[harden])) && do_harden
+	((SEL[apparmor])) && do_apparmor
 	((SEL[net])) && do_net_files
 	do_groups
 	((SEL[swap])) && do_swap
@@ -2123,6 +2333,7 @@ main() {
 	printf '  log:        %s\n  backups:    %s\n' "$LOG" "$BAK"
 	[[ ! -d $UBAK ]] || printf '  your files: %s\n' "$UBAK"
 	((SEL[desktop] == 0)) || printf '  desktop:    log in on tty1, g0wm starts by itself\n'
+	((SEL[apparmor] == 0)) || aa_on || printf '  apparmor:   on after the reboot, check with doas aa-status\n'
 	log "done"
 }
 

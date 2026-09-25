@@ -1,0 +1,18 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile showtime /usr/bin/showtime flags=(attach_disconnected) {
+  include <abstractions/dotfiles/app>
+  include <abstractions/dotfiles/browser-data>
+
+  /dev/snd/{,**} rw,
+  deny /dev/{video,media}* rw,
+  owner @{run}/user/@{uid}/orcexec.* mrw,
+  owner @{HOME}/orcexec.* mrw,
+
+  /usr/{bin,lib,libexec,local/bin}/** ix,
+  owner @{run}/user/@{uid}/.dbus-filter/showtime/* rw,
+
+  include if exists <local/showtime>
+}

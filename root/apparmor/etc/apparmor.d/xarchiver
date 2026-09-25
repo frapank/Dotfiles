@@ -1,0 +1,14 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile xarchiver /usr/bin/xarchiver flags=(attach_disconnected) {
+  include <abstractions/dotfiles/app>
+  include <abstractions/dotfiles/browser-data>
+  include <abstractions/dotfiles/no-av>
+
+  /usr/{bin,lib,libexec,local/bin}/** ix,
+  owner @{run}/user/@{uid}/.dbus-filter/xarchiver/* rw,
+
+  include if exists <local/xarchiver>
+}

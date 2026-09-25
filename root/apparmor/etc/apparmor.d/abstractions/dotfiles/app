@@ -1,0 +1,16 @@
+  abi <abi/4.0>,
+
+  include <abstractions/dotfiles/app-read>
+  include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/persist>
+  include <abstractions/dotfiles/setuid>
+
+  @{HOMEDIRS} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/** rwlk,
+  owner /tmp/** rwlkm,
+  owner /var/tmp/** rwlkm,
+  owner /dev/shm/** rwkm,
+
+  /{mnt,media}/{,**} rwlk,
+  @{run}/media/{,**} rwlk,

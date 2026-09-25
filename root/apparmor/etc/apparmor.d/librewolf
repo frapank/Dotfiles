@@ -1,0 +1,30 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile librewolf /usr/lib/librewolf/librewolf flags=(attach_disconnected) {
+  include <abstractions/dotfiles/app>
+
+  userns,
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  owner @{PROC}/@{pid}/{uid_map,gid_map,setgroups,oom_score_adj} rw,
+
+  network inet,
+  network inet6,
+  network netlink raw,
+
+  owner @{HOME}/.{librewolf,config/librewolf}/** rwlkm,
+  /dev/snd/{,**} rw,
+  /dev/video* rw,
+  /dev/media* rw,
+  /dev/hidraw* rw,
+
+  /usr/lib/librewolf/librewolf ix,
+  /usr/lib/librewolf/gfxtest ix,
+  /usr/{bin,lib,libexec,local/bin}/** ix,
+  owner @{run}/user/@{uid}/.dbus-filter/librewolf/* rw,
+
+  include if exists <local/librewolf>
+}

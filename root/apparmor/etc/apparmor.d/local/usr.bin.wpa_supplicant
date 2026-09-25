@@ -1,0 +1,7 @@
+  deny capability sys_module,
+
+  include <abstractions/ssl_certs>
+  /etc/NetworkManager/{,**} r,
+  /etc/ssl/{,**} r,
+  @{HOME}/.{cert,certs}/{,**} r,
+  @{HOME}/.local/share/networkmanagement/{,**} r,

@@ -1,0 +1,48 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile chronyd /usr/bin/chronyd {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  include <abstractions/ssl_certs>
+  include <abstractions/dotfiles/root-secrets>
+
+  capability sys_time,
+  capability net_bind_service,
+  capability net_admin,
+  capability setuid,
+  capability setgid,
+  capability setpcap,
+  capability chown,
+  capability dac_override,
+  capability dac_read_search,
+  capability fowner,
+  capability fsetid,
+  capability sys_nice,
+  capability sys_resource,
+
+  network inet,
+  network inet6,
+  network netlink raw,
+  unix,
+
+  /usr/bin/chronyd mr,
+  /etc/ r,
+  /etc/** r,
+  /var/lib/chrony/ rw,
+  /var/lib/chrony/** rwk,
+  /var/log/chrony/{,**} rw,
+  @{run}/chrony/ rw,
+  @{run}/chrony/** rwk,
+  @{run}/chronyd.pid rw,
+  /etc/sv/chronyd/ r,
+  /dev/rtc* rw,
+  /dev/ptp* rw,
+  /dev/pps* rw,
+
+  @{PROC}/** r,
+  @{sys}/** r,
+
+  include if exists <local/chronyd>
+}

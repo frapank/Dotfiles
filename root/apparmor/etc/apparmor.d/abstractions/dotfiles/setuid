@@ -1,0 +1,8 @@
+  abi <abi/4.0>,
+
+  audit deny /usr/bin/{doas,sudo,su,sg,newgrp,pkexec,passwd,chsh,chfn,gpasswd,chage,expiry} x,
+  audit deny /usr/bin/{mount,umount,fusermount,fusermount3,newuidmap,newgidmap,unix_chkpwd} x,
+  audit deny /usr/bin/{xbps-uchroot,write,wall} x,
+  audit deny /usr/lib/polkit-1/polkit-agent-helper-1 x,
+  audit deny /usr/libexec/{dbus-daemon-launch-helper,ssh-keysign} x,
+  deny /usr/lib/utempter/utempter x,

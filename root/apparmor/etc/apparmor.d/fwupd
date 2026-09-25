@@ -1,0 +1,47 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile fwupd /usr/libexec/fwupd/fwupd {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  include <abstractions/ssl_certs>
+
+  capability sys_rawio,
+  capability sys_admin,
+  capability dac_override,
+  capability dac_read_search,
+  capability fowner,
+  capability chown,
+  capability net_admin,
+
+  network inet,
+  network inet6,
+  network netlink raw,
+  unix,
+
+  /usr/** mr,
+  /etc/ r,
+  /etc/** r,
+  /etc/fwupd/{,**} rw,
+  /var/lib/fwupd/{,**} rwk,
+  /var/cache/fwupd/{,**} rwk,
+  @{run}/dbus/system_bus_socket rw,
+  @{run}/udev/{,**} r,
+  @{PROC}/** r,
+  @{sys}/** r,
+  @{sys}/firmware/efi/efivars/** rw,
+  /dev/** rw,
+  /boot/{,**} rw,
+
+  /usr/libexec/fwupd/** ix,
+
+  audit deny /home/{,**} mrwkl,
+  audit deny /root/{,**} mrwkl,
+  audit deny /etc/{shadow,gshadow}{,-,+} mrwkl,
+  audit deny /etc/doas.conf mrwkl,
+  audit deny /etc/ssh/*_key mrwkl,
+  audit deny /etc/NetworkManager/system-connections/{,**} mrwkl,
+
+  include if exists <local/fwupd>
+}

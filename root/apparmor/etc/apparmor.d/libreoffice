@@ -1,0 +1,16 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile libreoffice /usr/lib/libreoffice/program/soffice.bin flags=(attach_disconnected) {
+  include <abstractions/dotfiles/app>
+  include <abstractions/dotfiles/browser-data>
+  include <abstractions/dotfiles/no-av>
+
+  deny /usr/lib/libreoffice/** w,
+
+  /usr/{bin,lib,libexec,local/bin}/** ix,
+  owner @{run}/user/@{uid}/.dbus-filter/libreoffice/* rw,
+
+  include if exists <local/libreoffice>
+}

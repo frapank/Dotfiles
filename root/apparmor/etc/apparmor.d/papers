@@ -1,0 +1,14 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile papers /usr/bin/papers{,-previewer,-thumbnailer} flags=(attach_disconnected) {
+  include <abstractions/dotfiles/app>
+  include <abstractions/dotfiles/browser-data>
+  include <abstractions/dotfiles/no-av>
+
+  /usr/{bin,lib,libexec,local/bin}/** ix,
+  owner @{run}/user/@{uid}/.dbus-filter/papers/* rw,
+
+  include if exists <local/papers>
+}

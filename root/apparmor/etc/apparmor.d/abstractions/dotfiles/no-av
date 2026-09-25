@@ -1,0 +1,4 @@
+  abi <abi/4.0>,
+
+  deny /dev/snd/{,**} rw,
+  deny /dev/video* rw,

@@ -15,7 +15,7 @@ jobs:
       - name: Install tools
         run: |
           xbps-install -Syu xbps
-          xbps-install -Sy bash dash shellcheck python3
+          xbps-install -Sy bash dash shellcheck python3 apparmor gcc pkg-config wayland-devel wayland-protocols
       - uses: actions/checkout@v4
       - name: Lint
         run: .github/lint.sh
