@@ -758,6 +758,9 @@ plan() {
 		  Freed memory is zeroed, a few % slower. Active after the reboot.
 		/boot (the EFI partition, vfat) mounted fmask=0077,dmask=0077 in
 		  /etc/fstab: kernel, initramfs and grub.cfg readable by root only.
+		/tmp a tmpfs with nosuid,nodev in /etc/fstab (added if missing, left
+		  alone if /tmp is a real partition). /dev/shm is already noexec: the
+		  initramfs mounts it so.
 		Service: nftables.
 	EOF
 	section net "Network, DNS and time" <<-EOF
@@ -1055,6 +1058,7 @@ do_harden() {
 	put_tree modprobe
 	grub_words "${HARDEN_CMDLINE[@]}"
 	boot_mask
+	tmp_mount
 }
 
 boot_mask() {
@@ -1080,6 +1084,37 @@ boot_mask() {
 	run "fstab is valid" findmnt --verify
 	try "remount $mnt" mount -o remount "$mnt"
 	[[ $(stat -c %a -- "$mnt") == 700 ]] || warn "$mnt is readable by everyone until the reboot"
+}
+
+tmp_mount() {
+	local cur new
+	cur=$(awk '!/^[[:space:]]*#/ && $2 == "/tmp" { print $3; exit }' /etc/fstab)
+	if [[ -n $cur && $cur != tmpfs ]]; then
+		warn "/tmp is $cur in /etc/fstab, left alone"
+		return 0
+	fi
+	if [[ -z $cur ]]; then
+		new=$(cat /etc/fstab; printf 'tmpfs /tmp tmpfs defaults,nosuid,nodev,mode=1777 0 0\n')
+	else
+		new=$(awk '
+			!/^[[:space:]]*#/ && $2 == "/tmp" && $3 == "tmpfs" {
+				o = "," $4 ","
+				if (o !~ /,nosuid,/) $4 = $4 ",nosuid"
+				if (o !~ /,nodev,/) $4 = $4 ",nodev"
+			}
+			{ print }' /etc/fstab)
+	fi
+	if [[ $new == "$(cat /etc/fstab)" ]]; then
+		skip "/tmp tmpfs nosuid,nodev"
+		return 0
+	fi
+	put_text /etc/fstab 0644 <<<"$new"
+	run "fstab is valid" findmnt --verify
+	if [[ $(findmnt -no FSTYPE /tmp) == tmpfs ]]; then
+		try "remount /tmp" mount -o remount /tmp
+	else
+		ok "/tmp becomes a tmpfs after the reboot"
+	fi
 }
 
 ssh_dir() {
