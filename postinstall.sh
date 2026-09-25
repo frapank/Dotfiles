@@ -396,6 +396,7 @@ rollback() {
 		hown) chown -- "$b" "$a" ;;
 		perm) chown -- "$c" "$a" && chmod -- "$b" "$a" ;;
 		pkgback) read -ra pk <<<"$a"; xbps-install -y -- "${pk[@]}" ;;
+		pkgauto) read -ra pk <<<"$a"; xbps-pkgdb -m auto "${pk[@]}" ;;
 		gset) as_user dbus-run-session gsettings set "${c:-org.gnome.desktop.interface}" "$a" "$b" ;;
 		esac >>"$LOG" 2>&1 || printf '  %s! could not undo: %s %s%s\n' "$C_Y" "$op" "$a" "$C_0" >&2
 	done < <(tac -- "$BAK/journal")
@@ -822,7 +823,7 @@ plan() {
 		/etc/sysctl.d/50-zram.conf: swappiness 180, page-cluster 0 (the usual
 		  tuning when swap is RAM, not disk).
 	EOF
-	section maint "Maintenance: home snapshots, btrfs scrub, old kernels" <<-EOF
+	section maint "Maintenance: home snapshots, btrfs scrub, old kernels, orphans" <<-EOF
 		Packages: ${PKG_MAINT[*]}; service maint on, runs /usr/local/sbin/maint
 		  every hour (the first time 15 minutes after boot). Each job runs when
 		  its period has passed, so the days the machine was off are caught up:
@@ -831,6 +832,10 @@ plan() {
 		    Same disk: undoes mistakes, not a dead or stolen disk.
 		  weekly: vkpurge rm all under the xbps lock (only kernels no package
 		    owns, never the running one), then checks every kernel has its initramfs.
+		  weekly: orphan packages removed (xbps-remove -R, never the running
+		    kernel series) and old packages cleared from the cache (-O). The
+		    packages this script installs are marked manual, so they never
+		    become orphans.
 		  monthly: btrfs scrub of the whole filesystem at most 300 MiB/s, only on
 		    AC power. Failures go to the g0wm session as notifications.
 		Log: svlogtail cron. State: 'doas maint status'. By hand: 'doas maint home'.
@@ -968,7 +973,7 @@ do_update() {
 
 do_packages() {
 	step "Packages"
-	local want=("${PKG_CORE[@]}") new=() old=() p
+	local want=("${PKG_CORE[@]}") new=() old=() auto=() p
 	if ((SEL[power])); then
 		for p in tlp-rdw tlp; do installed "$p" && old+=("$p"); done
 		if ((${#old[@]})); then
@@ -997,8 +1002,16 @@ do_packages() {
 	((SEL[fonts])) && want+=("${PKG_FONTS[@]}" git)
 	((SEL[doas])) && want+=(opendoas)
 	for p in $(printf '%s\n' "${want[@]}" | sort -u); do
-		installed "$p" || new+=("$p")
+		if ! installed "$p"; then
+			new+=("$p")
+		elif [[ $(xbps-query -p automatic-install "$p") == yes ]]; then
+			auto+=("$p")
+		fi
 	done
+	if ((${#auto[@]})); then
+		jot pkgauto "${auto[*]}"
+		run "mark ${#auto[@]} packages manual: ${auto[*]}" xbps-pkgdb -m manual "${auto[@]}"
+	fi
 	if ((${#new[@]} == 0)); then
 		skip "all ${#want[@]} packages installed"
 		return 0
