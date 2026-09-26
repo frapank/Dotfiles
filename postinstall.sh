@@ -39,7 +39,7 @@ PKG_APPARMOR=(apparmor runit-void-apparmor xdg-dbus-proxy bubblewrap python3-gob
 	wayland-devel wayland-protocols pkg-config)
 AA_KEEP=(bin.ping unix-chkpwd usr.bin.wpa_supplicant usr.sbin.dnsmasq zgrep loupe chromium cam
 	libcamerify usr.bin.dhcpcd usr.sbin.ntpd usr.sbin.traceroute usr.bin.uuidd)
-PKG_NET=(NetworkManager dnscrypt-proxy chrony dbus)
+PKG_NET=(NetworkManager dnscrypt-proxy chrony dbus curl)
 PKG_BOOT=(dracut plymouth plymouth-data terminus-font)
 PKG_DESKTOP=(
 	# g0wm build
@@ -235,7 +235,7 @@ SFPRO_DIR=/usr/local/share/fonts/SF-Pro
 
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
-HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0
+HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0
 declare -A SEL=() BACKED=()
 
 # output
@@ -731,305 +731,217 @@ plan() {
 	say "Nothing changes until you confirm the plan at the end."
 
 	section update "System upgrade" <<-EOF
-		xbps-install -Su for the whole system. Recommended: Void is rolling and
-		  installing onto an outdated system can fail on library versions.
-		The only step a rollback cannot undo. (xbps itself is always updated:
-		  the repos refuse an old xbps.)
+		Upgrades the whole system with xbps-install -Su. Recommended.
 	EOF
 	section locale "English everywhere" <<-EOF
-		/etc/locale.conf: LANG=en_US.UTF-8, LC_COLLATE=C (every app in English),
-		  en_US.UTF-8 enabled in /etc/default/libc-locales and generated.
+		Sets LANG=en_US.UTF-8 and LC_COLLATE=C in /etc/locale.conf, so every app is in English.
+		Enables and generates en_US.UTF-8 in /etc/default/libc-locales.
 	EOF
 	section cli "Shell and editors" <<-EOF
-		Packages: ${PKG_CLI[*]}
-		Copies home/{$(join , "${HOME_CLI[@]}")} into $THOME (real files, not links).
-		Files in the way, and ~/.vimrc ~/.tmux.conf which would shadow the new
-		  ones, are moved to ~/_backup/$TS.
-		~/.bash_profile (from home/bash): sources ~/.bashrc, sets the Qt dark style
-		  and on tty1 runs start-g0wm, so boot goes grub -> plymouth/LUKS ->
-		  agetty with the cat in /etc/issue -> login -> g0wm. It also starts one
-		  ssh-agent per user on \$XDG_RUNTIME_DIR/ssh-agent.socket (SSH_AUTH_SOCK).
-		Login shell /bin/bash.
+		Installs ${PKG_CLI[*]}
+		Copies home/{$(join , "${HOME_CLI[@]}")} into $THOME.
+		Moves files in the way to ~/_backup/$TS, and also ~/.vimrc and ~/.tmux.conf
+		  since they would shadow the new ones.
 	EOF
 	section lsp "Language servers for nvim" <<-EOF
-		Packages: ${PKG_LSP[*]}
+		Installs ${PKG_LSP[*]}
 	EOF
 	section harden "Kernel and firewall hardening" <<-EOF
-		Packages: ${PKG_HARDEN[*]}
-		/etc/sysctl.d/{10,20,30,40}-*.conf (0600), applied now with sysctl -p.
-		/etc/nftables/nft_base_desktop.conf (0600), included by /etc/nftables.conf:
-		  input and forward dropped, output allowed; ICMPv6 only errors, ping
-		  (rate limited), neighbor discovery and router adverts from the link
-		  (hop limit 255) and MLD queries. Checked with nft -c, and
-		  loaded right away when nftables already runs (it flushes atomically).
-		/etc/ssh/ssh_config.d/10-local.conf, plus the Include line that Void's
-		  /etc/ssh/ssh_config lacks (without it the file is ignored): TERM
-		  xterm-256color on remote hosts, keys go to the agent on first use, only
-		  the configured keys are offered, known_hosts hashed, no agent forwarding.
-		~/.ssh created 0700 (or fixed to 0700), no keys generated.
-		/etc/modprobe.d/30-harden.conf: modules nothing current uses that had
-		  exploitable bugs can no longer load: rds tipc atm n_hdlc n_gsm sctp,
-		  appletalk psnap llc2 phonet ax25 netrom rose, firewire, floppy,
-		  filesystems cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2
-		  (hfsplus, udf, exfat, ntfs3 still work).
-		Kernel command line (GRUB_CMDLINE_LINUX_DEFAULT, so the recovery entry
-		  boots without them): ${HARDEN_CMDLINE[*]}.
-		  Freed memory is zeroed, a few % slower. Devices lose DMA access to
-		  memory as soon as it is unmapped, and PCI bridges cannot do DMA
-		  before the kernel sets up the IOMMU (Thunderbolt/USB4 attacks).
-		  Active after the reboot.
-		/boot (the EFI partition, vfat) mounted fmask=0077,dmask=0077 in
-		  /etc/fstab: kernel, initramfs and grub.cfg readable by root only.
-		/tmp a tmpfs with nosuid,nodev in /etc/fstab (added if missing, left
-		  alone if /tmp is a real partition). /dev/shm is already noexec: the
-		  initramfs mounts it so.
-		Service: nftables.
+		Installs ${PKG_HARDEN[*]} and enables the nftables service.
+		Sysctl: writes /etc/sysctl.d/{10,20,30,40}-*.conf and applies them now.
+		Firewall: /etc/nftables/nft_base_desktop.conf drops input and forward, allows output.
+		  ICMP lets through only errors, rate limited ping, neighbor discovery,
+		  router adverts and MLD. Checked with nft -c and loaded now if nftables runs.
+		SSH: /etc/ssh/ssh_config.d/10-local.conf, plus the Include line Void lacks.
+		  Sets TERM xterm-256color on remote hosts, adds keys to the agent on first use,
+		  offers only the configured keys, hashes known_hosts, no agent forwarding.
+		  Creates ~/.ssh with mode 0700. No keys are generated.
+		Modules: /etc/modprobe.d/30-harden.conf blocks unused modules with a history
+		  of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25
+		  netrom rose firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2.
+		  hfsplus udf exfat ntfs3 still work.
+		Kernel command line: ${HARDEN_CMDLINE[*]}
+		  Zeroes freed memory (a few % slower) and blocks DMA attacks from PCI and
+		  Thunderbolt devices. The recovery entry boots without them. Active after reboot.
+		fstab: /boot readable by root only. /tmp becomes a nosuid,nodev tmpfs
+		  unless it is a real partition.
 	EOF
 	section apparmor "AppArmor: confine the apps that parse untrusted input" <<-EOF
-		Packages: ${PKG_APPARMOR[*]}; /etc/runit/core-services/09-apparmor.sh
-		  loads every profile in /etc/apparmor.d at boot.
-		Kernel command line: $(aa_lsm) (the security modules running now,
-		  plus AppArmor), added to GRUB_CMDLINE_LINUX_DEFAULT like the hardening
-		  flags. GRUB_CMDLINE_LINUX, where root and LUKS live, is not touched, and
-		  grub.cfg is checked to keep every root/LUKS argument this boot used.
-		  Active after the reboot.
-		Profiles, enforced: each app keeps everything it does and loses what an
-		  exploit wants: ~/.ssh, ~/.gnupg, keyrings, history files (read or
-		  write); the files that run code later (shell startup, g0wm autostart,
-		  the programs in the PATH, .desktop and D-Bus launchers, nvim, git,
-		  pipewire configs: read-only); doas, su and the other setuid programs.
-		  librewolf: network, camera, mic, screen sharing as before.
-		  showtime: offline.
-		  papers, libreoffice (soffice.bin), xarchiver (and the 7z/unrar/tar it
-		    runs): offline, no mic or camera. Links open in librewolf; an
-		    archive cannot drop files into ~/.bashrc or ~/.local/bin.
-		  tumblerd (Thunar's thumbnails): reads, writes only ~/.cache, offline.
-		  foot: no network, reads no secrets; the shell and what it runs stay
-		    unconfined, as they are now.
-		  Services as root: dnscrypt-proxy, chronyd, bluetoothd: only their own
-		    config and state, no homes, /root, shadow, doas.conf, host keys or
-		    Wi-Fi passwords, no exec.
-		  NetworkManager, pipewire (and pipewire-pulse), wireplumber, fwupd: only
-		    what they use; no homes (NetworkManager, fwupd), no secrets, no
-		    setuid programs.
-		Void's package enforces some profiles of its own (wpa_supplicant,
-		  unix_chkpwd, ping): wpa_supplicant also gets read access to
-		  certificates, or WPA-Enterprise (eduroam) would stop connecting.
-		Loupe is left to glycin, which decodes images in its own bwrap sandbox.
-		Sockets: Void's AppArmor (4.1) cannot mediate connecting to a Unix socket
-		  on this kernel, and neither dbus nor the agents are aware of it. So
-		  /usr/local/bin/{librewolf,showtime,papers,xarchiver,libreoffice,soffice}
-		  (and the D-Bus activated Showtime and tumblerd, /usr/local/share/dbus-1)
-		  go through /usr/local/bin/dbus-filter: the app runs in a bwrap mount
-		  namespace where the session bus, ssh-agent, gpg-agent, the keyring,
-		  the accessibility bus and PipeWire's manager socket (for papers,
-		  xarchiver, libreoffice, tumblerd also PipeWire and pulse) are
-		  replaced by empty files, and gets its own xdg-dbus-proxy bus instead:
-		  portals, dconf, gvfs, notifications, its own names (MPRIS media keys,
-		  single instance); not the keyring, Thunar, or anything that runs
-		  commands. When a confined app opens another one (a link, a PDF, an
-		  image), /usr/local/libexec/dbus-filter-open (org.dotfiles.Open)
-		  starts it outside, in its own sandbox: only these apps, only existing
-		  files or http/https/file links.
-		Wayland and X11: when g0wm offers wp_security_context_v1, each of these
-		  apps reaches it through its own socket (/usr/local/libexec/wl-sandbox,
-		  built from src/wl-sandbox.c) and the real wayland-* sockets are masked:
-		  g0wm then hides from them the protocols that read the clipboard or the
-		  screen, inject input, draw layers, lock the session or change the
-		  outputs. Copy and paste in the focused window work as always. X11 is
-		  masked (DISPLAY unset); all but librewolf also get no network
-		  namespace at all, which takes away the abstract sockets too.
-		Void's package ships about 150 profiles for programs this machine does
-		  not have (apache, dovecot, samba...): removed, and kept out on updates
-		  by /etc/xbps.d/30-apparmor-noextract.conf. Kept: ${AA_KEEP[*]}.
-		Profile cache (write-cache in /etc/apparmor/parser.conf): the profiles
-		  are compiled once, not at every boot.
-		Blocks are logged in the kernel log ('doas aa-status' lists the
-		  profiles); with the logs section, the watchdog shows each one.
-		  Own changes go in /etc/apparmor.d/local/<profile>, kept on updates.
+		Installs ${PKG_APPARMOR[*]}
+		Loads every profile at boot via /etc/runit/core-services/09-apparmor.sh.
+		Kernel command line: adds $(aa_lsm) to the default entry.
+		  Root and LUKS arguments are not touched and are checked in grub.cfg.
+		  Active after reboot.
+		Enforced profiles keep each app working but block what an exploit wants:
+		  secrets (~/.ssh ~/.gnupg keyrings history), writing files that run code
+		  later (shell startup, autostart, PATH, launchers, configs) and setuid
+		  programs like doas and su.
+		  librewolf keeps network, camera, mic and screen sharing.
+		  showtime runs offline.
+		  papers, libreoffice and xarchiver run offline without mic or camera.
+		  tumblerd runs offline and writes only to ~/.cache.
+		  foot has no network and reads no secrets. The shell inside is not confined.
+		  dnscrypt-proxy, chronyd and bluetoothd see only their own config and state.
+		  NetworkManager, pipewire, wireplumber and fwupd see only what they use.
+		wpa_supplicant also gets read access to certificates, so eduroam keeps working.
+		Loupe is left to glycin, which already sandboxes image decoding.
+		D-Bus: AppArmor here cannot filter Unix sockets, so these apps start through
+		  /usr/local/bin/dbus-filter. It runs them in bwrap with the session bus,
+		  agents, keyring, accessibility bus and PipeWire sockets hidden, and gives
+		  them a filtered bus with portals, dconf, gvfs, notifications and media keys.
+		  Files and links they open start in their own sandbox via
+		  /usr/local/libexec/dbus-filter-open.
+		Wayland: when g0wm supports wp_security_context_v1, each app gets its own
+		  socket via /usr/local/libexec/wl-sandbox (built from src/wl-sandbox.c).
+		  g0wm then hides clipboard and screen reading, input injection, layers,
+		  session lock and output changes. Copy and paste still work.
+		  X11 is hidden. All apps except librewolf also run without network.
+		Removes about 150 unused profiles shipped by Void and keeps them out on
+		  updates via /etc/xbps.d/30-apparmor-noextract.conf. Kept: ${AA_KEEP[*]}
+		Enables the profile cache, so profiles compile once instead of every boot.
+		Blocks go to the kernel log. Local changes go in /etc/apparmor.d/local/<profile>.
 	EOF
 	section net "Network, DNS and time" <<-EOF
-		Packages: ${PKG_NET[*]}
-		NetworkManager conf.d: dns=none, random MAC on wifi and ethernet, the
-		  hostname is not sent over DHCP, IPv6 temporary addresses preferred,
-		  the DHCPv6 DUID follows the random MAC.
-		dnscrypt-proxy on 127.0.0.1:53 (DNSSEC, no-log), checked with -check;
-		  /etc/resolv.conf -> nameserver 127.0.0.1.
+		Installs ${PKG_NET[*]}
+		NetworkManager: dns=none, random MAC on wifi and ethernet, hostname not sent
+		  over DHCP, IPv6 temporary addresses preferred, DHCPv6 DUID follows the MAC.
+		dnscrypt-proxy on 127.0.0.1:53 and /etc/resolv.conf points to it.
+		  Uses DNSCrypt servers with DNSSEC, no logs and no filtering, always through
+		  an Anonymized DNS relay, so no server sees both your IP and your queries.
+		  Bootstrap and NTP names go through Quad9.
+		Blocklist: HaGeZi Multi PRO in /etc/dnscrypt-proxy/blocked-names.txt,
+		  updated daily by /usr/local/sbin/dns-blocklist when maint is selected.
+		DNS lock with harden: /etc/nftables/nft_dns_desktop.conf blocks port 53
+		  except from dnscrypt-proxy, and port 853 for everyone.
+		  For captive portals run 'doas nft delete table inet dns' until next boot.
 		chrony with NTS servers.
-		Services: dbus NetworkManager dnscrypt-proxy chronyd on;
-		  dhcpcd* wpa_supplicant ntpd off. Done near the end: the network may drop for
-		  a moment, it is fully up after the reboot.
+		Services on: dbus NetworkManager dnscrypt-proxy chronyd.
+		Services off: dhcpcd* wpa_supplicant ntpd.
+		Done near the end, the network may drop for a moment.
 	EOF
 	section boot "Boot: initramfs, splash, login screen" <<-EOF
-		Packages: ${PKG_BOOT[*]}
-		/etc/dracut.conf.d/00-hostonly.conf, plymouth theme void-minimal,
-		  /etc/issue, tty1 agetty conf (clean login, plymouth quits there).
-		Terminus on every tty, set at boot by
-		  /etc/runit/core-services/04-console-font.sh: ter-v16n, or ter-v32n
-		  (twice as big) when the screen is 1440 pixels tall or more (2K and up).
-		GRUB: adds 'quiet splash' if missing, then update-grub.
-		Rebuilds the initramfs of every installed kernel when the dracut or
-		  plymouth config changed, or an image is missing or has no plymouth;
-		  the old images are backed up and put back if anything fails.
+		Installs ${PKG_BOOT[*]}
+		Sets dracut hostonly, plymouth theme void-minimal, /etc/issue and a clean tty1 login.
+		Terminus font on every tty via /etc/runit/core-services/04-console-font.sh,
+		  ter-v16n or ter-v32n on screens 1440 pixels tall or more.
+		GRUB: adds 'quiet splash' if missing and runs update-grub.
+		Rebuilds the initramfs of every kernel when the dracut or plymouth config
+		  changed or an image is missing. Old images are restored on failure.
 	EOF
 	detect_hw
 	section hw "Hardware: microcode, GPU drivers, firmware updates" <<-EOF
 		Found: $(join , "${HW_DESC[@]}")
-		Packages: $(printf '%s\n' "${HW_PKGS[@]}" | sort -u | tr '\n' ' ')fwupd
-		$( ((NONFREE)) && echo "Adds the Void nonfree repo (void-repo-nonfree): intel-ucode lives there." )
-		New microcode needs a new initramfs: rebuilt for every kernel.
-		fwupd is started by D-Bus on demand (no runit service); its metadata
-		  is fetched once at the end: 'fwupdmgr get-updates' to check.
+		Installs $(printf '%s\n' "${HW_PKGS[@]}" | sort -u | tr '\n' ' ')fwupd
+		$( ((NONFREE)) && echo "Adds the Void nonfree repo for intel-ucode." )
+		Rebuilds the initramfs of every kernel for the new microcode.
+		fwupd starts on demand via D-Bus. Check updates with 'fwupdmgr get-updates'.
 	EOF
 	section power "Power: power-profiles-daemon (as in GNOME), balanced" <<-EOF
-		Removes tlp and tlp-rdw if installed and disables their service
-		  (they fight power-profiles-daemon over the same knobs).
-		Packages: ${PKG_POWER[*]}; service power-profiles-daemon on, profile
-		  set to balanced ('powerprofilesctl set performance' to change it).
+		Removes tlp and tlp-rdw if installed, they conflict with power-profiles-daemon.
+		Installs ${PKG_POWER[*]}, enables its service and sets the balanced profile.
+		Change it with 'powerprofilesctl set performance'.
 	EOF
 	section logs "System logs: socklog" <<-EOF
-		Packages: ${PKG_LOGS[*]}; services socklog-unix and nanoklogd on: logs in
-		  /var/log/socklog (kernel, daemons, firewall drops). $TUSER in the socklog
-		  group, read them with 'svlogtail'.
-		Service watchdog: notifications to the g0wm session for crashes, disk and
-		  filesystem errors, overheating, USB plug/unplug/errors (kernel log, a
-		  click opens it in foot), runit services restarting in a loop, batteries
-		  at 20%/10%, disks over 90%, microphone and webcam in use, AppArmor
-		  blocking something.
-		  /etc/sysctl.d/60-watchdog.conf: print-fatal-signals=1, so crashes that
-		  a program catches and re-raises get logged too.
+		Installs ${PKG_LOGS[*]} and enables socklog-unix and nanoklogd.
+		Logs go to /var/log/socklog. Adds $TUSER to socklog, read them with 'svlogtail'.
+		Watchdog: notifications in g0wm for crashes, disk and filesystem errors,
+		  overheating, USB events, services restarting in a loop, battery at 20% and 10%,
+		  disks over 90%, mic and webcam in use, AppArmor blocks.
+		/etc/sysctl.d/60-watchdog.conf sets print-fatal-signals=1 to log more crashes.
 	EOF
 	zram_size
 	section swap "Swap in compressed RAM (zramen)" <<-EOF
-		Packages: ${PKG_SWAP[*]}; service zramen on.
-		This machine: $(($(awk '/^MemTotal:/ { print $2 }' /proc/meminfo) / 1024)) MiB RAM -> ${ZRAM_PCT}% = ${ZRAM_MIB} MiB of zstd zram
-		  (about 3x that once compressed; <=4G 100%, <=8G 75%, <=16G 50%, else 25%,
-		  at most 16 GiB). /etc/sv/zramen/conf, kept by xbps on updates; a log
-		  service sends its messages to syslog instead of tty1 under /etc/issue.
-		/etc/sysctl.d/50-zram.conf: swappiness 180, page-cluster 0 (the usual
-		  tuning when swap is RAM, not disk).
+		Installs ${PKG_SWAP[*]} and enables the zramen service.
+		This machine: $(($(awk '/^MemTotal:/ { print $2 }' /proc/meminfo) / 1024)) MiB RAM, so ${ZRAM_PCT}% = ${ZRAM_MIB} MiB of zstd zram (max 16 GiB).
+		Config in /etc/sv/zramen/conf. Its log goes to syslog instead of tty1.
+		/etc/sysctl.d/50-zram.conf sets swappiness 180 and page-cluster 0.
 	EOF
 	section maint "Maintenance: home snapshots, btrfs scrub, old kernels, orphans" <<-EOF
-		Packages: ${PKG_MAINT[*]}; service maint on, runs /usr/local/sbin/maint
-		  every hour (the first time 15 minutes after boot). Each job runs when
-		  its period has passed, so the days the machine was off are caught up:
-		  daily: read-only snapshot of /home in /home/.snapshots (root, 0700),
-		    keeps the newest 14; under 10% free no new one, keeps the newest 3.
-		    Same disk: undoes mistakes, not a dead or stolen disk.
-		  weekly: vkpurge rm all under the xbps lock (only kernels no package
-		    owns, never the running one), then checks every kernel has its initramfs.
-		  weekly: orphan packages removed (xbps-remove -R, never the running
-		    kernel series) and old packages cleared from the cache (-O). The
-		    packages this script installs are marked manual, so they never
-		    become orphans.
-		  monthly: btrfs scrub of the whole filesystem at most 300 MiB/s, only on
-		    AC power. Failures go to the g0wm session as notifications.
-		Log: svlogtail cron. State: 'doas maint status'. By hand: 'doas maint home'.
+		Installs ${PKG_MAINT[*]} and enables the maint service.
+		It runs /usr/local/sbin/maint every hour and catches up on missed jobs.
+		Daily: read-only snapshot of /home in /home/.snapshots, keeps the last 14
+		  (3 when under 10% free). Same disk, so it is not a backup.
+		Daily: DNS blocklist update, if net is selected.
+		Weekly: removes old kernels with vkpurge, never the running one, and checks
+		  every kernel has its initramfs.
+		Weekly: removes orphan packages and cleans the package cache.
+		  Packages installed here are marked manual, so they are never orphans.
+		Monthly: btrfs scrub at up to 300 MiB/s, only on AC power.
+		Failures show up as notifications.
+		Log: 'svlogtail cron'. Status: 'doas maint status'. By hand: 'doas maint home'.
 	EOF
 	section dirs "Home folders (custom user-dirs)" <<-EOF
-		Copies home/{$(join , "${HOME_DIRS[@]}")}: ~/.config/user-dirs.dirs and user-dirs.locale
-		  from this machine (Get, Random, Media/{Music,Pictures,Videos}...), and
-		  creates those folders. Standard ones not used by it
-		  ($(join ' ' "${XDG_DEFAULT_DIRS[@]}")) are moved to ~/_backup/$TS
-		  if empty; the ones with files in them are left where they are.
+		Copies home/{$(join , "${HOME_DIRS[@]}")}: user-dirs.dirs and user-dirs.locale, and creates those folders.
+		Moves the unused standard folders ($(join ' ' "${XDG_DEFAULT_DIRS[@]}"))
+		  to ~/_backup/$TS if empty. Folders with files are left alone.
 	EOF
 	section desktop "Desktop: g0wm" <<-EOF
-		Packages: g0wm build deps, the session (dbus elogind polkit pipewire
-		  xwayland) and what settings.json runs (foot Thunar grim slurp swappy
-		  swayidle gtklock wmenu brightnessctl playerctl; librewolf is in apps).
-		Services: dbus elogind polkitd on, acpid off (elogind replaces it).
-		Groups for $TUSER: ${USER_GROUPS[*]}.
-		Copies home/{$(join , "${HOME_DESKTOP[@]}")} (gtklock theme too), clones $G0WM_URL
-		  into ~/.local/src/g0wm: ./configure, make, make test, make install
-		  (into ~/.local/bin). Start it from tty1 with start-g0wm.
-		Then home/g0wm's g0wm-status.sh replaces the one of make install.
-		If g0wm and start-g0wm are already in your PATH, built from another
-		  folder, they are left alone; a clone in ~/.local/src/g0wm is pulled and
-		  rebuilt only when it has new commits.
+		Installs the g0wm build deps, the session (dbus elogind polkit pipewire xwayland)
+		  and the apps g0wm uses (foot Thunar grim slurp swappy swayidle gtklock wmenu
+		  brightnessctl playerctl).
+		Services on: dbus elogind polkitd. Off: acpid, elogind replaces it.
+		Adds $TUSER to ${USER_GROUPS[*]}.
+		Copies home/{$(join , "${HOME_DESKTOP[@]}")}.
+		Clones $G0WM_URL into ~/.local/src/g0wm, builds, tests and installs it
+		  into ~/.local/bin, then puts in the g0wm-status.sh from home/g0wm.
+		An existing clone is rebuilt only when it has new commits. A g0wm built
+		  from another folder is left alone.
+		Start it from tty1 with start-g0wm.
 	EOF
 	section media "Screen sharing and audio (Wayland)" <<-EOF
-		Packages: ${PKG_MEDIA[*]}
-		PipeWire starts wireplumber and pipewire-pulse itself: links
-		  /etc/pipewire/pipewire.conf.d/{10-wireplumber,20-pipewire-pulse}.conf,
-		  ALSA apps go through PipeWire (alsa-pipewire).
-		Screen sharing: copies home/{$(join , "${HOME_MEDIA[@]}")}:
-		  ~/.config/xdg-desktop-portal/g0wm-portals.conf picks the wlr portal
-		  (wlr.portal only lists sway, river... so on g0wm nothing is found),
-		  ~/.config/xdg-desktop-portal-wlr/config picks the output with slurp.
-		  g0wm's settings.json already imports WAYLAND_DISPLAY into D-Bus.
+		Installs ${PKG_MEDIA[*]}
+		PipeWire starts wireplumber and pipewire-pulse. ALSA apps go through PipeWire.
+		Copies home/{$(join , "${HOME_MEDIA[@]}")}: g0wm uses the wlr portal for screen sharing,
+		  and you pick the output with slurp.
 	EOF
 	section apps "User apps, Thunar, default apps, shortcuts" <<-EOF
-		Adds the librewolf repo (index-0/librewolf-void, prebuilt) with its
-		  signing key pinned from the repo: no key prompt, and a changed key fails.
-		Adds the Void nonfree repo (void-repo-nonfree): unrar lives there.
-		Installs rar (trial) from rarlab.com into /usr/local/bin: not in the repos.
-		Packages: ${PKG_APPS[*]}
+		Adds the librewolf repo with its signing key pinned, and the Void nonfree repo for unrar.
+		Installs rar (trial) from rarlab.com into /usr/local/bin.
+		Installs ${PKG_APPS[*]}
 		Copies home/{$(join , "${HOME_APPS[@]}")}:
-		  Thunar: 'Open Terminal Here' runs foot, thunar-volman automounts drives;
-		  nvim-foot.desktop, so text files open nvim inside foot;
-		  fastfetch: Void logo in the dwl colors, icon keys grouped in boxes,
-		    usage bars for memory and disk;
+		  Thunar opens foot with 'Open Terminal Here' and automounts drives.
+		  Text files open in nvim inside foot.
+		  fastfetch with the Void logo in the dwl colors.
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
-		    screenshot record nightlight extract compress open (the xdg ones start
-		    the default app, or open the files given; wifi/bluetooth on|off switch
-		    the radio; Print screenshots a region, Shift the whole screen, Ctrl a
-		    region opened in swappy, saved in Pictures and copied to the
-		    clipboard; Super+Print records the screen (slurp -o picks it with
-		    several), Shift a region, Ctrl without audio; audio is the default sink's monitor plus
-		    the default mic when unmuted; Super+= toggles nightlight, a 4000K blue light
-		    filter via wlsunset; extract/compress wrap tar 7z unrar gpg age; open FILE...
-		    picks the app from the extension: Loupe, Showtime, Papers, LibreOffice,
-		    xarchiver, librewolf, Thunar, vim for text, xxd | less for binaries).
-		Writes ~/.config/mimeapps.list in place (${#MIME_DEFAULTS[@]} types: images Loupe,
-		  video Showtime, PDF Papers, web librewolf, folders Thunar, archives
-		  xarchiver, documents LibreOffice, text nvim); entries it does not set
-		  and other sections are kept. Read by xdg-open, xdg-mime, gio, Thunar
-		  and the portal alike; checked with xdg-mime afterwards.
+		  screenshot record nightlight extract compress open.
+		Print screenshots a region, Shift the whole screen, Ctrl opens it in swappy.
+		  Saved in Pictures and copied to the clipboard.
+		Super+Print records the screen, Shift a region, Ctrl without audio.
+		Super+= toggles nightlight.
+		Sets ${#MIME_DEFAULTS[@]} default apps in ~/.config/mimeapps.list: images Loupe, video Showtime,
+		  PDF Papers, web librewolf, folders Thunar, archives xarchiver, documents
+		  LibreOffice, text nvim. Other entries are kept.
 	EOF
 	section session "Keyring, polkit, network and bluetooth tray" <<-EOF
-		Packages: ${PKG_SESSION[*]}
-		/etc/pam.d/login and passwd get pam_gnome_keyring (optional lines): the
-		  keyring unlocks with your login password and follows password changes.
-		g0wm starts the keyring on D-Bus and the polkit agent. No tray icons:
-		  'wifi' and 'bluetooth' open nm-connection-editor and blueman-manager,
-		  and blueman's tray plugin is switched off in gsettings.
-		Service bluetoothd on, $TUSER in the bluetooth group if it exists.
+		Installs ${PKG_SESSION[*]}
+		Adds pam_gnome_keyring to /etc/pam.d/login and passwd, so the keyring
+		  unlocks with your login password.
+		g0wm starts the keyring and the polkit agent. No tray icons, 'wifi' and
+		  'bluetooth' open their managers.
+		Enables bluetoothd and adds $TUSER to the bluetooth group.
 	EOF
 	section theme "GTK theme: Adwaita dark" <<-EOF
-		Packages: ${PKG_THEME[*]}
-		Copies home/{$(join , "${HOME_THEME[@]}")}: ~/.gtkrc-2.0 and GTK 3/4 settings.ini.
-		gsettings for GTK 4/libadwaita (and the portal): color-scheme prefer-dark,
-		  gtk-theme Adwaita-dark, Adwaita icons, Bibata-Modern-Classic cursor,
-		  SF Mono 10 fonts.
-		Bibata-Modern-Classic cursor (black, rounded) into $CURSOR_DIR:
-		  ${CURSOR_URL##*/} of Bibata v2.0.7 from GitHub, checked against a fixed
-		  sha256, recolored in the palette ($CURSOR_COLORS: black and white
-		  become the first two, each accent the nearest hue of the others),
-		  size $CURSOR_SIZE. g0wm, GTK 2/3/4 and XWayland apps all use it.
-		Qt 5/6: adwaita-qt, Adwaita-Dark style via QT_STYLE_OVERRIDE (~/.bash_profile).
-		AdwaitaLegacy $ICONS_TAG from GNOME into $ICONS_DIR: the full-color icons
-		  Adwaita inherits but Void does not package (pavucontrol, Thunar... show
-		  blanks without them).
+		Installs ${PKG_THEME[*]}
+		Copies home/{$(join , "${HOME_THEME[@]}")}: GTK 2, 3 and 4 settings.
+		gsettings: dark Adwaita, Adwaita icons, Bibata cursor, SF Mono 10.
+		Bibata-Modern-Classic cursor v2.0.7 into $CURSOR_DIR, checked by sha256,
+		  recolored in the palette, size $CURSOR_SIZE.
+		Qt 5 and 6 use Adwaita-Dark via adwaita-qt.
+		AdwaitaLegacy $ICONS_TAG into $ICONS_DIR, needed for full color icons in
+		  apps like pavucontrol and Thunar.
 	EOF
 	section fonts "Fonts: SF Mono everywhere, Nerd Fonts, emoji, CJK" <<-EOF
-		Packages: ${PKG_FONTS[*]}
-		  nerd-fonts-symbols-ttf is Symbols Nerd Font (and its Mono): every
-		  Nerd Fonts icon, a few MB. The full set of patched fonts (${NERD_FULL[*]},
-		  about 8 GB) is removed if installed.
-		SF Mono into $SF_DIR, SF Pro into $SFPRO_DIR (root, 0644),
-		  from $FONT_URL and $SFPRO_URL at fixed commits
-		  (${FONT_REV:0:12}, ${SFPRO_REV:0:12}), downloaded as root.
-		Copies home/{$(join , "${HOME_FONTS[@]}")}: fontconfig makes SF Mono the monospace,
-		  sans-serif and serif font (Nerd symbols, emoji and CJK as fallback).
+		Installs ${PKG_FONTS[*]}
+		Removes the full Nerd Fonts packages if installed (about 8 GB), the symbols are enough.
+		SF Mono into $SF_DIR and SF Pro into $SFPRO_DIR, from fixed commits.
+		Copies home/{$(join , "${HOME_FONTS[@]}")}: SF Mono as default font, with Nerd symbols,
+		  emoji and CJK as fallback.
 	EOF
 	section doas "doas instead of sudo" <<-EOF
-		Installs opendoas, writes /etc/doas.conf 'permit persist :wheel' (root:root
-		  0400, the password is remembered for a few minutes),
-		  puts $TUSER in wheel and checks doas really lets $TUSER in.
-		ignorepkg=sudo in /etc/xbps.d, then removes sudo and /etc/sudoers*.
-		Refused if $TUSER has no usable password: that would lock you out.
-		Done last, after the final check. If a rollback cannot reinstall sudo,
-		  doas, its config and wheel stay, so you are never left without either.
+		Installs opendoas, writes /etc/doas.conf 'permit persist :wheel' and adds $TUSER to wheel.
+		Checks that doas works, then removes sudo and blocks it with ignorepkg.
+		Refused if $TUSER has no password. Done last, and a rollback always leaves
+		  you with doas or sudo.
 	EOF
 
 	if ((SEL[maint])); then
@@ -1143,6 +1055,23 @@ save_sysctl() {
 	jot sysctl
 }
 
+nft_apply() {
+	local nft_on=0 n f
+	[[ $(sv status nftables 2>/dev/null) == run:* ]] && nft_on=1 && jot nft
+	n=$(njot)
+	"$@"
+	put_text /etc/nftables.conf 0600 < <(
+		for f in /etc/nftables/nft_base_desktop.conf /etc/nftables/nft_dns_desktop.conf; do
+			[[ -f $f ]] || continue
+			printf 'include "%s"\n' "$f"
+		done
+	)
+	run "nftables ruleset is valid" nft -c -f /etc/nftables.conf
+	if ((nft_on && n != $(njot))); then
+		run "load the new nftables ruleset" nft -f /etc/nftables.conf
+	fi
+}
+
 do_harden() {
 	step "Kernel and firewall hardening"
 	local f
@@ -1152,17 +1081,7 @@ do_harden() {
 		try "sysctl -p ${f##*/}" sysctl -p "/etc/sysctl.d/${f##*/}"
 	done
 
-	local nft_on=0 n
-	[[ $(sv status nftables 2>/dev/null) == run:* ]] && nft_on=1 && jot nft
-	n=$(njot)
-	put_tree nftables
-	put_text /etc/nftables.conf 0600 <<-'EOF'
-		include "/etc/nftables/nft_base_desktop.conf"
-	EOF
-	run "nftables ruleset is valid" nft -c -f /etc/nftables.conf
-	if ((nft_on && n != $(njot))); then
-		run "load the new nftables ruleset" nft -f /etc/nftables.conf
-	fi
+	nft_apply put_tree nftables
 
 	put_tree ssh
 	if grep -qE '^[[:space:]]*Include[[:space:]]+/etc/ssh/ssh_config\.d/' /etc/ssh/ssh_config; then
@@ -1260,8 +1179,26 @@ ssh_dir() {
 
 do_net_files() {
 	step "Network, DNS and time: config"
+	local n f cache=/var/cache/dnscrypt-proxy list=/etc/dnscrypt-proxy/blocked-names.txt
 	put_tree networkmanager
+	id -u dnscrypt_proxy >/dev/null 2>&1 || die "no dnscrypt_proxy user (the dnscrypt-proxy package creates it)"
+	n=$(njot)
 	put_tree dnscrypt
+	if [[ ! -d $cache ]]; then
+		install -d -o dnscrypt_proxy -g dnscrypt_proxy -m 0755 -- "$cache"
+		jot remove "$cache"
+		for f in public-resolvers.md relays.md; do
+			[[ -f /etc/dnscrypt-proxy/$f && -f /etc/dnscrypt-proxy/$f.minisig ]] || continue
+			install -o dnscrypt_proxy -g dnscrypt_proxy -m 0644 -- "/etc/dnscrypt-proxy/$f" "/etc/dnscrypt-proxy/$f.minisig" "$cache/"
+		done
+		ok "$cache (dnscrypt_proxy)"
+	fi
+	if [[ ! -s $list ]]; then
+		backup "$list"
+		try "download the DNS blocklist" /usr/local/sbin/dns-blocklist
+		[[ -f $list ]] || install -o root -g root -m 0644 /dev/null "$list"
+	fi
+	((n == $(njot))) || DNS_NEW=1
 	put_tree chrony
 	run "dnscrypt-proxy config is valid" env -C / -u PWD dnscrypt-proxy -config /etc/dnscrypt-proxy/dnscrypt-proxy.toml -check
 	try "chrony config parses" env -C / -u PWD chronyd -p -f /etc/chrony.conf
@@ -2188,11 +2125,41 @@ do_net_services() {
 		nameserver 127.0.0.1
 		options edns0
 	EOF
-	for ((i = 0; i < 15; i++)); do
-		[[ $(sv status dnscrypt-proxy 2>/dev/null || true) == run:* ]] && break
+	if ((DNS_NEW)) && [[ $(sv status dnscrypt-proxy 2>/dev/null || true) == run:* ]]; then
+		jot svr dnscrypt-proxy
+		try "restart dnscrypt-proxy (files changed)" sv restart dnscrypt-proxy
+	fi
+	for ((i = 0; i < 30; i++)); do
+		pgrep -xu dnscrypt_proxy dnscrypt-proxy >/dev/null && break
 		sleep 1
 	done
-	if ((i < 15)); then ok "dnscrypt-proxy running"; else warn "dnscrypt-proxy not running yet, check it after the reboot"; fi
+	if ((i < 30)); then ok "dnscrypt-proxy running as dnscrypt_proxy"; else warn "dnscrypt-proxy not running yet, check it after the reboot"; fi
+	if grep -qsF nft_base_desktop.conf /etc/nftables.conf; then
+		nft_apply dns_lock
+	else
+		warn "/etc/nftables.conf is not this script's (harden section): DNS lock not installed"
+	fi
+}
+
+dns_lock() {
+	local uid
+	uid=$(id -u dnscrypt_proxy)
+	put_text /etc/nftables/nft_dns_desktop.conf 0600 <<-EOF
+		table inet dns {
+		    chain output {
+		        type filter hook output priority filter;
+		        policy accept;
+
+		        oif lo accept
+		        ct state established,related accept
+
+		        meta l4proto { tcp, udp } th dport 853 counter reject
+		        meta skuid $uid accept
+		        meta l4proto { tcp, udp } th dport 53 limit rate 5/minute log prefix "nft-dns-bypass: "
+		        meta l4proto { tcp, udp } th dport 53 counter reject
+		    }
+		}
+	EOF
 }
 
 verify() {
