@@ -147,6 +147,12 @@ job_scrub() {
 	return "$rc"
 }
 
+# dns
+
+job_blocklist() {
+	/usr/local/sbin/dns-blocklist 2>&1
+}
+
 # scheduling
 
 due() {
@@ -182,13 +188,14 @@ run_due() {
 	due kernels "$((7 * DAY))" && job kernels
 	due packages "$((7 * DAY))" && job packages
 	due scrub "$((30 * DAY))" && job scrub
+	[ -x /usr/local/sbin/dns-blocklist ] && due blocklist "$DAY" && job blocklist
 	return 0
 }
 
 status() {
-	for j in home kernels packages scrub; do
+	for j in home kernels packages scrub blocklist; do
 		if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
-		printf '%-8s last %s' "$j" "$last"
+		printf '%-9s last %s' "$j" "$last"
 		[ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
 		printf '\n'
 	done
@@ -202,7 +209,7 @@ status() {
 case ${1:-} in
 status) status ;;
 run) (locked; run_due) ;;
-home | kernels | packages | scrub) (locked; job "$1") ;;
+home | kernels | packages | scrub | blocklist) (locked; job "$1") ;;
 loop)
 	sleep 900
 	while :; do
@@ -210,5 +217,5 @@ loop)
 		sleep 3600
 	done
 	;;
-*) echo 'usage: maint status | run | home | kernels | packages | scrub' >&2; exit 1 ;;
+*) echo 'usage: maint status | run | home | kernels | packages | scrub | blocklist' >&2; exit 1 ;;
 esac

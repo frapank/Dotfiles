@@ -1,0 +1,31 @@
+#!/bin/sh
+set -u
+umask 022
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
+
+URL=https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro-onlydomains.txt
+LIST=/etc/dnscrypt-proxy/blocked-names.txt
+MIN=10000
+
+[ "$(id -u)" = 0 ] || { echo "dns-blocklist: run as root" >&2; exit 1; }
+
+tmp=$(mktemp "$LIST.XXXXXX") || exit 1
+trap 'rm -f "$tmp"' EXIT
+
+if ! curl -fsS --proto =https --tlsv1.2 --retry 2 --max-time 120 -o "$tmp" "$URL"; then
+	echo "dns-blocklist: download failed"
+	exit 2
+fi
+n=$(grep -cvE '^(#|$)' "$tmp")
+if [ "$n" -lt "$MIN" ] || grep -vE '^(#|$)' "$tmp" | grep -qvxE '[a-z0-9_.-]+'; then
+	echo "dns-blocklist: $URL is not a domain list, $LIST kept"
+	exit 1
+fi
+if cmp -s "$tmp" "$LIST"; then
+	echo "dns-blocklist: unchanged, $n domains"
+	exit 0
+fi
+chmod 0644 "$tmp"
+mv -f "$tmp" "$LIST"
+echo "dns-blocklist: $n domains"
+sv hup dnscrypt-proxy >/dev/null 2>&1 || true

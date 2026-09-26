@@ -9,6 +9,8 @@ profile dnscrypt-proxy /usr/bin/dnscrypt-proxy {
   include <abstractions/dotfiles/root-secrets>
 
   capability net_bind_service,
+  capability setuid,
+  capability setgid,
   capability sys_resource,
   deny capability net_admin,
 
@@ -18,7 +20,7 @@ profile dnscrypt-proxy /usr/bin/dnscrypt-proxy {
   network inet6 stream,
   network netlink raw,
 
-  /usr/bin/dnscrypt-proxy mr,
+  /usr/bin/dnscrypt-proxy mrix,
   /etc/ r,
   /etc/** r,
   /usr/share/dnscrypt-proxy/{,**} r,
@@ -26,6 +28,8 @@ profile dnscrypt-proxy /usr/bin/dnscrypt-proxy {
   /etc/dnscrypt-proxy/** rwk,
   audit deny /etc/dnscrypt-proxy/{dnscrypt-proxy.toml,forwarding-rules.txt} wl,
   /etc/sv/dnscrypt-proxy/ r,
+  /var/cache/dnscrypt-proxy/ rw,
+  /var/cache/dnscrypt-proxy/** rwk,
 
   @{PROC}/** r,
   @{sys}/** r,
