@@ -19,6 +19,9 @@ readonly CURSOR_DIR=/usr/share/icons/Bibata-Modern-Classic
 readonly CURSOR_COLORS='0a0a0a e9e9e9 cc6666 e0a86a ffee8f afd7af 8cc8c7 8ab0c6 c59dc8'
 readonly CURSOR_SIZE=20
 readonly RAR_PAGE=https://www.rarlab.com/download.htm
+readonly HMALLOC_URL=https://github.com/GrapheneOS/hardened_malloc.git
+readonly HMALLOC_REV=01df350c62441e163a8b9324fb7e156acdad2c1e
+readonly HMALLOC_LIB=/usr/local/lib/libhardened_malloc-light.so
 readonly TS=$(date +%Y%m%d-%H%M%S)
 readonly LOG=/var/log/void-postinstall-$TS.log
 readonly BAK=/var/backups/void-postinstall/$TS
@@ -758,7 +761,8 @@ plan() {
 		  Creates ~/.ssh with mode 0700. No keys are generated.
 		Modules: /etc/modprobe.d/30-harden.conf blocks unused modules with a history
 		  of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25
-		  netrom rose firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2.
+		  netrom rose x25 can ieee802154 firewire floppy cramfs hfs befs qnx6 adfs
+		  ufs hpfs jfs gfs2 ocfs2, and the vivid test driver.
 		  hfsplus udf exfat ntfs3 still work.
 		Kernel command line: ${HARDEN_CMDLINE[*]}
 		  Zeroes freed memory (a few % slower) and blocks DMA attacks from PCI and
@@ -796,6 +800,10 @@ plan() {
 		  g0wm then hides clipboard and screen reading, input injection, layers,
 		  session lock and output changes. Copy and paste still work.
 		  X11 is hidden. All apps except librewolf also run without network.
+		hardened_malloc (GrapheneOS, light variant, fixed commit) is built into
+		  $HMALLOC_LIB and preloaded into papers and tumblerd, the two that parse
+		  files unasked: heap bugs in PDF, image and video parsers crash instead
+		  of being exploitable.
 		Removes about 150 unused profiles shipped by Void and keeps them out on
 		  updates via /etc/xbps.d/30-apparmor-noextract.conf. Kept: ${AA_KEEP[*]}
 		Enables the profile cache, so profiles compile once instead of every boot.
@@ -1320,6 +1328,7 @@ do_apparmor() {
 	done
 	run "AppArmor profiles compile" apparmor_parser -QK -- "${prof[@]}" /etc/apparmor.d/usr.bin.wpa_supplicant
 	aa_wlsandbox
+	aa_hmalloc
 	aa_prune
 	aa_cache
 	if ! aa_on; then
@@ -1366,6 +1375,22 @@ aa_wlsandbox() {
 			$(pkg-config --cflags --libs wayland-client)' _ "$tmp" "$xml" "$REPO/src/wl-sandbox.c"
 	put "$tmp/wl-sandbox" /usr/local/libexec/wl-sandbox 0755
 	rm -rf -- "$tmp"
+}
+
+aa_hmalloc() {
+	local tmp mark=$STATE/hardened-malloc
+	if [[ -f $HMALLOC_LIB && ! -L $HMALLOC_LIB && $(cat -- "$mark" 2>/dev/null) == "$HMALLOC_REV" ]] &&
+		[[ $(stat -c '%a %U %G' -- "$HMALLOC_LIB") == '755 root root' ]]; then
+		skip "$HMALLOC_LIB (${HMALLOC_REV:0:12})"
+		return 0
+	fi
+	tmp=$(mktemp -d)
+	git_at "$tmp/src" "$HMALLOC_URL" "$HMALLOC_REV"
+	run "build hardened_malloc (light)" make -C "$tmp/src" -j"$(nproc)" VARIANT=light CONFIG_WERROR=false
+	run "hardened_malloc runs a program" env LD_PRELOAD="$tmp/src/out-light/${HMALLOC_LIB##*/}" /bin/true
+	put "$tmp/src/out-light/${HMALLOC_LIB##*/}" "$HMALLOC_LIB" 0755
+	rm -rf -- "$tmp"
+	put_text "$mark" 0644 <<<"$HMALLOC_REV"
 }
 
 aa_cache() {
@@ -2219,6 +2244,7 @@ verify() {
 			[[ -f /etc/apparmor.d/$c ]] || { warn "/etc/apparmor.d/$c missing"; bad=1; }
 		done
 		[[ -x /usr/local/libexec/wl-sandbox ]] || { warn "/usr/local/libexec/wl-sandbox missing"; bad=1; }
+		[[ -f $HMALLOC_LIB ]] || { warn "$HMALLOC_LIB missing"; bad=1; }
 		if [[ -f /etc/default/grub && -f /boot/grub/grub.cfg ]]; then
 			grep -qE '[[:space:]]lsm=[a-z0-9_,]*apparmor' /boot/grub/grub.cfg || { warn "grub.cfg has no lsm= with apparmor"; bad=1; }
 		fi

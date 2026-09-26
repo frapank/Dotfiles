@@ -9,7 +9,7 @@ open='--talk=org.dotfiles.Open
 	--call=org.gnome.Showtime=org.freedesktop.Application.Open@/org/gnome/Showtime
 	--call=org.gnome.Showtime=org.freedesktop.Application.Activate@/org/gnome/Showtime'
 common="--talk=org.freedesktop.portal.* --talk=ca.desrt.dconf --talk=org.gtk.vfs.* $open"
-av=1 net=0
+av=1 net=0 hm=0
 case $app in
 librewolf)
 	rules="$common --own=org.mozilla.* --own=org.mpris.MediaPlayer2.*
@@ -18,10 +18,10 @@ librewolf)
 	net=1
 	;;
 showtime) rules="$common --own=org.gnome.Showtime.* --own=org.mpris.MediaPlayer2.*" ;;
-papers) rules="$common --own=org.gnome.Papers.*" av=0 ;;
+papers) rules="$common --own=org.gnome.Papers.*" av=0 hm=1 ;;
 libreoffice) rules="$common --own=org.libreoffice.*" av=0 ;;
 xarchiver) rules=$common av=0 ;;
-tumblerd) rules='--own=org.freedesktop.thumbnails.* --talk=org.gtk.vfs.*' av=0 ;;
+tumblerd) rules='--own=org.freedesktop.thumbnails.* --talk=org.gtk.vfs.*' av=0 hm=1 ;;
 *) echo "dbus-filter: unknown app $app" >&2; exit 2 ;;
 esac
 
@@ -112,6 +112,9 @@ if [ "$av" = 0 ]; then
 fi
 unshare=
 [ "$net" = 1 ] || unshare=--unshare-net
+preload=
+lib=/usr/local/lib/libhardened_malloc-light.so
+[ "$hm" = 0 ] || [ ! -f "$lib" ] || preload="--setenv LD_PRELOAD $lib"
 x11=
 wl=
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then
@@ -137,6 +140,6 @@ mask "$run/.dbus-filter"
 [ "$own" = 0 ] || masks="$masks --bind $dir $dir"
 set -f
 # shellcheck disable=SC2086
-set -- bwrap --dev-bind / / $masks $unshare $x11 -- "$prog" "$@"
+set -- bwrap --dev-bind / / $masks $unshare $x11 $preload -- "$prog" "$@"
 [ -z "$wl" ] || set -- /usr/local/libexec/wl-sandbox "$app" "$wl" -- "$@"
 exec "$@"
