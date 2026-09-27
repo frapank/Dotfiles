@@ -1,0 +1,249 @@
+#!/bin/sh
+set -u
+
+usage() {
+    cat <<EOF
+Usage: metadata-remover [-c] [-t] [-n] FILE|DIR...
+  or:  metadata-remover -s FILE...
+Remove the metadata (camera, GPS, author, software, dates, comments, cover
+art, download origin) from each FILE, and from every file inside each DIR.
+The type comes from the content, not the extension. Each file is replaced
+only after it was cleaned; on failure the original is left untouched.
+
+  -c  write NAME.clean.EXT next to each file instead of replacing it
+  -t  thorough: redraw images and PDFs from their pixels, which also drops
+      hidden data (JPEG quality drops a little, PDF text is no longer
+      selectable)
+  -n  show a desktop notification at the end (for file manager actions)
+  -s  list the metadata found, change nothing
+
+Images:    jpg png webp gif tiff heic avif jxl bmp ppm svg
+           (lossless; color profile and rotation are kept)
+Audio:     mp3 flac ogg opus aiff m4a aac wav wma mka
+Video:     mp4 mov mkv webm avi wmv mpg ts 3gp flv
+           (streams copied, no re-encoding; GPS and data tracks dropped)
+Documents: pdf odt ods odp odg docx xlsx pptx epub html css
+Archives:  zip tar (the files inside are cleaned too)
+
+The tools run in a sandbox without network that sees only a copy of the file.
+EOF
+}
+
+me=metadata-remover
+die() { echo "$me: $*" >&2; exit 1; }
+try() { echo "Try '$me --help' for more information." >&2; exit 2; }
+
+case ${1:-} in help|--help) usage; exit 0 ;; esac
+
+copy=0 thorough=0 notify=0 show=0
+while getopts ctnsh o; do
+    case $o in
+    c) copy=1 ;;
+    t) thorough=1 ;;
+    n) notify=1 ;;
+    s) show=1 ;;
+    h) usage; exit 0 ;;
+    *) try ;;
+    esac
+done
+shift $((OPTIND - 1))
+[ $# -ge 1 ] || { echo "$me: missing file operand" >&2; try; }
+
+for c in file exiftool ffmpeg ffprobe mat2; do
+    command -v "$c" >/dev/null || die "$c not installed"
+done
+
+bwrap=$(command -v bwrap) || echo "$me: bwrap missing, the tools run without a sandbox" >&2
+lib=/usr/local/lib/libhardened_malloc-light.so
+preload=
+[ ! -f "$lib" ] || preload="--setenv LD_PRELOAD $lib"
+
+# Runs a tool on the files in $work only: read-only system, empty home and
+# /tmp, no network, no session sockets, no user namespaces.
+jail() {
+    if [ -z "$bwrap" ]; then
+        (cd "$work" && "$@")
+        return
+    fi
+    # shellcheck disable=SC2086
+    bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --tmpfs /run \
+        --tmpfs "$HOME" --bind "$work" "$work" --chdir "$work" \
+        --unshare-all --unshare-user --disable-userns --die-with-parent \
+        --new-session --setenv HOME "$HOME" $preload -- "$@"
+}
+
+# Sets $how and $ext from the content of $1; returns 1 if unsupported.
+kind() {
+    ext=
+    mime=$(file -b --mime-type -- "$1") || return 1
+    case $mime in
+    image/jpeg) how=exif ext=jpg ;;
+    image/png) how=exif ext=png ;;
+    image/webp) how=exif ext=webp ;;
+    image/gif) how=exif ext=gif ;;
+    image/tiff) how=mat2 ext=tiff ;;
+    image/heic | image/heif) how=exif ext=heic ;;
+    image/avif) how=exif ext=avif ;;
+    image/jxl) how=exif ext=jxl ;;
+    image/bmp | image/x-ms-bmp) how=mat2 ext=bmp ;;
+    image/x-portable-pixmap) how=mat2 ext=ppm ;;
+    image/svg+xml) how=mat2 ext=svg ;;
+    application/pdf) how=pdf ext=pdf ;;
+    audio/mpeg) how=mat2 ext=mp3 ;;
+    audio/flac | audio/x-flac) how=mat2 ext=flac ;;
+    audio/ogg) how=mat2 ext=ogg ;;
+    audio/x-aiff | audio/aiff) how=mat2 ext=aiff ;;
+    audio/mp4 | audio/x-m4a) how=audio ext=m4a ;;
+    audio/aac | audio/x-hx-aac-adts) how=audio ext=aac ;;
+    audio/x-wav | audio/wav | audio/vnd.wave) how=audio ext=wav ;;
+    audio/x-ms-wma) how=audio ext=wma ;;
+    audio/x-matroska) how=audio ext=mka ;;
+    audio/opus) how=audio ext=opus ;;
+    video/mp4) how=video ext=mp4 ;;
+    video/quicktime) how=video ext=mov ;;
+    video/x-matroska) how=video ext=mkv ;;
+    video/webm) how=video ext=webm ;;
+    video/x-msvideo) how=video ext=avi ;;
+    video/x-ms-asf | video/x-ms-wmv) how=video ext=wmv ;;
+    video/mpeg) how=video ext=mpg ;;
+    video/mp2t) how=video ext=ts ;;
+    video/3gpp | video/3gpp2) how=video ext=3gp ;;
+    video/x-flv) how=video ext=flv ;;
+    application/vnd.oasis.opendocument.text) how=mat2 ext=odt ;;
+    application/vnd.oasis.opendocument.spreadsheet) how=mat2 ext=ods ;;
+    application/vnd.oasis.opendocument.presentation) how=mat2 ext=odp ;;
+    application/vnd.oasis.opendocument.graphics) how=mat2 ext=odg ;;
+    application/vnd.openxmlformats-officedocument.wordprocessingml.document) how=mat2 ext=docx ;;
+    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet) how=mat2 ext=xlsx ;;
+    application/vnd.openxmlformats-officedocument.presentationml.presentation) how=mat2 ext=pptx ;;
+    application/epub+zip) how=mat2 ext=epub ;;
+    application/zip) how=mat2 ext=zip ;;
+    application/x-tar) how=mat2 ext=tar ;;
+    text/html) how=mat2 ext=html ;;
+    text/css) how=mat2 ext=css ;;
+    *) return 1 ;;
+    esac
+    # file(1) cannot tell zip-based formats apart without their name
+    case $how.$(printf '%s' "${1##*.}" | tr '[:upper:]' '[:lower:]') in
+    mat2.odt | mat2.ods | mat2.odp | mat2.odg | mat2.docx | mat2.xlsx | mat2.pptx | mat2.epub)
+        ext=$(printf '%s' "${1##*.}" | tr '[:upper:]' '[:lower:]') ;;
+    esac
+    [ "$thorough" = 0 ] || [ "$how" != exif ] || how=mat2
+    [ "$thorough" = 0 ] || [ "$how" != pdf ] || how=mat2
+}
+
+m2() {
+    jail mat2 --no-sandbox --unknown-members keep "$@" in."$ext" >log 2>&1 &&
+        mv -f in.cleaned."$ext" out."$ext"
+}
+
+ff() {
+    # attached pictures (cover art, thumbnails) carry metadata of their own
+    drop=$(jail ffprobe -v error -show_entries stream=index:stream_disposition=attached_pic \
+        -of csv=p=0 in."$ext" 2>>log | awk -F, '$2 == 1 { printf " -map -0:%s", $1 }')
+    # shellcheck disable=SC2086
+    jail ffmpeg -nostdin -loglevel error -i in."$ext" -map 0 "$@" $drop -c copy \
+        -map_metadata -1 -map_metadata:s -1 -map_chapters -1 \
+        -fflags +bitexact -flags:v +bitexact -flags:a +bitexact out."$ext" >>log 2>&1
+}
+
+strip() {
+    case $how in
+    exif) jail exiftool -q -q -m -all= -tagsfromfile @ -icc_profile -orientation \
+        -o out."$ext" in."$ext" >log 2>&1 ;;
+    pdf) m2 -L ;;
+    mat2) m2 ;;
+    audio) ff -map -0:v? -map -0:d? -map -0:t? ;;
+    video) ff -map -0:d? -map -0:t? ;;
+    esac
+}
+
+ok=0 bad=0 skipped=0 failed=
+
+fail() {
+    bad=$((bad + 1))
+    failed="$failed${failed:+
+}${f##*/}: $1"
+    echo "$me: $f: $1" >&2
+}
+
+clean() {
+    f=$1 dir= name= dst=
+    if [ -L "$f" ]; then
+        [ "$2" = 1 ] && skipped=$((skipped + 1)) || fail "symbolic link, skipped"
+        return
+    fi
+    if ! kind "$f"; then
+        [ "$2" = 1 ] && skipped=$((skipped + 1)) || fail "unsupported type ($mime)"
+        return
+    fi
+    case $f in */*) dir=${f%/*} ;; *) dir=. ;; esac
+    name=${f##*/}
+    if [ "$copy" = 1 ]; then
+        case $name in
+        ?*.*) dst=${f%"$name"}${name%.*}.clean.${name##*.} ;;
+        *) dst=$f.clean ;;
+        esac
+        [ ! -e "$dst" ] || { fail "$dst exists"; return; }
+    fi
+    work=$(mktemp -d "$dir/.$me.XXXXXX" 2>/dev/null) || { fail "cannot write in $dir"; return; }
+    work=$(cd "$work" && pwd -P)
+    if cp -- "$f" "$work/in.$ext" && (cd "$work" && strip) && [ -s "$work/out.$ext" ]; then
+        chmod "$(stat -c %a -- "$f")" "$work/out.$ext"
+        if [ "$copy" = 1 ]; then
+            mv -n -- "$work/out.$ext" "$dst"
+        else
+            mv -f -- "$work/out.$ext" "$f"
+        fi && { ok=$((ok + 1)); echo "cleaned: ${dst:-$f}"; } || fail "cannot move the result"
+    else
+        fail "$(tail -n 1 "$work/log" 2>/dev/null || echo "failed")"
+    fi
+    rm -rf -- "$work"
+}
+
+if [ "$show" = 1 ]; then
+    rc=0
+    for f; do
+        [ -f "$f" ] || { echo "$me: $f: No such file" >&2; rc=1; continue; }
+        echo "== $f"
+        work=${f%/*}
+        [ "$work" != "$f" ] || work=.
+        work=$(cd "$work" && pwd -P)
+        jail exiftool -a -G1 -s -e -q -q --System:all --File:all --ExifTool:all \
+            "$work/${f##*/}" || rc=1
+    done
+    exit $rc
+fi
+
+trap 'rm -rf -- "${work:-}"; exit 130' INT TERM HUP
+
+for a; do
+    if [ -d "$a" ] && [ ! -L "$a" ]; then
+        # a here-document keeps the counters in this shell
+        list=$(find "$a" -type f ! -path "*/.$me.*" -print) || true
+        while IFS= read -r f; do
+            [ -z "$f" ] || clean "$f" 1
+        done <<EOF
+$list
+EOF
+    elif [ -e "$a" ] || [ -L "$a" ]; then
+        clean "$a" 0
+    else
+        f=$a
+        fail "No such file or directory"
+    fi
+done
+
+summary="$ok cleaned"
+[ "$bad" = 0 ] || summary="$summary, $bad failed"
+[ "$skipped" = 0 ] || summary="$summary, $skipped skipped (unsupported)"
+echo "$summary"
+if [ "$notify" = 1 ] && command -v notify-send >/dev/null; then
+    if [ "$bad" = 0 ]; then
+        notify-send -i edit-clear "Metadata removed" "$summary"
+    else
+        notify-send -u critical -i dialog-error "Metadata removal failed" "$summary
+$failed"
+    fi
+fi
+[ "$bad" = 0 ]
