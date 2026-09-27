@@ -73,6 +73,8 @@ PKG_APPS=(
 	ncdu fastfetch
 	# archives
 	tar gzip bzip2 xz zstd lz4 lzip bsdtar cpio unrar gnupg age
+	# metadata-remover
+	mat2 exiftool ffmpeg bubblewrap
 )
 PKG_SESSION=(gnome-keyring libsecret polkit-gnome network-manager-applet
 	bluez blueman libspa-bluetooth)
@@ -752,6 +754,7 @@ plan() {
 	section harden "Kernel and firewall hardening" <<-EOF
 		Installs ${PKG_HARDEN[*]} and enables the nftables service.
 		Sysctl: writes /etc/sysctl.d/{10,20,30,40}-*.conf and applies them now.
+		  TCP timestamps are off, so sites cannot tell your machine apart by its clock.
 		Firewall: /etc/nftables/nft_base_desktop.conf drops input and forward, allows output.
 		  ICMP lets through only errors, rate limited ping, neighbor discovery,
 		  router adverts and MLD. Checked with nft -c and loaded now if nftables runs.
@@ -816,7 +819,8 @@ plan() {
 	section net "Network, DNS and time" <<-EOF
 		Installs ${PKG_NET[*]}
 		NetworkManager: dns=none, random MAC on wifi and ethernet, hostname not sent
-		  over DHCP, IPv6 temporary addresses preferred, DHCPv6 DUID follows the MAC.
+		  over DHCP, IPv6 temporary addresses preferred, DHCP client ID, IAID and
+		  DHCPv6 DUID follow the MAC, so no DHCP identifier is fixed across networks.
 		dnscrypt-proxy on 127.0.0.1:53 and /etc/resolv.conf points to it.
 		  Uses DNSCrypt servers with DNSSEC, no logs and no filtering, always through
 		  an Anonymized DNS relay, so no server sees both your IP and your queries.
@@ -915,7 +919,10 @@ plan() {
 		  Text files open in nvim inside foot.
 		  fastfetch with the Void logo in the dwl colors.
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
-		  screenshot record nightlight extract compress open.
+		  screenshot record nightlight extract compress open metadata-remover.
+		  Thunar 'Remove Metadata' and 'Show Metadata' run metadata-remover, which strips
+		  camera, GPS, author and software data from images, audio, video, documents
+		  and archives, in a sandbox without network.
 		Print screenshots a region, Shift the whole screen, Ctrl opens it in swappy.
 		  Saved in Pictures and copied to the clipboard.
 		Super+Print records the screen, Shift a region, Ctrl without audio.
