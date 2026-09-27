@@ -37,7 +37,7 @@ PKG_LSP=(clang-tools-extra rust-analyzer taplo zls bash-language-server
 PKG_HARDEN=(nftables openssh)
 HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
 	randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
-	efi=disable_early_pci_dma)
+	efi=disable_early_pci_dma lockdown=integrity module.sig_enforce=1)
 PKG_APPARMOR=(apparmor runit-void-apparmor xdg-dbus-proxy bubblewrap python3-gobject
 	wayland-devel wayland-protocols pkg-config)
 AA_KEEP=(bin.ping unix-chkpwd usr.bin.wpa_supplicant usr.sbin.dnsmasq zgrep loupe chromium cam
@@ -766,7 +766,9 @@ plan() {
 		  hfsplus udf exfat ntfs3 still work.
 		Kernel command line: ${HARDEN_CMDLINE[*]}
 		  Zeroes freed memory (a few % slower) and blocks DMA attacks from PCI and
-		  Thunderbolt devices. The recovery entry boots without them. Active after reboot.
+		  Thunderbolt devices. Lockdown and signed modules only: even root cannot
+		  change the running kernel (no unsigned modules, /dev/mem, kexec or
+		  hibernation). The recovery entry boots without them. Active after reboot.
 		fstab: /boot readable by root only. /tmp becomes a nosuid,nodev tmpfs
 		  unless it is a real partition.
 	EOF
@@ -778,8 +780,8 @@ plan() {
 		  Active after reboot.
 		Enforced profiles keep each app working but block what an exploit wants:
 		  secrets (~/.ssh ~/.gnupg keyrings history), writing files that run code
-		  later (shell startup, autostart, PATH, launchers, configs) and setuid
-		  programs like doas and su.
+		  later (shell startup, autostart, PATH, launchers, configs, git hooks,
+		  this repo) and setuid programs like doas and su.
 		  librewolf keeps network, camera, mic and screen sharing.
 		  showtime runs offline.
 		  papers, libreoffice and xarchiver run offline without mic or camera.
@@ -795,15 +797,17 @@ plan() {
 		  them a filtered bus with portals, dconf, gvfs, notifications and media keys.
 		  Files and links they open start in their own sandbox via
 		  /usr/local/libexec/dbus-filter-open.
+		  Inside bwrap they cannot create user namespaces, the usual way into
+		  kernel bugs. librewolf keeps them for its own sandbox.
 		Wayland: when g0wm supports wp_security_context_v1, each app gets its own
 		  socket via /usr/local/libexec/wl-sandbox (built from src/wl-sandbox.c).
 		  g0wm then hides clipboard and screen reading, input injection, layers,
 		  session lock and output changes. Copy and paste still work.
 		  X11 is hidden. All apps except librewolf also run without network.
 		hardened_malloc (GrapheneOS, light variant, fixed commit) is built into
-		  $HMALLOC_LIB and preloaded into papers and tumblerd, the two that parse
-		  files unasked: heap bugs in PDF, image and video parsers crash instead
-		  of being exploitable.
+		  $HMALLOC_LIB and preloaded into papers, tumblerd, showtime and xarchiver
+		  (with the 7z, bsdtar and unrar it runs): heap bugs in PDF, image, video
+		  and archive parsers crash instead of being exploitable.
 		Removes about 150 unused profiles shipped by Void and keeps them out on
 		  updates via /etc/xbps.d/30-apparmor-noextract.conf. Kept: ${AA_KEEP[*]}
 		Enables the profile cache, so profiles compile once instead of every boot.
@@ -927,6 +931,8 @@ plan() {
 		g0wm starts the keyring and the polkit agent. No tray icons, 'wifi' and
 		  'bluetooth' open their managers.
 		Enables bluetoothd and adds $TUSER to the bluetooth group.
+		Bluetooth is off at every boot (AutoEnable=false in /etc/bluetooth/main.conf),
+		  turn it on with 'bluetooth on' and off with 'bluetooth off'.
 	EOF
 	section theme "GTK theme: Adwaita dark" <<-EOF
 		Installs ${PKG_THEME[*]}
@@ -962,6 +968,7 @@ plan() {
 		st=$(passwd -S -- "$TUSER" | awk '{print $2}')
 		[[ $st == P ]] || die "$TUSER has no usable password (passwd -S: $st), run 'passwd $TUSER' first"
 	fi
+	((SEL[harden] == 0)) || sig_check
 	((SEL[apparmor] == 0)) || aa_check
 
 	local k any=0
@@ -1263,6 +1270,19 @@ grub_check() {
 	ok "grub.cfg: $n entries keep $(tr '\n' ' ' <<<"$need")"
 }
 
+sig_check() {
+	local t m
+	m=$(awk '{ print $1; exit }' /proc/modules)
+	[[ -z $m || -n $(modinfo -F sig_id -- "$m" 2>/dev/null) ]] ||
+		die "harden: kernel modules are not signed, module.sig_enforce=1 would block them all"
+	t=$(</proc/sys/kernel/tainted)
+	((!(t & 8192))) || die "harden: an unsigned module is loaded (tainted $t), module.sig_enforce=1 would block it"
+	while IFS= read -r -d '' m; do
+		[[ -n $(modinfo -F sig_id -- "$m" 2>/dev/null) ]] ||
+			die "harden: ${m#/usr/lib/modules/} is not signed, module.sig_enforce=1 would block it"
+	done < <(find /usr/lib/modules -name '*.ko*' \( -path '*/updates/*' -o -path '*/extra/*' \) -print0)
+}
+
 aa_on() { [[ ,$(cat /sys/kernel/security/lsm 2>/dev/null), == *,apparmor,* ]]; }
 
 aa_lsm() {
@@ -1312,11 +1332,14 @@ aa_grub() {
 
 do_apparmor() {
 	step "AppArmor"
-	local n f prof=()
+	local n f c repo prof=()
 	[[ -f /etc/runit/core-services/09-apparmor.sh ]] || die "runit-void-apparmor did not install 09-apparmor.sh"
 	aa_on && jot aaload
 	n=$(njot)
 	put_tree apparmor
+	repo=$REPO
+	for c in \\ '"' '*' '?' '[' ']' '{' '}' '^'; do repo=${repo//"$c"/\\$c}; done
+	put_text /etc/apparmor.d/local/dotfiles-repo 0644 <<<"  audit deny \"$repo/{,**}\" wl,"
 	for f in /etc/apparmor.d/abstractions/dotfiles/*; do
 		[[ -e $f && ! -e $REPO/root/apparmor$f ]] || continue
 		backup "$f"
@@ -2019,6 +2042,28 @@ do_session() {
 	pam_keyring /etc/pam.d/passwd \
 		'password   optional     pam_gnome_keyring.so'
 	gset plugin-list "['!StatusNotifierItem', '!StatusIcon']" org.blueman.general
+	bt_off
+}
+
+bt_off() {
+	local f=/etc/bluetooth/main.conf
+	[[ -f $f ]] || die "$f missing (bluez)"
+	put_text "$f" 0644 < <(awk '
+		/^\[/ {
+			if (s == "[Policy]" && !done) { print "AutoEnable=false"; done = 1 }
+			s = $0
+		}
+		s == "[Policy]" && /^#?[[:space:]]*AutoEnable[[:space:]]*=/ {
+			if (!done) print "AutoEnable=false"
+			done = 1
+			next
+		}
+		{ print }
+		END {
+			if (done) exit
+			if (s != "[Policy]") print "\n[Policy]"
+			print "AutoEnable=false"
+		}' "$f")
 }
 
 do_media() {
@@ -2228,6 +2273,7 @@ verify() {
 			command -v "$c" >/dev/null || { warn "$c missing"; bad=1; }
 		done
 		grep -q pam_gnome_keyring /etc/pam.d/login || { warn "keyring not in /etc/pam.d/login"; bad=1; }
+		grep -qx AutoEnable=false /etc/bluetooth/main.conf || { warn "bluetooth still turns on at boot"; bad=1; }
 	fi
 	if ((SEL[media])); then
 		[[ -f $THOME/.config/xdg-desktop-portal/g0wm-portals.conf ]] || { warn "portal config not installed"; bad=1; }

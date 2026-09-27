@@ -11,3 +11,5 @@
   audit deny @{HOME}/.config/{xdg-desktop-portal,xdg-desktop-portal-wlr}/{,**} wl,
   audit deny @{HOME}/.config/{mimeapps.list,user-dirs.dirs} wl,
   audit deny @{HOME}/.local/share/{applications,dbus-1,thumbnailers,systemd,nvim/site,bash-completion}/{,**} wl,
+  audit deny @{HOME}/**/.git/{config,hooks/{,**}} wl,
+  include if exists <local/dotfiles-repo>
