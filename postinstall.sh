@@ -898,6 +898,14 @@ plan() {
 		  those expire.
 		Daily: deletes thumbnails in ~/.cache/thumbnails of files that no longer
 		  exist, so a deleted photo does not leave its thumbnail behind.
+		Daily: system update while you are logged in. Only with the battery above
+		  20% (desktops without one always qualify) and 10% free on /. Sleep, lid,
+		  and shutdown are blocked while it runs (elogind). Downloads everything
+		  first, so losing the network changes nothing, then takes a read-only
+		  snapshot of / in /.snapshots (keeps the last 3) and installs.
+		  Notifications that stay until clicked: Starting update, Download done.
+		  Installing, Update done (and when to restart for a new kernel).
+		  Skipped and retried within the hour when offline or on low battery.
 		Daily: DNS blocklist update, if net is selected.
 		Weekly: removes old kernels with vkpurge, never the running one, and checks
 		  every kernel has its initramfs.
@@ -905,7 +913,8 @@ plan() {
 		  Packages installed here are marked manual, so they are never orphans.
 		Monthly: btrfs scrub at up to 300 MiB/s, only on AC power.
 		Failures show up as notifications.
-		Log: 'svlogtail cron'. Status: 'doas maint status'. By hand: 'doas maint home'.
+		Log: 'svlogtail cron'. Status: 'doas maint status'. By hand: 'doas maint home'
+		  or 'doas maint update'.
 	EOF
 	section dirs "Home folders (custom user-dirs)" <<-EOF
 		Copies home/{$(join , "${HOME_DIRS[@]}")}: user-dirs.dirs and user-dirs.locale, and creates those folders.
