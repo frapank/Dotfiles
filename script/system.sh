@@ -59,6 +59,7 @@ do_packages() {
 	((SEL[dirs])) && want+=("${PKG_DIRS[@]}")
 	((SEL[swap])) && want+=("${PKG_SWAP[@]}")
 	((SEL[maint])) && want+=("${PKG_MAINT[@]}")
+	((SEL[maint])) && [[ -f /etc/default/grub ]] && want+=("${PKG_SNAPBOOT[@]}")
 	((SEL[fonts])) && want+=("${PKG_FONTS[@]}")
 	((SEL[doas])) && want+=(opendoas)
 	for p in $(printf '%s\n' "${want[@]}" | sort -u); do

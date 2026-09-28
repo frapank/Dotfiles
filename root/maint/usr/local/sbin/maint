@@ -140,6 +140,7 @@ snap_root() {
 	snap=root-$(date +%Y-%m-%d_%H%M)
 	[ -e "$ROOTSNAP/$snap" ] || btrfs subvolume snapshot -r / "$ROOTSNAP/$snap" >/dev/null || return 1
 	log "update: snapshot $ROOTSNAP/$snap"
+	grub_snaps
 }
 
 pending() { xbps-install -un 2>&1; }
@@ -180,12 +181,13 @@ update_now() {
 		[ -n "$snap" ] || snap_root || { unotify "Update failed" "No snapshot of /, nothing was installed."; return 3; }
 		unotify "Download done. Installing..." "Snapshot of / in $ROOTSNAP/$snap. Do not turn it off."
 		if ! xbps-install -yu 2>&1; then
-			unotify "Update failed" "Stopped while installing: run 'doas xbps-install -Su'. Snapshot: $ROOTSNAP/$snap"
+			unotify "Update failed" "Stopped while installing: run 'doas xbps-install -Su'. Snapshot: $ROOTSNAP/$snap, bootable from GRUB > Snapshots before updates"
 			return 3
 		fi
 	fi
 	prune "$ROOTSNAP" root "$ROOT_KEEP"
 	grub_quiet
+	grub_snaps
 
 	msg="$total package(s) updated."
 	printf '%s\n' "$list" | grep -qE '^linux[0-9.]*-[0-9]' && msg="$msg Restart to use the new kernel."
@@ -254,14 +256,29 @@ grub_quiet() {
 	update-grub 2>&1 || { notify "GRUB" "update-grub failed, run 'doas update-grub'."; return 1; }
 }
 
+grub_snaps() {
+	[ -x /etc/grub.d/41_snapshots-btrfs ] || return 0
+	if grep -qs snapshots-btrfs /boot/grub/grub.cfg; then
+		{ /etc/grub.d/41_snapshots-btrfs >/dev/null; } 2>&1
+	else
+		update-grub 2>&1
+	fi || { notify "GRUB" "The snapshots of / are not in the boot menu, run 'doas update-grub'."; return 1; }
+}
+
 # kernels
 
 job_kernels() {
-	if [ -z "$(vkpurge list all)" ]; then
+	old=$(vkpurge list all)
+	for m in "$ROOTSNAP"/root-*/usr/lib/modules/*; do
+		[ -d "$m" ] || continue
+		old=$(printf '%s\n' "$old" | grep -vxF "${m##*/}")
+	done
+	if [ -z "$old" ]; then
 		log "kernels: nothing to remove"
 		return 0
 	fi
-	flock -n -E 75 /var/db/xbps/lock vkpurge rm all
+	# shellcheck disable=SC2086
+	flock -n -E 75 /var/db/xbps/lock vkpurge rm $old
 	rc=$?
 	if [ "$rc" = 75 ]; then
 		log "kernels: xbps is running"

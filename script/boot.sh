@@ -28,11 +28,36 @@ grub_words() {
 	else
 		skip "GRUB has $*"
 	fi
-	if ((stale || GRUB_STALE)); then
-		[[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
-		run "update-grub" update-grub
-		grub_check
-		GRUB_STALE=0
+	((stale || GRUB_STALE)) && grub_update
+	return 0
+}
+
+grub_update() {
+	[[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
+	run "update-grub" update-grub
+	grub_check
+	GRUB_STALE=0
+}
+
+grub_snaps() {
+	local home
+	if [[ ! -f /etc/default/grub ]] || ! command -v update-grub >/dev/null; then
+		warn "no GRUB here, the snapshots of / are not in the boot menu"
+		return 0
+	fi
+	[[ -x /etc/grub.d/41_snapshots-btrfs ]] || die "grub-btrfs did not install /etc/grub.d/41_snapshots-btrfs"
+	# /etc/default/grub-btrfs/config is not a conf file for xbps, 41_snapshots-btrfs reads /etc/default/grub after it
+	grub_set GRUB_BTRFS_SUBMENUNAME "Snapshots before updates"
+	grub_set GRUB_BTRFS_SNAPSHOT_KERNEL_PARAMETERS rd.overlay=1
+	if [[ $(findmnt -no UUID -T /home) == "$(findmnt -no UUID -T /)" ]]; then
+		home=$(btrfs subvolume show /home | head -n1)
+		[[ -z $home || $home == / ]] || grub_set GRUB_BTRFS_IGNORE_PREFIX_PATH "$home"
+	fi
+	grep -qs snapshots-btrfs /boot/grub/grub.cfg || GRUB_STALE=1
+	if ((GRUB_STALE)); then
+		grub_update
+	else
+		skip "boot menu has the snapshots of /"
 	fi
 }
 
