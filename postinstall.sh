@@ -950,7 +950,7 @@ plan() {
 		  Text files open in nvim inside foot.
 		  fastfetch with the Void logo in the foot colors.
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
-		  screenshot record nightlight extract compress open metadata-remover
+		  screenshot record nightlight awake extract compress open metadata-remover
 		  privacy-check (checks MAC, DNS, lockdown, AppArmor, camera and more).
 		  Thunar 'Remove Metadata' and 'Show Metadata' run metadata-remover, which strips
 		  camera, GPS, author and software data from images, audio, video, documents
@@ -958,7 +958,8 @@ plan() {
 		Print screenshots a region, Shift the whole screen, Ctrl opens it in swappy.
 		  Saved in Pictures and copied to the clipboard.
 		Super+Print records the screen, Shift a region, Ctrl without audio.
-		Super+= toggles nightlight.
+		Super+= toggles nightlight. Super+- toggles always on: no screen lock or
+		  blank until turned off, the bar shows a screen icon.
 		Sets ${#MIME_DEFAULTS[@]} default apps in ~/.config/mimeapps.list: images Loupe, video Showtime,
 		  PDF Papers, web librewolf, folders Thunar, archives xarchiver, documents
 		  LibreOffice, text nvim. Other entries are kept.
