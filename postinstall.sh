@@ -927,7 +927,8 @@ plan() {
 		  brightnessctl playerctl).
 		Services on: dbus elogind polkitd. Off: acpid, elogind replaces it.
 		Adds $TUSER to ${USER_GROUPS[*]}.
-		Copies home/{$(join , "${HOME_DESKTOP[@]}")}.
+		Copies home/{$(join , "${HOME_DESKTOP[@]}")}. The default wallpaper goes
+		  in ~/.config/g0wm/wallpaper.jpg.
 		Clones $G0WM_URL into ~/.local/src/g0wm, builds, tests and installs it
 		  into ~/.local/bin, then puts in the g0wm-status.sh from home/g0wm.
 		An existing clone is rebuilt only when it has new commits. A g0wm built
