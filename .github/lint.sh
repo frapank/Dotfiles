@@ -15,10 +15,10 @@ py_files=() sh_files=() bash_files=(home/bash/.bashrc home/bash/.bash_profile)
 while IFS= read -r -d '' f; do
 	case $(head -n1 -- "$f") in
 	'#!/bin/sh'*) sh_files+=("$f") ;;
-	'#!'*bash*) bash_files+=("$f") ;;
+	'#!'*bash* | '# shellcheck shell=bash'*) bash_files+=("$f") ;;
 	'#!'*python3*) py_files+=("$f") ;;
 	esac
-done < <(find postinstall.sh home root src -type f ! -name '*.png' -print0 | sort -z)
+done < <(find script home root src -type f ! -name '*.png' ! -name '*.jpg' -print0 | sort -z)
 
 echo "syntax"
 for f in "${bash_files[@]}"; do
@@ -32,22 +32,45 @@ for f in "${py_files[@]}"; do
 done
 ((bad)) || pass "${#bash_files[@]} bash, ${#sh_files[@]} sh, ${#py_files[@]} python"
 
+# script/*.sh only make sense together: check them as one file, report the real file and line
+shellcheck_script() {
+	local tmp f n=0 files=() starts=() rc=0
+	tmp=$(mktemp)
+	for f in script/*.sh; do
+		[[ $f == script/install.sh ]] && continue
+		files+=("$f") starts+=("$n")
+		sed '1s/.*//' -- "$f" >>"$tmp"
+		n=$((n + $(wc -l <"$f")))
+	done
+	files+=(script/install.sh) starts+=("$n")
+	sed '1s/.*//' script/install.sh >>"$tmp"
+	shellcheck --rcfile .github/shellcheckrc -s bash -f gcc -- "$tmp" >"$tmp.out" || rc=1
+	awk -v files="${files[*]}" -v starts="${starts[*]}" -F: '
+		BEGIN { n = split(files, f, " "); split(starts, s, " ") }
+		{ for (i = n; i > 1 && $2 <= s[i]; i--) ; $1 = f[i]; $2 -= s[i]; print }' OFS=: "$tmp.out"
+	rm -f -- "$tmp" "$tmp.out"
+	return "$rc"
+}
+
+sc_files=()
+for f in "${bash_files[@]}"; do [[ $f == script/*.sh ]] || sc_files+=("$f"); done
 echo "shellcheck $(shellcheck --version | awk '/^version:/ { print $2 }')"
-if shellcheck --rcfile .github/shellcheckrc -x -s bash -- "${bash_files[@]}" && shellcheck --rcfile .github/shellcheckrc -s sh -- "${sh_files[@]}"; then
-	pass "no warnings"
-else
-	fail "shellcheck"
-fi
+sc=0
+shellcheck --rcfile .github/shellcheckrc -x -s bash -- "${sc_files[@]}" || sc=1
+shellcheck_script || sc=1
+shellcheck --rcfile .github/shellcheckrc -s sh -- "${sh_files[@]}" || sc=1
+if ((sc == 0)); then pass "no warnings"; else fail "shellcheck"; fi
 
 echo "files"
 while IFS= read -r -d '' f; do
 	python3 -m json.tool -- "$f" >/dev/null || fail "$f is not valid JSON"
 done < <(find home root -type f -name '*.json' -print0)
-for f in postinstall.sh home/*/.local/bin/* root/*/etc/sv/*/run root/*/etc/sv/*/*/run root/*/usr/local/sbin/* root/*/usr/local/bin/* root/*/usr/local/libexec/*; do
+for f in script/install.sh install.sh home/*/.local/bin/* root/*/etc/sv/*/run root/*/etc/sv/*/*/run root/*/usr/local/sbin/* root/*/usr/local/bin/* root/*/usr/local/libexec/*; do
 	[[ -x $f ]] || fail "$f is not executable"
 done
-l=$(find home root src -type l)
-[[ -z $l ]] || fail "symlinks, postinstall.sh refuses them: $l"
+l=$(find script home root src -type l)
+[[ -z $l ]] || fail "symlinks, install.sh refuses them: $l"
+[[ $(readlink install.sh) == script/install.sh ]] || fail "install.sh is not a link to script/install.sh"
 ((bad)) || pass "json, modes, no symlinks"
 
 echo "c"
