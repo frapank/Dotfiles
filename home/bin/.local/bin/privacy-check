@@ -1,0 +1,297 @@
+#!/bin/sh
+set -u
+
+usage() {
+    cat <<EOF
+Usage: privacy-check [-i]
+Check that the privacy and hardening setup is working right now: random MAC,
+DHCP, IPv6, DNS through dnscrypt-proxy, blocklist, DNS lock, time, kernel
+lockdown, AppArmor, open ports, bluetooth, camera and microphone.
+Nothing leaves this machine except a DNS query through dnscrypt-proxy.
+Exits 1 if something needs attention.
+
+  -i  also ask am.i.mullvad.net for the public IP and its location
+EOF
+}
+
+case ${1:-} in help|--help) usage; exit 0 ;; esac
+
+public=0
+while getopts ih o; do
+    case $o in
+    i) public=1 ;;
+    h) usage; exit 0 ;;
+    *) echo "Try 'privacy-check --help' for more information." >&2; exit 2 ;;
+    esac
+done
+shift $((OPTIND - 1))
+[ $# -eq 0 ] || { echo "privacy-check: unexpected argument: $1" >&2; exit 2; }
+
+if [ -t 1 ]; then
+    G=$(printf '\033[32m') Y=$(printf '\033[33m') B=$(printf '\033[1m') D=$(printf '\033[2m') N=$(printf '\033[0m')
+else
+    G= Y= B= D= N=
+fi
+bad=0
+ok() { printf '  %s✓%s %s\n' "$G" "$N" "$*"; }
+warn() { printf '  %s!%s %s\n' "$Y" "$N" "$*"; bad=$((bad + 1)); }
+info() { printf '  %s· %s%s\n' "$D" "$*" "$N"; }
+section() { printf '\n%s%s%s\n' "$B" "$1" "$N"; }
+
+nm_conf() { cat /etc/NetworkManager/NetworkManager.conf /etc/NetworkManager/conf.d/*.conf 2>/dev/null; }
+
+section Network
+for dev in /sys/class/net/*; do
+    i=${dev##*/}
+    [ "$i" != lo ] && [ -e "$dev/device" ] && [ "$(cat "$dev/operstate")" = up ] || continue
+    mac=$(cat "$dev/address")
+    perm=$(ip -j link show dev "$i" | jq -r '.[0].permaddr // empty')
+    if [ -n "$perm" ] && [ "$perm" != "$mac" ]; then
+        ok "$i: random MAC $mac"
+    else
+        warn "$i: real MAC $mac in use"
+    fi
+done
+vpn=$(ip -d -j link | jq -r '.[] | select(.linkinfo.info_kind == "wireguard" or .linkinfo.info_kind == "tun") | .ifname')
+if [ -n "$vpn" ]; then ok "VPN interface up: $(echo $vpn)"; else info "no VPN: sites see your public IP"; fi
+if nm_conf | grep -q '^ipv4.dhcp-send-hostname=0' && nm_conf | grep -q '^ipv6.dhcp-send-hostname=0'; then
+    ok "hostname not sent over DHCP"
+else
+    warn "NetworkManager may send the hostname over DHCP"
+fi
+if nm_conf | grep -q '^ipv4.dhcp-client-id=mac' && nm_conf | grep -q '^ipv6.dhcp-duid=ll'; then
+    ok "DHCP identifiers follow the random MAC"
+else
+    warn "DHCP client ID or DUID may be fixed across networks"
+fi
+if [ -n "$(ip -6 addr show scope global 2>/dev/null)" ]; then
+    if ip -6 addr show scope global | grep -q temporary; then
+        ok "IPv6: temporary addresses in use"
+    else
+        warn "IPv6: no temporary address, the address is stable across sites"
+    fi
+else
+    info "no global IPv6 address"
+fi
+if [ "$(cat /proc/sys/net/ipv4/tcp_timestamps)" = 0 ]; then
+    ok "TCP timestamps off"
+else
+    warn "TCP timestamps on: the clock can link your connections"
+fi
+if [ "$public" = 1 ]; then
+    if j=$(curl -fsS --max-time 10 https://am.i.mullvad.net/json 2>/dev/null); then
+        info "public IP $(echo "$j" | jq -r '"\(.ip) (\(.city // "?"), \(.country // "?"))"')"
+        [ "$(echo "$j" | jq -r .mullvad_exit_ip)" != true ] || ok "traffic leaves through Mullvad"
+    else
+        warn "cannot reach am.i.mullvad.net"
+    fi
+fi
+
+section DNS
+if [ "$(grep -E '^[[:space:]]*nameserver' /etc/resolv.conf | awk '{print $2}' | sort -u)" = 127.0.0.1 ]; then
+    ok "/etc/resolv.conf uses only 127.0.0.1"
+else
+    warn "/etc/resolv.conf has other nameservers: $(grep -E '^[[:space:]]*nameserver' /etc/resolv.conf | awk '{print $2}' | tr '\n' ' ')"
+fi
+if pgrep -xu dnscrypt_proxy dnscrypt-proxy >/dev/null; then
+    ok "dnscrypt-proxy running as dnscrypt_proxy"
+else
+    warn "dnscrypt-proxy is not running"
+fi
+if awk '/^\[/ { s = $0 } s == "[anonymized_dns]" && !/^[[:space:]]*#/ && /via *= *\[/' \
+    /etc/dnscrypt-proxy/dnscrypt-proxy.toml 2>/dev/null | grep -q .; then
+    ok "Anonymized DNS: queries go through relays"
+else
+    warn "Anonymized DNS routes not set"
+fi
+list=/etc/dnscrypt-proxy/blocked-names.txt
+if [ -s "$list" ]; then
+    age=$((($(date +%s) - $(stat -c %Y "$list")) / 86400))
+    n=$(grep -cv '^[[:space:]]*\(#\|$\)' "$list")
+    if [ "$age" -le 3 ]; then ok "blocklist: $n names, updated $age day(s) ago"; else warn "blocklist is $age days old"; fi
+    probe=$(grep -v '^[[:space:]]*\(#\|$\)' "$list" | grep -v '[*=]' | awk 'NR == 1 { print $1 }')
+else
+    warn "no DNS blocklist"
+    probe=
+fi
+
+dns=$(python3 - "$probe" <<'EOF'
+import errno, random, socket, struct, sys
+
+def query(server, name, qtype, port=53, timeout=3):
+    tid = random.randrange(65536)
+    pkt = struct.pack('>HHHHHH', tid, 0x0100, 1, 0, 0, 0)
+    pkt += b''.join(bytes([len(p)]) + p.encode() for p in name.split('.')) + b'\0'
+    pkt += struct.pack('>HH', qtype, 1)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(timeout)
+    s.connect((server, port))
+    s.send(pkt)
+    return answers(s.recv(4096))
+
+def answers(r):
+    qd, an = struct.unpack('>4xHH4x', r[:12])
+    i = 12
+
+    def skip(i):
+        while r[i]:
+            if r[i] & 0xc0 == 0xc0:
+                return i + 2
+            i += r[i] + 1
+        return i + 1
+
+    for _ in range(qd):
+        i = skip(i) + 4
+    out = []
+    for _ in range(an):
+        i = skip(i)
+        t, rl = struct.unpack('>H6xH', r[i:i + 10])
+        i += 10
+        out.append((t, r[i:i + rl]))
+        i += rl
+    return out
+
+def txt(data):
+    out, i = [], 0
+    while i < len(data):
+        out.append(data[i + 1:i + 1 + data[i]].decode(errors='replace'))
+        i += 1 + data[i]
+    return ' '.join(out)
+
+def say(level, msg):
+    print(level + '\t' + msg)
+
+try:
+    info = [txt(d) for t, d in query('127.0.0.1', 'resolver.dnscrypt.info', 16) if t == 16]
+    ip = next((l.split(': ', 1)[1] for l in info if l.startswith('Resolver IP')), '?')
+    say('ok', 'local resolver answers, upstream resolver ' + ip)
+    if any('DNSSEC OK' in l for l in info):
+        say('ok', 'DNSSEC requested upstream')
+    else:
+        say('warn', 'DNSSEC not requested upstream')
+except OSError as e:
+    say('warn', 'local resolver does not answer: ' + str(e))
+
+if sys.argv[1]:
+    try:
+        a = query('127.0.0.1', sys.argv[1], 1)
+        if any(t == 1 for t, _ in a):
+            say('warn', 'blocklist not applied: ' + sys.argv[1] + ' resolves')
+        else:
+            say('ok', 'blocklist applied (' + sys.argv[1] + ' is blocked)')
+    except OSError as e:
+        say('warn', 'blocklist check failed: ' + str(e))
+
+try:
+    query('9.9.9.9', 'example.com', 1, timeout=2)
+    say('warn', 'DNS lock off: apps can query 9.9.9.9:53 directly')
+except socket.timeout:
+    say('warn', 'DNS lock unclear: 9.9.9.9:53 did not answer (offline?)')
+except OSError:
+    say('ok', 'DNS lock on: port 53 to the outside is blocked')
+
+try:
+    socket.create_connection(('9.9.9.9', 853), 2).close()
+    say('warn', 'DNS over TLS (853) to the outside is open')
+except socket.timeout:
+    say('warn', 'DNS over TLS check unclear: 9.9.9.9:853 timed out (offline?)')
+except OSError:
+    say('ok', 'DNS over TLS (853) to the outside is blocked')
+EOF
+)
+while IFS='	' read -r level msg; do
+    [ -z "$level" ] || "$level" "$msg"
+done <<EOF
+$dns
+EOF
+
+section Time
+if pgrep -x chronyd >/dev/null; then
+    ok "chronyd running"
+    if grep -E '^[[:space:]]*(server|pool)' /etc/chrony.conf | grep -qvw nts; then
+        warn "some time servers are not authenticated with NTS"
+    else
+        ok "all time servers use NTS"
+    fi
+    leap=$(chronyc -n tracking 2>/dev/null | awk -F': ' '/^Leap status/ { print $2 }')
+    [ "$leap" = Normal ] && ok "clock synchronized" || warn "clock not synchronized (${leap:-no answer})"
+else
+    warn "chronyd is not running"
+fi
+
+section Kernel
+case $(cat /sys/kernel/security/lockdown 2>/dev/null) in
+*'[integrity]'* | *'[confidentiality]'*) ok "lockdown $(sed 's/.*\[\(.*\)\].*/\1/' /sys/kernel/security/lockdown)" ;;
+*) warn "kernel lockdown off" ;;
+esac
+[ "$(cat /sys/module/module/parameters/sig_enforce 2>/dev/null)" = Y ] &&
+    ok "only signed modules load" || warn "unsigned modules can load"
+if aa-enabled -q 2>/dev/null; then
+    ok "AppArmor enabled"
+    for p in dnscrypt-proxy NetworkManager chronyd bluetoothd wpa_supplicant \
+        librewolf papers soffice.bin xarchiver showtime tumblerd foot; do
+        for pid in $(pgrep -x "$p"); do
+            l=$(cat "/proc/$pid/attr/current" 2>/dev/null) || continue
+            case $l in
+            *'(enforce)') ok "$p confined: $l" ;;
+            *) warn "$p not confined: $l" ;;
+            esac
+            break
+        done
+    done
+else
+    warn "AppArmor is not enabled"
+fi
+open=$(ss -tulnH 2>/dev/null | awk '$5 !~ /^(127\.|\[::1\]|\[::ffff:127\.)|%lo:/ { print $1 " " $5 }' | sort -u)
+if [ -z "$open" ]; then
+    ok "no ports listening outside localhost"
+else
+    warn "listening outside localhost (the firewall still drops input): $(echo $open)"
+fi
+if grep -v '^Filename' /proc/swaps | grep -qv '^/dev/zram'; then
+    info "swap on disk: RAM contents can end up there"
+fi
+
+if [ -d /home/.snapshots ]; then
+    section Files
+    info "/home is snapshotted daily: deleted files stay in the snapshots until they expire"
+    dl=$(xdg-user-dir DOWNLOAD 2>/dev/null)
+    [ "$dl" != "$HOME" ] || dl=
+    for d in $dl "$HOME/Private"; do
+        t=\~${d#"$HOME"}
+        if [ ! -d "$d" ]; then
+            info "$t does not exist"
+        elif [ "$(stat -c %i -- "$d")" = 256 ]; then
+            ok "$t is kept out of the snapshots"
+        else
+            warn "$t is in the snapshots: deleted files there stay for 14 days"
+        fi
+    done
+fi
+
+section Devices
+if command -v bluetoothctl >/dev/null && [ "$(bluetoothctl show 2>/dev/null | awk '/Powered:/ { print $2 }')" = yes ]; then
+    info "bluetooth on ('bluetooth off' to turn it off)"
+else
+    ok "bluetooth off"
+fi
+cam=
+for fd in /proc/[0-9]*/fd/*; do
+    case $(readlink "$fd" 2>/dev/null) in
+    /dev/video*) p=${fd#/proc/}; cam="$cam $(cat "/proc/${p%%/*}/comm")" ;;
+    esac
+done
+cam=$(for c in $cam; do echo "$c"; done | sort -u | tr '\n' ' ')
+cam=${cam% }
+if [ -n "$cam" ]; then warn "camera in use by: $cam"; else ok "camera not in use"; fi
+mic=$(pactl list source-outputs 2>/dev/null | sed -n 's/.*application\.name = "\(.*\)"/\1/p' | sort -u | tr '\n' ' ')
+mic=${mic% }
+if [ -n "$mic" ]; then warn "microphone in use by: $mic"; else ok "microphone not in use"; fi
+
+echo
+if [ "$bad" = 0 ]; then
+    printf '%sall good%s\n' "$G" "$N"
+else
+    printf '%s%d thing(s) need attention%s\n' "$Y" "$bad" "$N"
+    exit 1
+fi
