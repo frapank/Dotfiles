@@ -34,9 +34,9 @@ un7z() {
     if 7z l -slt -p- -- "$f" 2>/dev/null | grep -q '^Encrypted = +' ||
         ! 7z l -p- -- "$f" >/dev/null 2>&1; then
         askpw "$f"
-        7z x -aos -bso0 -bsp0 -p"$pw" -o"$dir" -- "$f"
+        jail 7z x -aos -bso0 -bsp0 -p"$pw" -o"$dir" -- "$f"
     else
-        7z x -aos -bso0 -bsp0 -o"$dir" -- "$f"
+        jail 7z x -aos -bso0 -bsp0 -o"$dir" -- "$f"
     fi
 }
 
@@ -48,6 +48,17 @@ single() {
 }
 
 gpg() { command gpg -q --no-symkey-cache --pinentry-mode loopback "$@"; }
+
+# gpg and age stay outside the jail, they need the keys
+jail() {
+    if [ -z "$bwrap" ]; then
+        "$@"
+        return
+    fi
+    bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --tmpfs /run \
+        --tmpfs "$HOME" --ro-bind "$f" "$f" --bind "$dir" "$dir" --chdir "$dir" \
+        --unshare-all --unshare-user --disable-userns --die-with-parent -- "$@"
+}
 
 case ${1:-} in help|--help) usage; exit 0 ;; esac
 
@@ -78,23 +89,26 @@ for f; do
     [ -f "$f" ] || die "$f: No such file or directory"
 done
 mkdir -p -- "$dir"
+dir=$(realpath -- "$dir")
+bwrap=$(command -v bwrap) || echo "extract: bwrap missing, the unpackers run without a sandbox" >&2
 
 for f; do
     base=${f##*/}
+    f=$(realpath -- "$f")
     case $(printf '%s' "$base" | tr '[:upper:]' '[:lower:]') in
-    *.tar.gpg) gpg -d -- "$f" | tar -xf - -C "$dir" --skip-old-files ;;
-    *.tar.age) age -d -- "$f" | tar -xf - -C "$dir" --skip-old-files ;;
+    *.tar.gpg) gpg -d -- "$f" | jail tar -xf - -C "$dir" --skip-old-files ;;
+    *.tar.age) age -d -- "$f" | jail tar -xf - -C "$dir" --skip-old-files ;;
     *.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz|*.tbz2|*.tar.xz|*.txz|*.tar.zst|*.tzst|*.tar.lz|*.tar.lz4)
-        tar -xf "$f" -C "$dir" --skip-old-files ;;
+        jail tar -xf "$f" -C "$dir" --skip-old-files ;;
     *.zip|*.jar|*.7z) un7z ;;
-    *.rar) unrar x -o- -idq -- "$f" "$dir/" ;;
-    *.iso|*.cpio|*.deb|*.rpm|*.cab|*.xar) bsdtar -xkf "$f" -C "$dir" ;;
-    *.gz)  single "${base%.*}" gzip -dc -- "$f" ;;
-    *.bz2) single "${base%.*}" bzip2 -dc -- "$f" ;;
-    *.xz)  single "${base%.*}" xz -dc -- "$f" ;;
-    *.zst) single "${base%.*}" zstd -qdc -- "$f" ;;
-    *.lz)  single "${base%.*}" lzip -qdc -- "$f" ;;
-    *.lz4) single "${base%.*}" lz4 -qdc -- "$f" ;;
+    *.rar) jail unrar x -o- -idq -- "$f" "$dir/" ;;
+    *.iso|*.cpio|*.deb|*.rpm|*.cab|*.xar) jail bsdtar -xkf "$f" -C "$dir" ;;
+    *.gz)  single "${base%.*}" jail gzip -dc -- "$f" ;;
+    *.bz2) single "${base%.*}" jail bzip2 -dc -- "$f" ;;
+    *.xz)  single "${base%.*}" jail xz -dc -- "$f" ;;
+    *.zst) single "${base%.*}" jail zstd -qdc -- "$f" ;;
+    *.lz)  single "${base%.*}" jail lzip -qdc -- "$f" ;;
+    *.lz4) single "${base%.*}" jail lz4 -qdc -- "$f" ;;
     *.gpg|*.pgp|*.asc)
         out=$dir/${base%.*}
         [ ! -e "$out" ] || die "$out: File exists"

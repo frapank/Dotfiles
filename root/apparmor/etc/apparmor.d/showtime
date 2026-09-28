@@ -7,6 +7,7 @@ profile showtime /usr/bin/showtime flags=(attach_disconnected) {
   include <abstractions/dotfiles/browser-data>
 
   /dev/snd/{,**} rw,
+  owner @{HOME}/.{cache,config,local/share}/showtime/{,**} rwk,
   deny /dev/{video,media}* rw,
   owner @{run}/user/@{uid}/orcexec.* mrw,
   owner @{HOME}/orcexec.* mrw,
