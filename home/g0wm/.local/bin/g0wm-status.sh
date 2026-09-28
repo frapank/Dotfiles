@@ -38,7 +38,7 @@ EOF
 }
 
 defaults() {
-	all_modules='date time battery cpu ram netdown netup rec mic cam dns nightlight'
+	all_modules='date time battery cpu ram netdown netup rec mic cam dns nightlight awake'
 	modules='date time battery'
 	interval=1
 	battery_interval=30
@@ -57,6 +57,7 @@ defaults() {
 	cam_format='%i'
 	dns_format='%i'
 	nightlight_format='%i'
+	awake_format='%i'
 	net_interface=
 	icon_date=
 	icon_time=
@@ -70,9 +71,10 @@ defaults() {
 	icon_cam=
 	icon_dns=
 	icon_nightlight=
+	icon_awake=
 	all_colors='color_date color_time color_battery color_cpu color_ram
 color_netdown color_netup color_battery_low color_battery_charging
-color_rec color_mic color_cam color_dns color_nightlight'
+color_rec color_mic color_cam color_dns color_nightlight color_awake'
 	color_date=
 	color_time=
 	color_battery=
@@ -85,6 +87,7 @@ color_rec color_mic color_cam color_dns color_nightlight'
 	color_cam=
 	color_dns=
 	color_nightlight=
+	color_awake=
 	battery_low=20
 	color_battery_low=
 	color_battery_charging=
@@ -135,9 +138,9 @@ read_config() { # reads $conf if present, then finalizes the timing settings
 			color_date|color_time|color_battery|color_cpu|color_ram|\
 			color_netdown|color_netup|battery_low|color_battery_low|\
 			color_battery_charging|\
-			rec_format|mic_format|cam_format|dns_format|nightlight_format|\
-			icon_rec|icon_mic|icon_cam|icon_dns|icon_nightlight|\
-			color_rec|color_mic|color_cam|color_dns|color_nightlight)
+			rec_format|mic_format|cam_format|dns_format|nightlight_format|awake_format|\
+			icon_rec|icon_mic|icon_cam|icon_dns|icon_nightlight|icon_awake|\
+			color_rec|color_mic|color_cam|color_dns|color_nightlight|color_awake)
 				# the name is one of the above, and the value is never re-parsed
 				eval "$key=\$val" ;;
 			*) warn "$conf:$lineno: unknown setting '$key'" ;;
@@ -292,7 +295,7 @@ filter_modules() { # -> modules trimmed to what is available, and want_*
 		netdown|netup)
 			[ "$net_method" != none ] ||
 				{ warn "no network counters on this system, $m disabled"; continue; } ;;
-		rec|mic|cam|nightlight)
+		rec|mic|cam|nightlight|awake)
 			[ "$have_proc" = 1 ] ||
 				{ warn "no /proc on this system, $m disabled"; continue; } ;;
 		dns)
@@ -592,6 +595,8 @@ render() {
 	dns) dns_up || fmt "$dns_format" '' "$icon_dns" ;;
 	nightlight) runs "$run_dir/nightlight.pid" wlsunset &&
 		fmt "$nightlight_format" '' "$icon_nightlight" ;;
+	awake) runs "$run_dir/awake.pid" swayidle &&
+		fmt "$awake_format" '' "$icon_awake" ;;
 	esac
 	[ -n "$r" ] || return 0
 	eval "rn_col=\$color_$1"

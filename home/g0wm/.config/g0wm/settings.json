@@ -332,6 +332,16 @@
 			"mod": [
 				"logo"
 			],
+			"key": "minus",
+			"action": "spawn",
+			"arg": [
+				"awake"
+			]
+		},
+		{
+			"mod": [
+				"logo"
+			],
 			"key": "c",
 			"action": "killclient",
 			"arg": null
