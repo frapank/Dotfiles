@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 import os
+import re
 import signal
 import subprocess
+import threading
 
 from gi.repository import Gio, GLib
 
@@ -15,6 +17,8 @@ APPS = {
 }
 FLAGS = {"--new-window", "--private-window", "--writer", "--calc", "--impress", "--draw", "--math", "--base"}
 SCHEMES = ("http://", "https://", "file://")
+WEB = ("http://", "https://")
+NET = {"librewolf"}
 XML = """<node><interface name="org.dotfiles.Open">
 <method name="Open"><arg type="s" direction="in"/><arg type="as" direction="in"/></method>
 </interface></node>"""
@@ -22,6 +26,7 @@ IDLE = 60
 
 loop = GLib.MainLoop()
 timer = 0
+pending = 0
 
 
 def allowed(arg):
@@ -32,11 +37,74 @@ def allowed(arg):
     return os.path.isabs(arg) and os.path.exists(arg)
 
 
+def stop():
+    if pending:
+        return True
+    loop.quit()
+    return False
+
+
 def idle():
     global timer
     if timer:
         GLib.source_remove(timer)
-    timer = GLib.timeout_add_seconds(IDLE, loop.quit)
+    timer = GLib.timeout_add_seconds(IDLE, stop)
+
+
+def environ():
+    env = dict(os.environ)
+    bus = env.pop("DBUS_STARTER_ADDRESS", None)
+    env.pop("DBUS_STARTER_BUS_TYPE", None)
+    if bus and "DBUS_SESSION_BUS_ADDRESS" not in env:
+        env["DBUS_SESSION_BUS_ADDRESS"] = bus
+    return env
+
+
+def sandbox_of(conn, sender):
+    try:
+        pid, = conn.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                              "GetConnectionUnixProcessID", GLib.Variant("(s)", (sender,)),
+                              GLib.VariantType("(u)"), Gio.DBusCallFlags.NONE, -1, None).unpack()
+        with open(f"/proc/{pid}/attr/apparmor/current") as f:
+            label = f.read().strip()
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            argv = f.read().split(b"\0")
+    except (GLib.Error, OSError):
+        return "unknown"
+    if label != "unconfined":
+        return label.split(" ")[0]
+    # the proxy dbus-filter started for the app
+    for a in argv:
+        m = re.search(rb"/\.dbus-filter/([a-z]+)/[0-9]+$", a)
+        if m:
+            return m.group(1).decode()
+    return None
+
+
+def launch(app, args):
+    subprocess.Popen([APPS[app], *args], env=environ(), cwd="/", start_new_session=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def done():
+    global pending
+    pending -= 1
+
+
+def confirm(who, app, args, urls):
+    global pending
+    pending += 1
+
+    def wait():
+        body = GLib.markup_escape_text("\n".join(urls))
+        r = subprocess.run(["notify-send", "-a", who, "-u", "critical", "-A", "open=Open",
+                            f"{who} wants to open a link", body],
+                           env=environ(), stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        if r.stdout.strip() == "open":
+            GLib.idle_add(launch, app, args)
+        GLib.idle_add(done)
+
+    threading.Thread(target=wait, daemon=True).start()
 
 
 def call(conn, sender, path, iface, method, params, invocation):
@@ -45,13 +113,12 @@ def call(conn, sender, path, iface, method, params, invocation):
     if app not in APPS or not all(allowed(a) for a in args):
         invocation.return_dbus_error("org.dotfiles.Open.Refused", f"refused: {app} {args}")
         return
-    env = dict(os.environ)
-    bus = env.pop("DBUS_STARTER_ADDRESS", None)
-    env.pop("DBUS_STARTER_BUS_TYPE", None)
-    if bus and "DBUS_SESSION_BUS_ADDRESS" not in env:
-        env["DBUS_SESSION_BUS_ADDRESS"] = bus
-    subprocess.Popen([APPS[app], *args], env=env, cwd="/", start_new_session=True,
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    who = sandbox_of(conn, sender)
+    urls = [a for a in args if a.startswith(WEB)]
+    if who is not None and who not in NET and urls:
+        confirm(who, app, args, urls)
+    else:
+        launch(app, args)
     invocation.return_value(None)
 
 

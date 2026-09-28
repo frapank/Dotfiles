@@ -8,6 +8,7 @@ profile libreoffice /usr/lib/libreoffice/program/soffice.bin flags=(attach_disco
   include <abstractions/dotfiles/no-av>
 
   deny /usr/lib/libreoffice/** w,
+  owner @{HOME}/.config/libreoffice/{,**} rwlk,
 
   /usr/{bin,lib,libexec,local/bin}/** ix,
   owner @{run}/user/@{uid}/.dbus-filter/libreoffice/* rw,

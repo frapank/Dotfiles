@@ -30,7 +30,8 @@
   owner @{run}/user/@{uid}/ r,
   owner @{run}/user/@{uid}/[^.]** rwk,
 
-  owner @{HOME}/.cache/{,**} rwk,
+  owner @{HOME}/.cache/{,**} r,
+  owner @{HOME}/.cache/{fontconfig,mesa_shader_cache*,radv_builtin_shaders*,nvidia,gtk-4.0,gstreamer-1.0,thumbnails}/{,**} rwk,
   owner @{HOME}/.config/{,**} r,
   owner @{HOME}/.local/share/{,**} r,
   owner @{HOME}/.icons/{,**} r,

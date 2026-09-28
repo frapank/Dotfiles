@@ -16,6 +16,7 @@ profile librewolf /usr/lib/librewolf/librewolf flags=(attach_disconnected) {
   network netlink raw,
 
   owner @{HOME}/.{librewolf,config/librewolf}/** rwlkm,
+  owner @{HOME}/.cache/librewolf/{,**} rwk,
   /dev/snd/{,**} rw,
   /dev/video* rw,
   /dev/media* rw,
