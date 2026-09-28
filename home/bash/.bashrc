@@ -39,6 +39,10 @@ _setup_prompt() {
 _setup_env() {
     export LESS='-RF'
     export LESSHISTFILE=/dev/null
+    export BAT_THEME=ansi
+    export GREP_COLORS='ms=1;33:mc=1;33:fn=34:ln=37:bn=37:se=90'
+    alias grep='grep --color=auto'
+    [[ -r $HOME/.config/ripgrep/config ]] && export RIPGREP_CONFIG_PATH=$HOME/.config/ripgrep/config
 
     local _ed _found_ed
     for _ed in vim nvim vi nano; do
@@ -86,6 +90,14 @@ _setup_completion() {
 _setup_fzf() {
     _has fzf || return
 
+    local _colors=(
+        fg:#ffffff bg:#0a0a0a hl:#9d9d9d fg+:#0a0a0a bg+:#cccccc hl+:#9d9d9d
+        border:#1a1a1a header:#8a8a8a gutter:#0a0a0a spinner:#9d9d9d info:#8a8a8a
+        pointer:#9d9d9d marker:#9d9d9d prompt:#9d9d9d query:#ffffff separator:#1a1a1a
+        scrollbar:#555555 label:#8a8a8a disabled:#7d7d7d preview-fg:#ffffff preview-bg:#0f0f0f
+    )
+    export FZF_DEFAULT_OPTS="--color=$(IFS=,; echo "${_colors[*]}")"
+
     local _init
     _init=$(fzf --bash 2>/dev/null) && [[ -n $_init ]] && { eval "$_init"; return; }
 
@@ -97,7 +109,18 @@ _setup_fzf() {
 }
 
 _setup_ls() {
-    export LS_COLORS='di=1;34:ln=36:ex=32'
+    local _c='di=1;34:ln=36:ex=32:or=31:mi=31:tw=1;34:ow=1;34:st=1;34:*~=90' _e
+    for _e in tar tgz gz bz2 xz zst lz4 lz lzma 7z zip rar cpio deb rpm xbps iso; do
+        _c+=":*.$_e=33"
+    done
+    for _e in png jpg jpeg gif webp avif heic jxl bmp tif tiff svg ico \
+        mp4 mkv webm avi mov mp3 flac ogg opus wav m4a; do
+        _c+=":*.$_e=35"
+    done
+    for _e in bak swp tmp orig old part; do
+        _c+=":*.$_e=90"
+    done
+    export LS_COLORS=$_c
     export LSCOLORS='Exgxxxxxcxxxxxxxxxxxxx'
     export CLICOLOR=1
 
@@ -126,14 +149,7 @@ _setup_man() {
         fi
     done
 
-    man() {
-        if [[ -z $_BAT ]] || ! _has col; then
-            command man "$@"
-            return
-        fi
-        command man "$@" | col -bx | "$_BAT" -l man -p
-        return "${PIPESTATUS[0]}"
-    }
+    [[ -n $_BAT ]] && _has col && export MANPAGER="sh -c 'col -bx | $_BAT -l man -p'"
 }
 
 # BINARY TOOLS

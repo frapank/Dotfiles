@@ -90,7 +90,7 @@ PKG_DIRS=(xdg-user-dirs)
 PKG_SWAP=(zramen)
 PKG_MAINT=(btrfs-progs util-linux)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
-HOME_CLI=(bash ctags nvim vim tmux)
+HOME_CLI=(bash ctags nvim vim tmux ripgrep)
 HOME_DESKTOP=(foot g0wm gtklock)
 HOME_APPS=(thunar mime bin fastfetch)
 HOME_THEME=(gtk)
@@ -932,7 +932,7 @@ plan() {
 		Copies home/{$(join , "${HOME_APPS[@]}")}:
 		  Thunar opens foot with 'Open Terminal Here' and automounts drives.
 		  Text files open in nvim inside foot.
-		  fastfetch with the Void logo in the dwl colors.
+		  fastfetch with the Void logo in the foot colors.
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
 		  screenshot record nightlight extract compress open metadata-remover
 		  privacy-check (checks MAC, DNS, lockdown, AppArmor, camera and more).

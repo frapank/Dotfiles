@@ -3,8 +3,8 @@
 
     "logo": {
         "color": {
-            "1": "38;2;79;191;135",
-            "2": "38;2;125;139;166"
+            "1": "38;2;175;215;175",
+            "2": "38;2;112;138;153"
         },
         "padding": { "top": 2, "left": 2, "right": 4 }
     },
@@ -12,46 +12,46 @@
     "display": {
         "separator": "  ",
         "color": {
-            "title": "38;2;79;191;135",
-            "keys": "38;2;79;191;135",
-            "separator": "38;2;125;139;166",
-            "output": "38;2;232;238;248"
+            "title": "38;2;175;215;175",
+            "keys": "38;2;175;215;175",
+            "separator": "38;2;112;138;153",
+            "output": "38;2;233;233;233"
         },
         "key": { "width": 14 },
         "bar": {
             "width": 12,
             "char": { "elapsed": "━", "total": "━" },
             "border": { "left": "", "right": "" },
-            "color": { "border": "38;2;125;139;166" }
+            "color": { "border": "38;2;112;138;153" }
         },
         "percent": {
             "type": ["num", "bar"],
-            "color": { "green": "38;2;79;191;135", "yellow": "33", "red": "31" }
+            "color": { "green": "38;2;175;215;175", "yellow": "33", "red": "31" }
         }
     },
 
     "modules": [
-        { "type": "title", "format": "  {user-name-colored}\u001b[38;2;125;139;166m@{host-name-colored}" },
-        { "type": "custom", "format": "\u001b[38;2;125;139;166m╭─ system" },
+        { "type": "title", "format": "  {user-name-colored}\u001b[38;2;112;138;153m@{host-name-colored}" },
+        { "type": "custom", "format": "\u001b[38;2;112;138;153m╭─ system" },
         { "type": "os",       "key": "│ 󰌽 os" },
         { "type": "kernel",   "key": "│ 󰒓 kernel" },
         { "type": "uptime",   "key": "│ 󰅐 uptime" },
         { "type": "packages", "key": "│ 󰏖 packages" },
         { "type": "shell",    "key": "│ 󰆍 shell" },
-        { "type": "custom", "format": "\u001b[38;2;125;139;166m├─ desktop" },
+        { "type": "custom", "format": "\u001b[38;2;112;138;153m├─ desktop" },
         { "type": "wm",       "key": "│ 󰖯 wm" },
         { "type": "display",  "key": "│ 󰍹 display", "format": "{width}x{height} @ {refresh-rate} Hz" },
         { "type": "theme",    "key": "│ 󰉼 theme" },
         { "type": "font",     "key": "│ 󰉷 font" },
         { "type": "terminal", "key": "│ 󰞷 terminal" },
-        { "type": "custom", "format": "\u001b[38;2;125;139;166m├─ hardware" },
+        { "type": "custom", "format": "\u001b[38;2;112;138;153m├─ hardware" },
         { "type": "cpu",      "key": "│ 󰻠 cpu", "showPeCoreCount": false },
         { "type": "gpu",      "key": "│ 󰢮 gpu", "format": "{name}" },
         { "type": "memory",   "key": "│ 󰍛 memory" },
         { "type": "disk",     "key": "│ 󰋊 disk", "folders": "/" },
         { "type": "localip",  "key": "│ 󰩟 ip", "showIpv4": true },
         { "type": "battery",  "key": "│ 󰁹 battery" },
-        { "type": "custom", "format": "\u001b[38;2;125;139;166m╰───" },
+        { "type": "custom", "format": "\u001b[38;2;112;138;153m╰───" },
         "break",
         { "type": "colors", "symbol": "circle", "paddingLeft": 2 }
     ]

@@ -1,0 +1,9 @@
+--colors=path:none
+--colors=line:none
+--colors=column:none
+--colors=match:none
+--colors=path:fg:blue
+--colors=line:fg:white
+--colors=column:fg:white
+--colors=match:fg:yellow
+--colors=match:style:bold
