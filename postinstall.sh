@@ -85,7 +85,7 @@ NERD_FULL=(nerd-fonts nerd-fonts-ttf nerd-fonts-otf)
 PKG_LOCALE=(glibc-locales)
 PKG_HW=(fwupd)
 PKG_POWER=(power-profiles-daemon)
-PKG_LOGS=(socklog-void pulseaudio-utils)
+PKG_LOGS=(socklog-void pulseaudio-utils gawk less)
 PKG_DIRS=(xdg-user-dirs)
 PKG_SWAP=(zramen)
 PKG_MAINT=(btrfs-progs util-linux python3)
@@ -871,13 +871,31 @@ plan() {
 		Installs ${PKG_POWER[*]}, enables its service and sets the balanced profile.
 		Change it with 'powerprofilesctl set performance'.
 	EOF
-	section logs "System logs: socklog" <<-EOF
+	section logs "System logs: socklog, kernel crashes, the logs command" <<-EOF
 		Installs ${PKG_LOGS[*]} and enables socklog-unix and nanoklogd.
-		Logs go to /var/log/socklog. Adds $TUSER to socklog, read them with 'svlogtail'.
+		Logs go to /var/log/socklog, one folder per kind. Adds $TUSER to socklog.
+		More history, with a cap so a flood cannot fill the disk: everything and
+		  kernel up to 60 MB each, daemon, errors and xbps 20 MB, then the oldest
+		  file goes. Config in /var/log/socklog/*/config.
+		Login, doas and password messages (secure) become readable by root only,
+		  and are no longer copied into errors and debug.
+		/usr/local/bin/logs reads them in local time, with tab completion:
+		  logs                 live, like svlogtail   logs errors     since boot
+		  logs boot            since this boot        logs crashes    segfaults, OOM
+		  logs since 2h        or today, 3d...        logs apparmor   blocks per app
+		  logs service NAME    one service            logs firewall   drops per source
+		  logs grep REGEX      search everything      logs auth       logins, doas
+		  logs status          space and history      logs panics     kernel crashes
+		Kernel crashes: with UEFI, efi_pstore keeps the kernel log of a panic in
+		  the firmware (efi_pstore.pstore_disable=0 on the kernel command line).
+		  At the next boot /etc/runit/core-services/07-pstore.sh moves it to
+		  /var/log/pstore and frees the firmware. Active after reboot.
 		Watchdog: notifications in g0wm for crashes, disk and filesystem errors,
 		  overheating, USB events, services restarting in a loop, battery at 20% and 10%,
-		  disks over 90%, mic and webcam in use, AppArmor blocks.
-		/etc/sysctl.d/60-watchdog.conf sets print-fatal-signals=1 to log more crashes.
+		  disks over 90%, mic and webcam in use, AppArmor blocks, a kernel crash
+		  of the last boot.
+		/etc/sysctl.d/60-watchdog.conf: print-fatal-signals=1 logs more crashes,
+		  suid_dumpable=0 keeps setuid programs from leaving core dumps.
 	EOF
 	zram_size
 	section swap "Swap in compressed RAM (zramen)" <<-EOF
@@ -1598,6 +1616,21 @@ do_swap() {
 	save_sysctl "$REPO"/root/zram/etc/sysctl.d/*.conf
 	put_tree zram
 	try "sysctl -p 50-zram.conf" sysctl -p /etc/sysctl.d/50-zram.conf
+}
+
+do_logs() {
+	step "System logs"
+	local d=/var/log/socklog
+	[[ -d $d/everything && -d $d/kernel && -d $d/secure ]] || die "socklog-void did not create $d"
+	sv_refresh socklog-unix/log put_tree logs
+	fix_perm "$d/secure" 2700
+	run "logs parses" sh -n /usr/local/bin/logs
+	run "pstore script parses" sh -n /etc/runit/core-services/07-pstore.sh
+	if [[ -d /sys/firmware/efi ]]; then
+		grub_words efi_pstore.pstore_disable=0
+	else
+		warn "booted without UEFI: no pstore, a kernel panic leaves no log"
+	fi
 }
 
 do_maint() {
@@ -2369,6 +2402,10 @@ verify() {
 	if ((SEL[logs])); then
 		[[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || { warn "socklog not enabled"; bad=1; }
 		[[ -L $SVDIR/watchdog ]] || { warn "watchdog not enabled"; bad=1; }
+		[[ -x /usr/local/bin/logs ]] || { warn "/usr/local/bin/logs missing"; bad=1; }
+		[[ $(stat -c '%a %U %G' /var/log/socklog/secure) == '2700 root root' ]] ||
+			{ warn "/var/log/socklog/secure is readable by others"; bad=1; }
+		grep -qx s4000000 /var/log/socklog/everything/config || { warn "socklog keeps the default history"; bad=1; }
 	fi
 	if ((SEL[session])); then
 		for c in nm-connection-editor blueman-manager gnome-keyring-daemon; do
@@ -2442,6 +2479,7 @@ main() {
 	((SEL[apparmor])) && do_apparmor
 	((SEL[net])) && do_net_files
 	do_groups
+	((SEL[logs])) && do_logs
 	((SEL[swap])) && do_swap
 	((SEL[maint])) && do_maint
 	((SEL[dirs])) && do_dirs

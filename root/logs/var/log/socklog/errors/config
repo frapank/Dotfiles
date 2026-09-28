@@ -1,0 +1,11 @@
+s1000000
+n20
+!syslog-stripdate
+-*
++*.err:*
++*.error:*
++*.emerg:*
++*.alert:*
++*.crit:*
+-auth.*
+-authpriv.*
