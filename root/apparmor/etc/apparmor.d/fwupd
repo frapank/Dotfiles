@@ -36,6 +36,7 @@ profile fwupd /usr/libexec/fwupd/fwupd {
 
   /usr/libexec/fwupd/** ix,
 
+  deny /{etc,var/lib/dbus}/machine-id r,
   audit deny /home/{,**} mrwkl,
   audit deny /root/{,**} mrwkl,
   audit deny /etc/{shadow,gshadow}{,-,+} mrwkl,
