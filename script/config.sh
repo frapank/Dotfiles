@@ -2,10 +2,8 @@
 # settings
 
 readonly G0WM_URL=https://github.com/frapank/g0wm.git
-readonly FONT_URL=https://github.com/supercomputra/SF-Mono-Font.git
-readonly FONT_REV=1409ae79074d204c284507fef9e479248d5367c1
-readonly SFPRO_URL=https://github.com/sahibjotsaggu/San-Francisco-Pro-Fonts.git
-readonly SFPRO_REV=8bfea09aa6f1139479f80358b2e1e5c6dc991a58
+readonly GEIST_URL=https://github.com/vercel/geist-font/releases/download/v1.7.2/geist-font-v1.7.2.zip
+readonly GEIST_SHA256=7fc800d2ac6b92844895196e5041aca55d814c15db70c44f79b3b83ab82b04e2
 readonly ICONS_URL=https://gitlab.gnome.org/GNOME/adwaita-icon-theme-legacy.git
 readonly ICONS_TAG=46.2
 readonly ICONS_REV=7642b102c4a7c4088f170f548ae37960f2443522
@@ -80,7 +78,7 @@ PKG_SESSION=(gnome-keyring libsecret polkit-gnome network-manager-applet
 	bluez blueman libspa-bluetooth)
 PKG_THEME=(gnome-themes-extra gnome-themes-extra-gtk adwaita-icon-theme gsettings-desktop-schemas
 	dconf glib adwaita-qt adwaita-qt6 git gtk+3 librsvg curl tar xz python3)
-PKG_FONTS=(fontconfig nerd-fonts-symbols-ttf noto-fonts-ttf noto-fonts-emoji noto-fonts-cjk)
+PKG_FONTS=(fontconfig curl unzip nerd-fonts-symbols-ttf noto-fonts-ttf noto-fonts-emoji noto-fonts-cjk)
 NERD_FULL=(nerd-fonts nerd-fonts-ttf nerd-fonts-otf)
 PKG_LOCALE=(glibc-locales)
 PKG_HW=(fwupd)
@@ -99,7 +97,9 @@ HOME_MEDIA=(portal)
 HOME_DIRS=(xdg)
 USER_GROUPS=(wheel video network)
 SECTIONS=(update locale cli lsp harden apparmor net boot hw power logs swap maint dirs desktop media apps session theme fonts doas)
-SF_DIR=/usr/local/share/fonts/SF-Mono
+GEIST_DIR=/usr/local/share/fonts/Geist
+GEIST_MONO_DIR=/usr/local/share/fonts/GeistMono
+OLD_FONT_DIRS=(/usr/local/share/fonts/SF-Mono /usr/local/share/fonts/SF-Pro)
 MIME_DEFAULTS=(
 	application/pdf=org.gnome.Papers.desktop
 	image/png=org.gnome.Loupe.desktop
@@ -236,7 +236,6 @@ MIME_DEFAULTS=(
 	application/x-yaml=nvim-foot.desktop
 	text/x-log=nvim-foot.desktop
 )
-SFPRO_DIR=/usr/local/share/fonts/SF-Pro
 
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
