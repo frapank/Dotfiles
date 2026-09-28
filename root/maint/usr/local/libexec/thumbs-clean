@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Delete thumbnails in ~/.cache/thumbnails whose original file is gone."""
+import os
+import struct
+import sys
+import zlib
+from urllib.parse import unquote, urlsplit
+
+
+def thumb_uri(path):
+    with open(path, 'rb') as f:
+        if f.read(8) != b'\x89PNG\r\n\x1a\n':
+            return None
+        while True:
+            head = f.read(8)
+            if len(head) < 8:
+                return None
+            size, kind = struct.unpack('>I4s', head)
+            if kind == b'IDAT' or size > 1 << 20:
+                return None
+            data = f.read(size)
+            f.seek(4, os.SEEK_CUR)
+            if kind == b'tEXt':
+                key, _, value = data.partition(b'\0')
+            elif kind == b'zTXt':
+                key, _, value = data.partition(b'\0')
+                value = zlib.decompress(value[1:])
+            elif kind == b'iTXt':
+                key, _, rest = data.partition(b'\0')
+                compressed = rest[:1] == b'\1'
+                value = rest[2:].split(b'\0', 2)[-1]
+                if compressed:
+                    value = zlib.decompress(value)
+            else:
+                continue
+            if key == b'Thumb::URI':
+                return value.decode('utf-8', 'replace')
+
+
+def main():
+    root = os.path.join(os.environ['HOME'], '.cache', 'thumbnails')
+    if not os.path.isdir(root) or os.path.islink(root):
+        return 0
+    removed = kept = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        for name in filenames:
+            path = os.path.join(dirpath, name)
+            if not name.endswith('.png') or os.path.islink(path):
+                continue
+            try:
+                uri = thumb_uri(path)
+            except (OSError, zlib.error):
+                continue
+            if uri is None:
+                continue
+            u = urlsplit(uri)
+            if u.scheme != 'file' or u.netloc not in ('', 'localhost'):
+                continue
+            if os.path.lexists(unquote(u.path)):
+                kept += 1
+                continue
+            try:
+                os.unlink(path)
+                removed += 1
+            except OSError:
+                pass
+    print(f'thumbs: removed {removed}, kept {kept}')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
