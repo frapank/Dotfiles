@@ -53,6 +53,7 @@ for dev in /sys/class/net/*; do
     fi
 done
 vpn=$(ip -d -j link | jq -r '.[] | select(.linkinfo.info_kind == "wireguard" or .linkinfo.info_kind == "tun") | .ifname')
+# shellcheck disable=SC2086,SC2116 # echo joins the lines
 if [ -n "$vpn" ]; then ok "VPN interface up: $(echo $vpn)"; else info "no VPN: sites see your public IP"; fi
 if nm_conf | grep -q '^ipv4.dhcp-send-hostname=0' && nm_conf | grep -q '^ipv6.dhcp-send-hostname=0'; then
     ok "hostname not sent over DHCP"
@@ -246,6 +247,7 @@ open=$(ss -tulnH 2>/dev/null | awk '$5 !~ /^(127\.|\[::1\]|\[::ffff:127\.)|%lo:/
 if [ -z "$open" ]; then
     ok "no ports listening outside localhost"
 else
+    # shellcheck disable=SC2086,SC2116 # echo joins the lines
     warn "listening outside localhost (the firewall still drops input): $(echo $open)"
 fi
 if grep -v '^Filename' /proc/swaps | grep -qv '^/dev/zram'; then
