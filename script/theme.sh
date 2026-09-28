@@ -17,40 +17,67 @@ git_at() {
 	[[ -z $(find "$1" -path "$1/.git" -prune -o -type l -print -quit) ]] || die "symlinks in $2, refusing"
 }
 
-font_repo() {
-	local url=$1 rev=$2 dir=$3 tmp f n=0 j mark=$STATE/fonts-${3##*/}
-	if fonts_ok "$dir" && [[ $(cat -- "$mark" 2>/dev/null) == "$rev" ]]; then
-		skip "$dir (${rev:0:12})"
-		return 0
-	fi
+font_dir() {
+	local src=$1 dir=$2 f n=0
 	[[ -d $dir && ! -L $dir ]] && fix_perm "$dir" 0755
-	tmp=$(mktemp -d)
-	git_at "$tmp/f" "$url" "$rev"
-	j=$(njot)
 	while IFS= read -r -d '' f; do
 		put "$f" "$dir/${f##*/}" 0644
 		n=$((n + 1))
-	done < <(find "$tmp/f" -path "$tmp/f/.git" -prune -o -type f \( -name '*.otf' -o -name '*.ttf' \) -print0 | sort -z)
+	done < <(find "$src" -maxdepth 1 -type f -name '*.otf' -print0 | sort -z)
+	((n)) || die "no font files in ${GEIST_URL##*/}: ${src##*/geist-font/}"
+}
+
+geist() {
+	local tmp j mark=$STATE/fonts-geist
+	if fonts_ok "$GEIST_DIR" && fonts_ok "$GEIST_MONO_DIR" && [[ $(cat -- "$mark" 2>/dev/null) == "$GEIST_SHA256" ]]; then
+		skip "Geist fonts"
+		return 0
+	fi
+	tmp=$(mktemp -d)
+	run "download ${GEIST_URL##*/}" curl -fsSLo "$tmp/geist.zip" "$GEIST_URL"
+	[[ $(sha256sum -- "$tmp/geist.zip" | cut -d' ' -f1) == "$GEIST_SHA256" ]] ||
+		die "${GEIST_URL##*/} does not match its sha256"
+	run "unpack ${GEIST_URL##*/}" unzip -q "$tmp/geist.zip" 'geist-font/Geist/otf/*' 'geist-font/GeistMono/otf/*' -d "$tmp"
+	j=$(njot)
+	font_dir "$tmp/geist-font/Geist/otf" "$GEIST_DIR"
+	font_dir "$tmp/geist-font/GeistMono/otf" "$GEIST_MONO_DIR"
 	rm -rf -- "$tmp"
-	((n)) || die "no font files in $url"
 	((j == $(njot))) || FONTS_NEW=1
-	put_text "$mark" 0644 <<<"$rev"
+	put_text "$mark" 0644 <<<"$GEIST_SHA256"
+}
+
+old_fonts() {
+	local d
+	for d in "${OLD_FONT_DIRS[@]}"; do
+		[[ -e $d || -L $d ]] || continue
+		backup "$d"
+		rm -rf -- "$d"
+		rm -f -- "$STATE/fonts-${d##*/}"
+		ok "removed $d"
+		FONTS_NEW=1
+	done
+}
+
+font_is() {
+	local f
+	f=$(as_user fc-match -f '%{family[0]}' "$1" 2>/dev/null || true)
+	[[ $f == "$2" ]] || die "$1 resolves to '$f', not $2"
+	ok "$1 is $2"
 }
 
 do_fonts() {
 	step "Fonts"
-	local f
-	font_repo "$FONT_URL" "$FONT_REV" "$SF_DIR"
-	font_repo "$SFPRO_URL" "$SFPRO_REV" "$SFPRO_DIR"
+	geist
+	old_fonts
 	if ((FONTS_NEW)); then
 		run "refresh the font cache" fc-cache -f
 	else
 		skip "font cache"
 	fi
 	do_home "${HOME_FONTS[@]}"
-	f=$(as_user fc-match -f '%{family}' monospace 2>/dev/null || true)
-	[[ $f == *"SF Mono"* ]] || die "monospace resolves to '$f', not SF Mono"
-	ok "monospace is SF Mono"
+	font_is monospace 'Geist Mono'
+	font_is sans-serif Geist
+	font_is serif Geist
 	[[ -n $(as_user fc-list 'Symbols Nerd Font Mono' family 2>/dev/null) ]] ||
 		die "Symbols Nerd Font Mono is not installed"
 	ok "Nerd Font symbols available"
@@ -152,7 +179,7 @@ do_theme() {
 	gset icon-theme "'Adwaita'"
 	gset cursor-theme "'Bibata-Modern-Classic'"
 	gset cursor-size "$CURSOR_SIZE"
-	gset font-name "'SF Mono 10'"
-	gset document-font-name "'SF Mono 10'"
-	gset monospace-font-name "'SF Mono 10'"
+	gset font-name "'Geist 10'"
+	gset document-font-name "'Geist 10'"
+	gset monospace-font-name "'Geist Mono 10'"
 }
