@@ -67,6 +67,8 @@ plan() {
 	section boot "Boot: initramfs, splash, login screen" <<-EOF
 		Installs ${PKG_BOOT[*]}
 		dracut hostonly, plymouth void-minimal, 'quiet splash' in GRUB.
+		GRUB theme minimal (tomdewildt, fixed commit): only GRUB_THEME changes in /etc/default/grub, LUKS and kernel arguments are kept and checked in grub.cfg.
+		No 'Loading Linux ...' lines after the menu (10_linux patched, redone by maint after grub updates).
 		Clean tty1 login and /etc/issue. Terminus font on every tty, larger on screens 1440 pixels tall or more.
 		Rebuilds the initramfs when needed, old images restored on failure.
 	EOF

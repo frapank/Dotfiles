@@ -185,6 +185,7 @@ update_now() {
 		fi
 	fi
 	prune "$ROOTSNAP" root "$ROOT_KEEP"
+	grub_quiet
 
 	msg="$total package(s) updated."
 	printf '%s\n' "$list" | grep -qE '^linux[0-9.]*-[0-9]' && msg="$msg Restart to use the new kernel."
@@ -225,6 +226,32 @@ job_update() {
 	fi
 	elogind-inhibit --what=sleep:shutdown:handle-lid-switch:handle-suspend-key:handle-hibernate-key \
 		--who=maint --why="system update" --mode=block /usr/local/sbin/maint update-now
+}
+
+# grub
+
+QUIET_MARK='# void-postinstall: no Loading messages'
+
+# a grub update keeps the edited 10_linux and adds 10_linux.new-*, both would make boot entries
+grub_quiet() {
+	f=/etc/grub.d/10_linux
+	grep -qx "$QUIET_MARK" "$f" 2>/dev/null || return 0
+	src=$(printf '%s\n' "$f".new-* | sort -V | tail -n1)
+	[ -f "$src" ] || return 0
+	flock -n /var/db/xbps/lock true || { log "grub: xbps is running"; return 0; }
+	if sed -E -e '/^[[:space:]]*echo[[:space:]].*"\$message" \| grub_quote/d' \
+		-e "/^$QUIET_MARK\$/d" -e "1a $QUIET_MARK" "$src" >"$f.maint" &&
+		! grep -qE '^[[:space:]]*echo[[:space:]].*\$message' "$f.maint" &&
+		grep -q '^[[:space:]]linux' "$f.maint" && sh -n "$f.maint"; then
+		log "grub: $src in place of 10_linux, without the Loading messages"
+	else
+		cp -f "$src" "$f.maint" || return 1
+		log "grub: $src has a new layout, in place of 10_linux as it is"
+		notify "GRUB" "10_linux changed in the grub update, the Loading messages are back."
+	fi
+	chmod 0755 "$f.maint" && mv -f "$f.maint" "$f" || { rm -f "$f.maint"; return 1; }
+	rm -f "$f".new-*
+	update-grub 2>&1 || { notify "GRUB" "update-grub failed, run 'doas update-grub'."; return 1; }
 }
 
 # kernels
@@ -318,6 +345,7 @@ locked() {
 }
 
 run_due() {
+	grub_quiet
 	due home "$DAY" && job home
 	due thumbs "$DAY" && job thumbs
 	due update "$DAY" && job update
