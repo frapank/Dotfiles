@@ -18,7 +18,6 @@ readonly CURSOR_SHA256=7d3495864e5bbef02f5e77de760b2905903b63c71495a78ef6306d19a
 readonly CURSOR_DIR=/usr/share/icons/Bibata-Modern-Classic
 readonly CURSOR_COLORS='0a0a0a e9e9e9 cc6666 e0a86a ffee8f afd7af 8cc8c7 8ab0c6 c59dc8'
 readonly CURSOR_SIZE=20
-readonly RAR_PAGE=https://www.rarlab.com/download.htm
 readonly HMALLOC_URL=https://github.com/GrapheneOS/hardened_malloc.git
 readonly HMALLOC_REV=01df350c62441e163a8b9324fb7e156acdad2c1e
 readonly HMALLOC_LIB=/usr/local/lib/libhardened_malloc-light.so
@@ -961,7 +960,6 @@ plan() {
 	EOF
 	section apps "User apps, Thunar, default apps, shortcuts" <<-EOF
 		Adds the librewolf repo with its signing key pinned, and the Void nonfree repo for unrar.
-		Installs rar (trial) from rarlab.com into /usr/local/bin.
 		Installs ${PKG_APPS[*]}
 		Copies home/{$(join , "${HOME_APPS[@]}")}:
 		  Thunar opens foot with 'Open Terminal Here' and automounts drives.
@@ -2119,25 +2117,8 @@ write_mimeapps() {
 	rm -f -- "$ours" "$new"
 }
 
-do_rar() {
-	local tmp page url
-	if [[ -f /usr/local/bin/rar && ! -L /usr/local/bin/rar ]]; then
-		fix_perm /usr/local/bin/rar 0755
-		skip "/usr/local/bin/rar"
-		return 0
-	fi
-	page=$(curl -fsSL "$RAR_PAGE") || die "cannot fetch $RAR_PAGE"
-	url=$(grep -m 1 -o 'rar/rarlinux-x64-[0-9]*\.tar\.gz' <<<"$page") ||
-		die "no rarlinux-x64 download on $RAR_PAGE"
-	tmp=$(mktemp -d)
-	run "download ${url##*/}" curl -fsSLo "$tmp/rar.tar.gz" "https://www.rarlab.com/$url"
-	run "unpack ${url##*/}" tar -xzf "$tmp/rar.tar.gz" -C "$tmp"
-	put "$tmp/rar/rar" /usr/local/bin/rar 0755
-	rm -rf -- "$tmp"
-}
 do_apps() {
 	step "User apps"
-	do_rar
 	do_home "${HOME_APPS[@]}"
 	write_mimeapps
 	local mime want got

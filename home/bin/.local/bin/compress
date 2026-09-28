@@ -7,12 +7,12 @@ Usage: compress [-p] FILE... ARCHIVE
   or:  compress [-p] -o ARCHIVE FILE...
 Pack FILEs into ARCHIVE; the format comes from the ARCHIVE extension.
 
-  -p          ask for a password (.zip .7z .rar; .gpg and .age always ask)
+  -p          ask for a password (.zip .7z; .gpg and .age always ask)
   -o ARCHIVE  write to ARCHIVE, all operands are FILEs
 
 Formats:
   .tar .tar.gz .tgz .tar.bz2 .tbz2 .tar.xz .txz .tar.zst .tzst .tar.lz .tar.lz4
-  .zip .7z .rar                 archive; -p: zip classic, 7z and rar AES-256
+  .zip .7z                      archive; -p: zip classic, 7z AES-256
   .gz .bz2 .xz .zst .lz .lz4    compress a single file
   .gpg .age                     encrypt a single file
   .tar.gpg .tar.age             encrypt a tar archive
@@ -62,7 +62,6 @@ case $(printf '%s' "${out##*/}" | tr '[:upper:]' '[:lower:]') in
     fmt=tar ;;
 *.zip) fmt=zip ;;
 *.7z)  fmt=7z ;;
-*.rar) fmt=rar ;;
 *.gz)  fmt=gzip ;;
 *.bz2) fmt=bzip2 ;;
 *.xz)  fmt=xz ;;
@@ -77,7 +76,7 @@ esac
 
 case $fmt in
 tar|gzip|bzip2|xz|zstd|lzip|lz4)
-    [ -z "$p" ] || die "-p: Not supported by '$out', use .zip .7z .rar .gpg or .age" ;;
+    [ -z "$p" ] || die "-p: Not supported by '$out', use .zip .7z .gpg or .age" ;;
 esac
 for f; do [ -e "$f" ] || [ -L "$f" ] || die "$f: No such file or directory"; done
 case $fmt in
@@ -99,7 +98,6 @@ EOF
 tar.age) tar -cf - -- "$@" | age -p -o "$out" ;;
 zip)     zip -rq ${p:+-e} "$out" -- "$@" ;;
 7z)      7z a -bso0 -bsp0 ${p:+-p"$pw" -mhe=on} -- "$out" "$@" ;;
-rar)     rar a -r -idq ${p:+-hp} -- "$out" "$@" ;;
 gpg)     gpg -c -o "$out" -- "$1" 3<<EOF
 $pw
 EOF
