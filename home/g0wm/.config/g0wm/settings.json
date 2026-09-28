@@ -1,7 +1,7 @@
 {
 	"look": {
 		"fonts": [
-			"SF Mono:size=11.5"
+			"Geist Mono:size=11.5"
 		],
 		"colors": {
 			"norm": {
@@ -117,7 +117,7 @@
 		"traymenucmd": [
 			"wmenu",
 			"-f",
-			"SF Mono 10",
+			"Geist Mono 10",
 			"-N",
 			"000000ff",
 			"-n",

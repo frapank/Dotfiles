@@ -142,12 +142,13 @@ plan() {
 		Bluetooth is off at every boot: 'bluetooth on' or 'bluetooth off'.
 	EOF
 	section theme "Theme: Adwaita dark" <<-EOF
-		GTK 2, 3, 4 and Qt 5, 6 in Adwaita dark, SF Mono 10 as UI font.
+		GTK 2, 3, 4 and Qt 5, 6 in Adwaita dark, Geist 10 as UI font, Geist Mono 10 for code.
 		Bibata-Modern-Classic cursor (sha256 checked) in the palette, size $CURSOR_SIZE.
 		AdwaitaLegacy $ICONS_TAG for full color icons in pavucontrol and Thunar.
 	EOF
-	section fonts "Fonts: SF Mono everywhere" <<-EOF
-		SF Mono (default) and SF Pro from fixed commits, Nerd symbols, emoji and CJK as fallback.
+	section fonts "Fonts: Geist and Geist Mono" <<-EOF
+		Geist for text, Geist Mono for terminal, code and g0wm, from the v1.7.2 release (sha256 checked). Nerd symbols, emoji and CJK as fallback.
+		Removes SF Mono and SF Pro from /usr/local/share/fonts.
 		Removes the full Nerd Fonts (about 8 GB).
 	EOF
 	section doas "doas instead of sudo" <<-EOF
