@@ -15,6 +15,10 @@ readonly CURSOR_SHA256=7d3495864e5bbef02f5e77de760b2905903b63c71495a78ef6306d19a
 readonly CURSOR_DIR=/usr/share/icons/Bibata-Modern-Classic
 readonly CURSOR_COLORS='0a0a0a e9e9e9 cc6666 e0a86a ffee8f afd7af 8cc8c7 8ab0c6 c59dc8'
 readonly CURSOR_SIZE=20
+readonly GRUB_THEME_URL=https://github.com/tomdewildt/minimal-grub-theme.git
+readonly GRUB_THEME_REV=1f3fe66561f5e1f88e1467e0eb189117fd09e79c
+readonly GRUB_THEME_DIR=/boot/grub/themes/minimal
+readonly GRUB_QUIET_MARK='# void-postinstall: no Loading messages'
 readonly HMALLOC_URL=https://github.com/GrapheneOS/hardened_malloc.git
 readonly HMALLOC_REV=01df350c62441e163a8b9324fb7e156acdad2c1e
 readonly HMALLOC_LIB=/usr/local/lib/libhardened_malloc-light.so
@@ -236,5 +240,5 @@ SFPRO_DIR=/usr/local/share/fonts/SF-Pro
 
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
-HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0
+HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0 GRUB_STALE=0
 declare -A SEL=() BACKED=()

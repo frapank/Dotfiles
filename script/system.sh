@@ -285,6 +285,9 @@ verify() {
 		[[ -f /etc/modprobe.d/30-harden.conf ]] || { warn "modprobe blocklist missing"; bad=1; }
 		modprobe -n -v hfs 2>/dev/null | grep -q false || { warn "modprobe does not block hfs"; bad=1; }
 	fi
+	if ((SEL[boot])) && [[ -f /etc/default/grub && -f /boot/grub/grub.cfg ]] && grub_gfx; then
+		grep -qE '^[[:space:]]*set theme=.*/themes/minimal/theme\.txt' /boot/grub/grub.cfg || { warn "grub.cfg does not load the minimal theme"; bad=1; }
+	fi
 	if ((SEL[apparmor])); then
 		[[ -f /etc/runit/core-services/09-apparmor.sh ]] || { warn "AppArmor boot script missing"; bad=1; }
 		for c in librewolf foot dnscrypt-proxy abstractions/dotfiles/app; do

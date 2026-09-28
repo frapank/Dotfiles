@@ -28,10 +28,11 @@ grub_words() {
 	else
 		skip "GRUB has $*"
 	fi
-	if ((stale)); then
+	if ((stale || GRUB_STALE)); then
 		[[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
 		run "update-grub" update-grub
 		grub_check
+		GRUB_STALE=0
 	fi
 }
 
@@ -49,6 +50,106 @@ grub_check() {
 	((n > 0)) || die "grub.cfg has no entry with $root, the system booted with"
 	((bad == 0)) || die "grub.cfg lost boot arguments the system booted with"
 	ok "grub.cfg: $n entries keep $(tr '\n' ' ' <<<"$need")"
+}
+
+grub_set() {
+	local k=$1 v=$2 n
+	grep -qxF -- "$k=\"$v\"" /etc/default/grub && return 0
+	n=$(grep -c "^$k=" /etc/default/grub || true)
+	((n <= 1)) || die "$n $k= lines in /etc/default/grub, keep one"
+	backup /etc/default/grub
+	if ((n)); then
+		sed -i "s|^$k=.*|$k=\"$v\"|" /etc/default/grub
+	else
+		[[ -z $(tail -c1 /etc/default/grub) ]] || echo >>/etc/default/grub
+		printf '%s="%s"\n' "$k" "$v" >>/etc/default/grub
+	fi
+	grep -qxF -- "$k=\"$v\"" /etc/default/grub || die "could not set $k in /etc/default/grub"
+	ok "GRUB: $k=\"$v\""
+	GRUB_STALE=1
+}
+
+grub_gfx() {
+	local out
+	out=$(sed -nE 's/^GRUB_TERMINAL=//p; s/^GRUB_TERMINAL_OUTPUT=//p' /etc/default/grub | tail -n1 | tr -d "\"'")
+	[[ -z $out || $out == *gfxterm* ]]
+}
+
+grub_theme() {
+	local tmp stage perm clean=0 dir=$GRUB_THEME_DIR mark=$STATE/grub-theme
+	if [[ ! -f /etc/default/grub || ! -d /boot/grub ]] || ! command -v update-grub >/dev/null; then
+		warn "no GRUB here, theme not installed"
+		return 0
+	fi
+	# on a vfat /boot the mount options set the modes and chmod fails
+	perm=(-perm /022)
+	[[ $(stat -f -c %T /boot/grub) != msdos ]] || perm=(-false)
+	[[ -d $dir && ! -L $dir && -z $(find "$dir" \( -type l -o ! -user root -o "${perm[@]}" \) -print -quit) ]] && clean=1
+	if ((clean)) && [[ -f $dir/theme.txt && $(cat -- "$mark" 2>/dev/null) == "$GRUB_THEME_REV" ]]; then
+		skip "$dir"
+	else
+		tmp=$(mktemp -d)
+		git_at "$tmp/src" "$GRUB_THEME_URL" "$GRUB_THEME_REV"
+		[[ -f $tmp/src/minimal/theme.txt && -f $tmp/src/minimal/icons/void.png ]] ||
+			die "unexpected layout in $GRUB_THEME_URL"
+		find "$tmp/src/minimal" -type d -exec chmod 0755 {} +
+		find "$tmp/src/minimal" -type f -exec chmod 0644 {} +
+		if [[ ! -d ${dir%/*} ]]; then
+			mkdir -- "${dir%/*}"
+			jot rmdir "${dir%/*}"
+		fi
+		stage=$(mktemp -d -p "${dir%/*}" ".${dir##*/}.XXXXXX")
+		if ! cp -r -- "$tmp/src/minimal/." "$stage/"; then
+			rm -rf -- "$stage" "$tmp"
+			die "cannot copy the GRUB theme to ${dir%/*} (full?)"
+		fi
+		rm -rf -- "$tmp"
+		[[ ${perm[0]} == -false ]] || chmod 0755 -- "$stage"
+		if ((clean)) && diff -rq --no-dereference "$stage" "$dir" >/dev/null; then
+			rm -rf -- "$stage"
+			skip "$dir"
+		else
+			backup "$dir"
+			rm -rf -- "$dir"
+			mv -T -- "$stage" "$dir"
+			ok "$dir (${GRUB_THEME_REV:0:12})"
+		fi
+		put_text "$mark" 0644 <<<"$GRUB_THEME_REV"
+	fi
+	grub_set GRUB_THEME "$dir/theme.txt"
+	if ! grub_gfx; then
+		warn "GRUB_TERMINAL_OUTPUT in /etc/default/grub is not gfxterm, the GRUB theme stays hidden"
+	elif ! grep -qE '^[[:space:]]*set theme=' /boot/grub/grub.cfg 2>/dev/null; then
+		GRUB_STALE=1
+	fi
+}
+
+grub_quiet() {
+	local f=/etc/grub.d/10_linux src n tmp
+	[[ -f $f ]] || { warn "no $f, GRUB keeps its Loading messages"; return 0; }
+	src=$(printf '%s\n' "$f".new-* | sort -V | tail -n1)
+	[[ -f $src ]] || src=$f
+	tmp=$(mktemp -p "$BAK")
+	sed -E -e '/^[[:space:]]*echo[[:space:]].*"\$message" \| grub_quote/d' \
+		-e "/^$GRUB_QUIET_MARK\$/d" -e "1a $GRUB_QUIET_MARK" -- "$src" >"$tmp"
+	if grep -qE '^[[:space:]]*echo[[:space:]].*\$message' "$tmp" || ! grep -q '^[[:space:]]linux' "$tmp"; then
+		warn "$src has a new layout, GRUB keeps its Loading messages"
+		cp -- "$src" "$tmp"
+	fi
+	run "10_linux parses" sh -n "$tmp"
+	n=$(njot)
+	put "$tmp" "$f" 0755
+	rm -f -- "$tmp"
+	for src in "$f".new-*; do
+		[[ -f $src ]] || continue
+		backup "$src"
+		rm -f -- "$src"
+	done
+	((n == $(njot))) || GRUB_STALE=1
+	if grep -qx "$GRUB_QUIET_MARK" "$f" && grep -q '^[[:space:]]*echo.*Loading' /boot/grub/grub.cfg 2>/dev/null; then
+		GRUB_STALE=1
+	fi
+	return 0
 }
 
 do_boot() {
@@ -72,6 +173,8 @@ do_boot() {
 	[[ $(plymouth-set-default-theme) == void-minimal ]] || die "plymouth does not pick void-minimal"
 	ok "plymouth theme void-minimal"
 
+	grub_theme
+	grub_quiet
 	grub_words quiet splash
 
 	if ((REGEN)); then
