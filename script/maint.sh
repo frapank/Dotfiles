@@ -34,9 +34,12 @@ do_logs() {
 
 do_maint() {
 	step "Maintenance"
+	local conf=etc/dracut.conf.d/40-snapshots.conf
+	cmp -s -- "$REPO/root/maint/$conf" "/$conf" || REGEN=1
 	sv_refresh maint put_tree maint
 	run "maint parses" sh -n /usr/local/sbin/maint
 	run "thumbs-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/thumbs-clean
+	grub_snaps
 }
 
 do_nosnap() {

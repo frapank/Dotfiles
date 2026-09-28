@@ -107,8 +107,11 @@ plan() {
 		  Downloads, ~/Private, ~/.cache and the librewolf profile are left out: what you delete there is gone.
 		Daily: system update while you are logged in, with battery over 20% and 10% free on /.
 		  Downloads first, snapshots / (last 3 kept), then installs. Sleep and shutdown wait for it. Notifies every stage.
+		  The snapshots of / are in the GRUB menu (grub-btrfs, 'Snapshots before updates'), the daily ones of /home are not.
+		  A snapshot boots with a throwaway overlay in RAM (dracut overlayfs): changes are lost, /home is the live one.
+		  Pick its kernel in the menu: /boot is not in the snapshot, the kernels it was taken with are kept while it exists.
 		Daily: deletes thumbnails of deleted files, updates the DNS blocklist.
-		Weekly: old kernels (never the running one), orphans, package cache. Packages installed here are never orphans.
+		Weekly: old kernels (never the running one or one of a snapshot of /), orphans, package cache. Packages installed here are never orphans.
 		Monthly: btrfs scrub, on AC power only.
 		'doas maint status', 'doas maint home|update', 'svlogtail cron'.
 	EOF
@@ -160,6 +163,8 @@ plan() {
 		[[ $(stat -f -c %T /) == btrfs ]] || die "maint: / is not btrfs"
 		[[ $(stat -f -c %T /home) == btrfs && $(stat -c %i /home) == 256 ]] ||
 			die "maint: /home is not a btrfs subvolume, it cannot be snapshotted"
+		compgen -G '/usr/lib/dracut/modules.d/[0-9]*overlayfs/module-setup.sh' >/dev/null ||
+			die "maint: dracut has no overlayfs module, snapshots of / could not boot"
 	fi
 	if ((SEL[doas])); then
 		local st
