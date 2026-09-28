@@ -1,0 +1,5 @@
+s2000000
+n10
+!syslog-stripdate
+-*
++daemon.*

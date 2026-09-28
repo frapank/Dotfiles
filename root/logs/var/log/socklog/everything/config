@@ -1,0 +1,5 @@
+s4000000
+n15
+!syslog-stripdate
+-auth.*
+-authpriv.*

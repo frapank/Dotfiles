@@ -6,7 +6,7 @@
 [ "$1" = pgrp ] || exec chpst -P "$0" pgrp
 exec 2>&1
 
-log=/var/log/socklog/kernel/current
+logdir=/var/log/socklog/kernel
 st=/run/watchdog
 rm -rf "$st"
 mkdir -p "$st"
@@ -26,7 +26,7 @@ notify() {
 	if [ -z "$3" ]; then
 		as_user notify-send -a "$1" "$2"
 	elif [ "$(as_user notify-send -a "$1" -A default=Open "$2")" = default ]; then
-		as_user foot sh -c 'grep -F -B5 -A20 -- "$1" "$2" | less' _ "$3" "$log"
+		as_user foot sh -c 'cat "$2"/@* "$2"/current 2>/dev/null | grep -F -B5 -A20 -- "$1" | less' _ "$3" "$logdir"
 	fi
 }
 
@@ -179,8 +179,15 @@ webcam() {
 	fi
 }
 
+pstore() {
+	[ -e /run/pstore-new ] || return 0
+	notify Kernel "crashed during the last boot: 'logs panics' shows why" || return 0
+	rm -f /run/pstore-new
+}
+
 poll() {
 	while :; do
+		pstore
 		services
 		batteries
 		disks
