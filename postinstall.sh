@@ -409,6 +409,18 @@ rollback() {
 		svr) sv restart "$a" ;;
 		initramfs) cp -a -- "$BAK/boot/." /boot/ ;;
 		aaload) aa-remove-unknown && apparmor_parser -r -- /etc/apparmor.d ;;
+		subvol-rm) [[ ! -e $a ]] || btrfs subvolume delete -- "$a" ;;
+		subvol-swap)
+			[[ -e $b ]] || continue
+			[[ ! -e $a ]] || btrfs subvolume delete -- "$a"
+			mv -T -- "$b" "$a"
+			;;
+		unsubvol)
+			install -d -m 0700 -- "$a.pi-dir" &&
+				cp -a --reflink=always -- "$a/." "$a.pi-dir/" &&
+				chown --reference="$a" -- "$a.pi-dir" && chmod --reference="$a" -- "$a.pi-dir" &&
+				btrfs subvolume delete -- "$a" && mv -T -- "$a.pi-dir" "$a"
+			;;
 		hrestore) as_user rm -rf -- "$a" && as_user cp -a -- "$UBAK$a" "$a" ;;
 		hremove) as_user rm -rf -- "$a" ;;
 		hmove) as_user rm -rf -- "$a" && as_user mv -- "$UBAK$a" "$a" ;;
@@ -877,6 +889,9 @@ plan() {
 		It runs /usr/local/sbin/maint every hour and catches up on missed jobs.
 		Daily: read-only snapshot of /home in /home/.snapshots, keeps the last 14
 		  (3 when under 10% free). Same disk, so it is not a backup.
+		  The download folder and ~/Private become their own subvolumes, which the
+		  snapshots skip: what you delete there is gone, not kept for 14 days.
+		  Files already in older snapshots stay there until those expire.
 		Daily: DNS blocklist update, if net is selected.
 		Weekly: removes old kernels with vkpurge, never the running one, and checks
 		  every kernel has its initramfs.
@@ -919,7 +934,8 @@ plan() {
 		  Text files open in nvim inside foot.
 		  fastfetch with the Void logo in the dwl colors.
 		  ~/.local/bin: photo video pdf office browser files audio wifi bluetooth
-		  screenshot record nightlight extract compress open metadata-remover.
+		  screenshot record nightlight extract compress open metadata-remover
+		  privacy-check (checks MAC, DNS, lockdown, AppArmor, camera and more).
 		  Thunar 'Remove Metadata' and 'Show Metadata' run metadata-remover, which strips
 		  camera, GPS, author and software data from images, audio, video, documents
 		  and archives, in a sandbox without network.
@@ -1569,6 +1585,55 @@ do_maint() {
 	step "Maintenance"
 	sv_refresh maint put_tree maint
 	run "maint parses" sh -n /usr/local/sbin/maint
+}
+
+do_nosnap() {
+	step "Folders kept out of the snapshots"
+	local dl
+	dl=$(as_user xdg-user-dir DOWNLOAD 2>/dev/null) || dl=
+	if [[ $dl == "$THOME"/?* ]]; then
+		nosnap "$dl"
+	else
+		warn "no download folder in user-dirs.dirs, only ~/Private is kept out"
+	fi
+	nosnap "$THOME/Private"
+}
+
+nosnap() {
+	local d=$1 new=$1.pi-subvol old=$1.pi-old mode=0700 t=${1/#$THOME/\~}
+	if [[ -d $d && ! -L $d && $(stat -c %i -- "$d") == 256 ]]; then
+		skip "$t is a subvolume, not in the snapshots"
+		return 0
+	fi
+	[[ ! -L $d ]] || die "$d is a symlink, refusing"
+	[[ ! -e $d || -d $d ]] || die "$d exists and is not a directory"
+	if [[ $REPO/ == "$d"/* ]]; then
+		warn "$t holds this repo, left in the snapshots"
+		return 0
+	fi
+	[[ $(stat -f -c %T -- "${d%/*}") == btrfs ]] || { warn "$t is not on btrfs, left alone"; return 0; }
+	if [[ -d $d && $(findmnt -no TARGET -T "$d") == "$d" ]]; then
+		warn "$t is a mount point, left alone"
+		return 0
+	fi
+	[[ ! -e $new && ! -e $old ]] || die "$new or $old exists, move it away"
+	[[ -d $d ]] && mode=$(stat -c %a -- "$d")
+	jot subvol-rm "$new"
+	run "create the subvolume for $t" btrfs subvolume create -- "$new"
+	chown -- "$TUSER:$TGID" "$new"
+	chmod -- "$mode" "$new"
+	if [[ -d $d ]]; then
+		run "copy $t into it (reflinks, no extra space)" cp -a --reflink=always -- "$d/." "$new/"
+		jot subvol-swap "$d" "$old"
+		mv -T -- "$d" "$old"
+		mv -T -- "$new" "$d"
+		jot unsubvol "$d"
+		rm -rf -- "$old"
+	else
+		mv -T -- "$new" "$d"
+		jot subvol-rm "$d"
+	fi
+	ok "$t is a subvolume, kept out of the snapshots"
 }
 
 do_post() {
@@ -2270,6 +2335,7 @@ verify() {
 	if ((SEL[maint])); then
 		[[ -L $SVDIR/maint ]] || { warn "maint not enabled"; bad=1; }
 		[[ $(stat -c '%a %U' /usr/local/sbin/maint) == '755 root' ]] || { warn "/usr/local/sbin/maint permissions"; bad=1; }
+		[[ $(stat -c %i "$THOME/Private" 2>/dev/null) == 256 ]] || { warn "~/Private is not a subvolume"; bad=1; }
 	fi
 	if ((SEL[logs])); then
 		[[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || { warn "socklog not enabled"; bad=1; }
@@ -2350,6 +2416,7 @@ main() {
 	((SEL[swap])) && do_swap
 	((SEL[maint])) && do_maint
 	((SEL[dirs])) && do_dirs
+	((SEL[maint])) && do_nosnap
 	((SEL[cli])) && do_home_cli
 	((SEL[desktop])) && do_g0wm
 	((SEL[media])) && do_media
