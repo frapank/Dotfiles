@@ -88,7 +88,7 @@ PKG_POWER=(power-profiles-daemon)
 PKG_LOGS=(socklog-void pulseaudio-utils)
 PKG_DIRS=(xdg-user-dirs)
 PKG_SWAP=(zramen)
-PKG_MAINT=(btrfs-progs util-linux)
+PKG_MAINT=(btrfs-progs util-linux python3)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
 HOME_CLI=(bash ctags nvim vim tmux ripgrep)
 HOME_DESKTOP=(foot g0wm gtklock)
@@ -784,6 +784,8 @@ plan() {
 		  Thunderbolt devices. Lockdown and signed modules only: even root cannot
 		  change the running kernel (no unsigned modules, /dev/mem, kexec or
 		  hibernation). The recovery entry boots without them. Active after reboot.
+		Machine ID: /etc/runit/core-services/06-machine-id.sh makes a new one at every
+		  boot, so apps cannot use it to recognize this machine over time.
 		fstab: /boot readable by root only. /tmp becomes a nosuid,nodev tmpfs
 		  unless it is a real partition.
 	EOF
@@ -889,9 +891,13 @@ plan() {
 		It runs /usr/local/sbin/maint every hour and catches up on missed jobs.
 		Daily: read-only snapshot of /home in /home/.snapshots, keeps the last 14
 		  (3 when under 10% free). Same disk, so it is not a backup.
-		  The download folder and ~/Private become their own subvolumes, which the
-		  snapshots skip: what you delete there is gone, not kept for 14 days.
-		  Files already in older snapshots stay there until those expire.
+		  The download folder, ~/Private, ~/.cache and the librewolf profile become
+		  their own subvolumes, which the snapshots skip: what you delete there is
+		  gone, not kept for 14 days. The librewolf profile is moved only while
+		  librewolf is closed. Files already in older snapshots stay there until
+		  those expire.
+		Daily: deletes thumbnails in ~/.cache/thumbnails of files that no longer
+		  exist, so a deleted photo does not leave its thumbnail behind.
 		Daily: DNS blocklist update, if net is selected.
 		Weekly: removes old kernels with vkpurge, never the running one, and checks
 		  every kernel has its initramfs.
@@ -1134,6 +1140,8 @@ do_harden() {
 	ssh_dir
 
 	put_tree modprobe
+	put_tree machineid
+	run "machine ID script parses" sh -n /etc/runit/core-services/06-machine-id.sh
 	grub_words "${HARDEN_CMDLINE[@]}"
 	boot_mask
 	tmp_mount
@@ -1585,6 +1593,7 @@ do_maint() {
 	step "Maintenance"
 	sv_refresh maint put_tree maint
 	run "maint parses" sh -n /usr/local/sbin/maint
+	run "thumbs-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/thumbs-clean
 }
 
 do_nosnap() {
@@ -1594,9 +1603,11 @@ do_nosnap() {
 	if [[ $dl == "$THOME"/?* ]]; then
 		nosnap "$dl"
 	else
-		warn "no download folder in user-dirs.dirs, only ~/Private is kept out"
+		warn "no download folder in user-dirs.dirs, it stays in the snapshots"
 	fi
 	nosnap "$THOME/Private"
+	nosnap "$THOME/.cache"
+	nosnap "$THOME/.config/librewolf" librewolf
 }
 
 nosnap() {
@@ -1607,10 +1618,15 @@ nosnap() {
 	fi
 	[[ ! -L $d ]] || die "$d is a symlink, refusing"
 	[[ ! -e $d || -d $d ]] || die "$d exists and is not a directory"
+	if [[ -n ${2:-} ]] && pgrep -u "$TUSER" -x "$2" >/dev/null; then
+		warn "$2 is running, close it and run this again to keep $t out of the snapshots"
+		return 0
+	fi
 	if [[ $REPO/ == "$d"/* ]]; then
 		warn "$t holds this repo, left in the snapshots"
 		return 0
 	fi
+	umkdir "${d%/*}"
 	[[ $(stat -f -c %T -- "${d%/*}") == btrfs ]] || { warn "$t is not on btrfs, left alone"; return 0; }
 	if [[ -d $d && $(findmnt -no TARGET -T "$d") == "$d" ]]; then
 		warn "$t is a mount point, left alone"
@@ -2336,6 +2352,8 @@ verify() {
 		[[ -L $SVDIR/maint ]] || { warn "maint not enabled"; bad=1; }
 		[[ $(stat -c '%a %U' /usr/local/sbin/maint) == '755 root' ]] || { warn "/usr/local/sbin/maint permissions"; bad=1; }
 		[[ $(stat -c %i "$THOME/Private" 2>/dev/null) == 256 ]] || { warn "~/Private is not a subvolume"; bad=1; }
+		[[ $(stat -c %i "$THOME/.cache" 2>/dev/null) == 256 ]] || { warn "~/.cache is not a subvolume"; bad=1; }
+		[[ $(stat -c '%a %U' /usr/local/libexec/thumbs-clean) == '755 root' ]] || { warn "/usr/local/libexec/thumbs-clean permissions"; bad=1; }
 	fi
 	if ((SEL[logs])); then
 		[[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || { warn "socklog not enabled"; bad=1; }

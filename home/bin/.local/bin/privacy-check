@@ -257,7 +257,8 @@ if [ -d /home/.snapshots ]; then
     info "/home is snapshotted daily: deleted files stay in the snapshots until they expire"
     dl=$(xdg-user-dir DOWNLOAD 2>/dev/null)
     [ "$dl" != "$HOME" ] || dl=
-    for d in $dl "$HOME/Private"; do
+    for d in "$dl" "$HOME/Private" "$HOME/.cache" "$HOME/.config/librewolf"; do
+        [ -n "$d" ] || continue
         t=\~${d#"$HOME"}
         if [ ! -d "$d" ]; then
             info "$t does not exist"
@@ -267,6 +268,18 @@ if [ -d /home/.snapshots ]; then
             warn "$t is in the snapshots: deleted files there stay for 14 days"
         fi
     done
+fi
+
+section System
+id=/var/lib/dbus/machine-id
+if [ -r /etc/runit/core-services/06-machine-id.sh ]; then
+    if [ "$(stat -c %Y "$id" 2>/dev/null || echo 0)" -ge "$(($(date +%s) - $(cut -d. -f1 /proc/uptime)))" ]; then
+        ok "machine ID new since this boot"
+    else
+        warn "machine ID not regenerated at this boot"
+    fi
+else
+    info "machine ID fixed: apps can use it to recognize this machine"
 fi
 
 section Devices
