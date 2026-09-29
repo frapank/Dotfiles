@@ -30,10 +30,29 @@ _setup_prompt() {
         local h=''
         [[ -n $SSH_CONNECTION ]] && h='\h '
 
-        PS1="$h$p \W: "
+        PS1="$__mark$h$p \W: "
     }
 
     PROMPT_COMMAND='__set_bash_prompt; history -a'
+    __mark=
+
+    # tell foot the folder and where prompts and outputs start
+    [[ $TERM == foot* ]] || return 0
+    __osc7() {
+        local LC_ALL=C i c out=
+        for ((i = 0; i < ${#PWD}; i++)); do
+            c=${PWD:i:1}
+            case $c in
+            [-/:_.!\'\(\)~[:alnum:]]) out+=$c ;;
+            *) printf -v c '%%%02X' "'$c"; out+=$c ;;
+            esac
+        done
+        # shellcheck disable=SC1003
+        printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "$out"
+    }
+    __mark='\[\e]133;A\e\\\]'
+    PS0=$'\e]133;C\e\\'
+    PROMPT_COMMAND='__set_bash_prompt; printf "\e]133;D\e\\\\"; __osc7; history -a'
 }
 
 _setup_env() {
