@@ -1,0 +1,4 @@
+  abi <abi/4.0>,
+
+  # only pipewire and wireplumber use the manager socket
+  audit deny @{run}/user/@{uid}/pipewire-0-manager rw,
