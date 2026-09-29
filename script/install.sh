@@ -3,6 +3,8 @@
 set -Eeuo pipefail
 umask 022
 export LC_ALL=C
+# run from /: children (dracut via zgrep, kernel hooks) are confined and cannot enter the user's 0700 home
+[[ $PWD == / ]] || exec env -C / -u PWD "$(readlink -f -- "$0")" "$@"
 
 # root sources the files next to this one: refuse them if someone else can change them
 HERE=$(dirname -- "$(readlink -f -- "$0")")
