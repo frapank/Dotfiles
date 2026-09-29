@@ -110,7 +110,7 @@ plan() {
 		  The snapshots of / are in the GRUB menu (grub-btrfs, 'Snapshots before updates'), the daily ones of /home are not.
 		  A snapshot boots with a throwaway overlay in RAM (dracut overlayfs): changes are lost, /home is the live one.
 		  Pick its kernel in the menu: /boot is not in the snapshot, the kernels it was taken with are kept while it exists.
-		Daily: deletes thumbnails of deleted files, updates the DNS blocklist.
+		Daily: deletes thumbnails of deleted files and what has been in the trash for 30 days, updates the DNS blocklist.
 		Weekly: old kernels (never the running one or one of a snapshot of /), orphans, package cache. Packages installed here are never orphans.
 		Monthly: btrfs scrub, on AC power only.
 		'doas maint status', 'doas maint home|update', 'svlogtail cron'.

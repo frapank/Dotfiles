@@ -39,6 +39,7 @@ do_maint() {
 	sv_refresh maint put_tree maint
 	run "maint parses" sh -n /usr/local/sbin/maint
 	run "thumbs-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/thumbs-clean
+	run "trash-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/trash-clean
 	grub_snaps
 }
 
