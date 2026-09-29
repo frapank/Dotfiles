@@ -1,0 +1,163 @@
+#!/bin/sh
+set -uf
+usage() {
+    cat <<EOF
+Usage: traces [-c] [-s] [WHAT]...
+Show the traces of what you did that stay on this machine: recent files,
+histories, thumbnails, trash and clipboard. With -c, delete them.
+
+  -c  delete the traces of each WHAT (default: all of them)
+  -s  with -c, also delete them from the snapshots of /home (asks for doas)
+
+WHAT:
+  recent      recently used files, positions in documents, videos watched,
+              LibreOffice recent documents
+  history     shell, vim, neovim, less, python, node, sqlite, w3m, and the
+              sites wget remembers (HSTS)
+  thumbnails  previews of images and documents
+  trash       everything in the trash
+  clipboard   the clipboard and the primary selection
+EOF
+}
+
+die() { echo "traces: $*" >&2; exit 1; }
+try() { echo "Try 'traces --help' for more information." >&2; exit 2; }
+
+ALL='recent history thumbnails trash clipboard'
+LO=$HOME/.config/libreoffice/4/user/registrymodifications.xcu
+
+paths() {
+    case $1 in
+    recent) set -- .local/share/recently-used.xbel .local/share/gvfs-metadata \
+        .local/state/showtime/playback_history.json ;;
+    history) set -- .bash_history .lesshst .local/state/lesshst .viminfo \
+        .local/state/nvim/shada .python_history .node_repl_history .sqlite_history \
+        .w3m/history .wget-hsts ;;
+    thumbnails) set -- .cache/thumbnails ;;
+    trash) set -- .local/share/Trash ;;
+    *) set -- ;;
+    esac
+    for p; do printf '%s\n' "$HOME/$p"; done
+}
+
+# a history symlinked to /dev/null is left alone
+present() { [ -e "$1" ] && [ ! -L "$1" ]; }
+
+picklist() { [ -f "$LO" ] && [ ! -L "$LO" ] && grep -c "HistoryInfo\['PickList'\]/ItemList" "$LO"; }
+
+show() {
+    printf '%s\n' "$1"
+    n=0
+    for p in $(paths "$1"); do
+        present "$p" || continue
+        printf '  %6s  ~%s\n' "$(du -sh -- "$p" 2>/dev/null | cut -f1)" "${p#"$HOME"}"
+        n=$((n + 1))
+    done
+    if [ "$1" = recent ] && c=$(picklist) && [ "$c" -gt 0 ]; then
+        printf '  %6s  LibreOffice recent documents\n' "$c"
+        n=$((n + 1))
+    fi
+    if [ "$1" = clipboard ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
+        for sel in '' --primary; do
+            # shellcheck disable=SC2086 # empty selection flag
+            [ -n "$(wl-paste $sel --list-types 2>/dev/null)" ] || continue
+            if [ -n "$sel" ]; then name='primary selection'; else name=clipboard; fi
+            printf '  %6s  %s\n' full "$name"
+            n=$((n + 1))
+        done
+    fi
+    [ "$n" -gt 0 ] || echo '          nothing'
+}
+
+clean() {
+    for p in $(paths "$1"); do
+        present "$p" || continue
+        # read-only folders (unpacked archives in the trash) block rm
+        [ -d "$p" ] && chmod -R u+rwX -- "$p" 2>/dev/null
+        if rm -rf -- "$p"; then
+            echo "removed '~${p#"$HOME"}'"
+            # ~/.cache is kept out of the snapshots
+            case $p in "$HOME"/.cache/*) ;; *) printf '%s\n' "$p" >>"$forget" ;; esac
+        else
+            bad=1
+        fi
+    done
+    case $1 in
+    recent)
+        # the metadata daemon keeps the old data in memory and writes it back
+        pkill -u "$(id -u)" -x gvfsd-metadata 2>/dev/null
+        if c=$(picklist) && [ "$c" -gt 0 ]; then
+            if pgrep -u "$(id -u)" -x soffice.bin >/dev/null; then
+                echo "traces: LibreOffice is open: close it and run this again for its recent documents" >&2
+                bad=1
+            elif sed -i "/HistoryInfo\['PickList'\]/d" "$LO"; then
+                echo "removed $c LibreOffice recent documents"
+                printf '%s\n' "$LO" >>"$forget"
+            else
+                bad=1
+            fi
+        fi
+        ;;
+    history)
+        if pgrep -u "$(id -u)" -x 'bash|vim|nvim' >/dev/null; then
+            echo "traces: open shells and editors write their history back when they close:" \
+                "run 'history -c' in each shell, close the editors" >&2
+        fi
+        ;;
+    clipboard)
+        if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+            wl-copy --clear && wl-copy --primary --clear && echo "cleared the clipboard" || bad=1
+        fi
+        ;;
+    esac
+}
+
+case ${1:-} in help|--help) usage; exit 0 ;; esac
+for a; do
+    case $a in
+    --) break ;;
+    --*) echo "traces: unrecognized option '$a'" >&2; try ;;
+    -*) ;;
+    *) break ;;
+    esac
+done
+
+c=0 s=0
+while getopts :csh o; do
+    case $o in
+    \?) echo "traces: invalid option -- '$OPTARG'" >&2; try ;;
+    c) c=1 ;;
+    s) s=1 ;;
+    h) usage; exit 0 ;;
+    *) try ;;
+    esac
+done
+shift $((OPTIND - 1))
+[ "$s" = 0 ] || [ "$c" = 1 ] || { echo "traces: -s works only with -c" >&2; try; }
+for w; do
+    case " $ALL " in *" $w "*) ;; *) echo "traces: '$w': unknown, see 'traces --help'" >&2; exit 2 ;; esac
+done
+# shellcheck disable=SC2086 # word list
+[ $# -gt 0 ] || set -- $ALL
+
+bad=0
+if [ "$c" = 0 ]; then
+    first=1
+    for w; do
+        [ "$first" = 1 ] || echo
+        first=0
+        show "$w"
+    done
+    exit 0
+fi
+
+forget=$(mktemp) || die "cannot create a temporary file"
+trap 'rm -f -- "$forget"' EXIT
+for w; do clean "$w"; done
+if [ "$s" = 1 ] && [ -s "$forget" ]; then
+    command -v forget >/dev/null || die "forget is not installed: the snapshots still hold the old copies"
+    tr '\n' '\0' <"$forget" | xargs -0 forget -- || bad=1
+elif [ -s "$forget" ] && [ -d /home/.snapshots ]; then
+    echo "traces: the snapshots of /home still hold the old copies: 'traces -cs' deletes them too" >&2
+fi
+exit "$bad"

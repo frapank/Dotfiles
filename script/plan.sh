@@ -114,6 +114,8 @@ plan() {
 		Weekly: old kernels (never the running one or one of a snapshot of /), orphans, package cache. Packages installed here are never orphans.
 		Weekly: checks for firmware updates (fwupd) and notifies, installing is 'doas fwupdmgr update'.
 		Monthly: btrfs scrub, on AC power only.
+		'snap FILE' lists the versions of a file in the snapshots of /home, 'snap -r DATE FILE' copies one back.
+		'forget FILE' deletes a file from all the snapshots of /home, 'traces -cs' does it for histories and recent files.
 		'doas maint status', 'doas maint home|update', 'svlogtail cron'.
 	EOF
 	section dirs "Home folders" <<-EOF
