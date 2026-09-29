@@ -51,7 +51,7 @@ PKG_DESKTOP=(
 	dbus elogind polkit mesa-dri xorg-server-xwayland pipewire wireplumber
 	xdg-utils xdg-user-dirs fontconfig
 	# apps
-	foot Thunar grim slurp swappy swayidle gtklock wmenu
+	foot Thunar grim slurp swappy swayidle gtklock
 	brightnessctl playerctl dejavu-fonts-ttf adwaita-icon-theme
 )
 PKG_MEDIA=(pipewire wireplumber alsa-pipewire xdg-desktop-portal
