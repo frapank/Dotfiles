@@ -6,7 +6,6 @@
 [ "$1" = pgrp ] || exec chpst -P "$0" pgrp
 exec 2>&1
 
-logdir=/var/log/socklog/kernel
 st=/run/watchdog
 rm -rf "$st"
 mkdir -p "$st"
@@ -27,10 +26,12 @@ as_user() {
 }
 
 notify() {
-	if [ -z "$3" ]; then
-		as_user notify-send -a "$1" "$2"
-	elif [ "$(as_user notify-send -a "$1" -A default=Open "$2")" = default ]; then
-		as_user foot sh -c 'cat "$2"/@* "$2"/current 2>/dev/null | grep -F -B5 -A20 -- "$1" | less' _ "$3" "$logdir"
+	app=$1 text=$2
+	shift 2
+	if [ $# -eq 0 ]; then
+		as_user notify-send -a "$app" "$text"
+	elif [ "$(as_user notify-send -a "$app" -A default=Open "$text")" = default ]; then
+		as_user foot -- /usr/local/bin/logs -p "$@"
 	fi
 }
 
@@ -103,7 +104,7 @@ kernel() {
 			;;
 		*) continue ;;
 		esac
-		notify "$prog" "$why" "$raw" &
+		notify "$prog" "$why" around "$raw" kernel &
 	done
 }
 
@@ -116,7 +117,7 @@ services() {
 			[ "$up" -ge 60 ] && n=0
 			echo "$pid $n" >"$st/sv.$s"
 			if [ "$n" -ge 3 ]; then
-				once "svloop.$s" && notify "$s" "restarting in a loop"
+				if once "svloop.$s"; then notify "$s" "restarting in a loop" service "$s" & fi
 			elif [ "$n" -eq 0 ]; then
 				reset "svloop.$s"
 			fi
@@ -185,7 +186,8 @@ webcam() {
 
 pstore() {
 	[ -e /run/pstore-new ] || return 0
-	notify Kernel "crashed during the last boot: 'logs panics' shows why" || return 0
+	as_user true || return 0
+	notify Kernel "crashed during the last boot, click to see why" panics &
 	rm -f /run/pstore-new
 }
 
