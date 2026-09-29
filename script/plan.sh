@@ -24,6 +24,7 @@ plan() {
 	section cli "Shell and editors" <<-EOF
 		Installs ${PKG_CLI[*]}
 		Copies home/{$(join , "${HOME_CLI[@]}")}, login shell bash.
+		~/.bashrc only sources ~/.bashrc_dotfile, what programs add to it stays.
 		Files in the way, ~/.vimrc and ~/.tmux.conf go to ~/_backup/$TS.
 	EOF
 	section lsp "Language servers for nvim" <<-EOF
