@@ -11,7 +11,7 @@ for c in bash dash shellcheck python3 apparmor_parser cc pkg-config wayland-scan
 	command -v "$c" >/dev/null || { echo "missing: $c" >&2; exit 2; }
 done
 
-py_files=() sh_files=() bash_files=(home/bash/.bashrc home/bash/.bash_profile)
+py_files=() sh_files=() bash_files=(home/bash/.bashrc_dotfile home/bash/.bash_profile)
 while IFS= read -r -d '' f; do
 	case $(head -n1 -- "$f") in
 	'#!/bin/sh'*) sh_files+=("$f") ;;

@@ -39,6 +39,7 @@ do_home_cli() {
 	move_aside "$THOME/.vimrc"
 	move_aside "$THOME/.tmux.conf"
 	do_home "${HOME_CLI[@]}"
+	bashrc_hook
 
 	local sh
 	sh=$(getent passwd "$TUSER" | cut -d: -f7)
@@ -49,6 +50,32 @@ do_home_cli() {
 		usermod -s /bin/bash "$TUSER" >>"$LOG" 2>&1 || die "usermod -s failed"
 		ok "login shell $sh -> /bin/bash"
 	fi
+}
+
+# ~/.bashrc is left to the programs that add to it, it only sources ~/.bashrc_dotfile
+bashrc_hook() {
+	local rc=$THOME/.bashrc new
+	if [[ -f $rc && ! -L $rc ]] && grep -qxF -- "$BASHRC_LINE" "$rc"; then
+		skip "~/.bashrc sources ~/.bashrc_dotfile"
+		return 0
+	fi
+	new=$(mktemp -p "$BAK")
+	{
+		printf '%s\n' "$BASHRC_LINE"
+		if [[ -f $rc && ! -L $rc ]]; then
+			# the old copy of the repo is now ~/.bashrc_dotfile, what came after it stays
+			if grep -q '^unset -f _setup_history ' "$rc"; then
+				awk 'done; /^unset -f _setup_history / { done = 1 }' "$rc"
+			else
+				cat -- "$rc"
+			fi
+		fi
+	} >"$new"
+	stash "$rc"
+	as_user rm -f -- "$rc"
+	as_user sh -c 'umask 077 && cat >"$1"' _ "$rc" <"$new"
+	rm -f -- "$new"
+	ok "~/.bashrc sources ~/.bashrc_dotfile"
 }
 
 do_dirs() {

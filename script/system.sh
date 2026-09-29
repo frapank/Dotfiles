@@ -234,8 +234,10 @@ verify() {
 		for c in vim nvim tmux fzf rg; do
 			command -v "$c" >/dev/null || { warn "$c missing"; bad=1; }
 		done
-		cmp -s "$REPO/home/bash/.bashrc" "$THOME/.bashrc" && [[ ! -L $THOME/.bashrc ]] ||
-			{ warn "~/.bashrc is not the repo's copy"; bad=1; }
+		cmp -s "$REPO/home/bash/.bashrc_dotfile" "$THOME/.bashrc_dotfile" && [[ ! -L $THOME/.bashrc_dotfile ]] ||
+			{ warn "~/.bashrc_dotfile is not the repo's copy"; bad=1; }
+		grep -qxF -- "$BASHRC_LINE" "$THOME/.bashrc" 2>/dev/null ||
+			{ warn "~/.bashrc does not source ~/.bashrc_dotfile"; bad=1; }
 	fi
 	if ((SEL[desktop])); then
 		g0wm_where >/dev/null || { warn "g0wm or start-g0wm missing from $TUSER's PATH"; bad=1; }
