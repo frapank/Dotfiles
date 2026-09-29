@@ -136,7 +136,7 @@ plan() {
 	EOF
 	section apps "Apps, Thunar, default apps, shortcuts" <<-EOF
 		librewolf (own repo, signing key pinned), Loupe, Showtime, Papers, LibreOffice, Thunar, xarchiver, pavucontrol and CLI tools. unrar comes from the Void nonfree repo.
-		~/.local/bin: photo video pdf office browser files audio wifi bluetooth screenshot record nightlight awake extract compress open metadata-remover privacy-check.
+		~/.local/bin: photo video pdf office browser files audio wifi bluetooth screenshot record nightlight awake extract compress open metadata-remover privacy-check traces conns isolate dotfiles.
 		Thunar: 'Open Terminal Here', automount, Remove and Show Metadata (camera, GPS, author data; runs offline in a sandbox), Restore a Previous Version and Delete from the Snapshots.
 		Print: region, Shift: screen, Ctrl: edit in swappy. Saved to Pictures and the clipboard.
 		Super+Print: record, Shift: region, Ctrl: no audio.
