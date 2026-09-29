@@ -279,7 +279,7 @@ cert_refresh_delay = 240
 ## This may improve privacy but can also have a significant impact on CPU usage
 ## Only enable if you don't have a lot of network load
 
-# dnscrypt_ephemeral_keys = false
+dnscrypt_ephemeral_keys = true
 
 
 ## PQDNSCrypt (DNSCrypt 2026): use post-quantum cryptography when supported
@@ -939,7 +939,7 @@ skip_incompatible = true
 ## retrieved via a relay, try getting them directly. Actual queries
 ## will then always go through relays.
 
-# direct_cert_fallback = true
+direct_cert_fallback = false
 
 
 ###############################################################################
