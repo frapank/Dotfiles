@@ -1,0 +1,443 @@
+#!/usr/bin/python3 -I
+"""List, restore and forget versions of a file in the daily snapshots of /home."""
+import fcntl
+import getopt
+import json
+import os
+import pwd
+import re
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import time
+import traceback
+
+PROG = 'snap'
+HOME = '/home'
+SNAPDIR = '/home/.snapshots'
+NAME = re.compile(r'home-(\d{4}-\d{2}-\d{2}_\d{4})')
+MAINT_LOCK = '/var/lib/maint/lock'
+
+USAGE = f"""\
+Usage: {PROG} FILE
+  or:  {PROG} -r SNAPSHOT FILE [DEST]
+  or:  {PROG} -l
+List the versions of FILE kept in the daily snapshots of /home, or copy the
+one in SNAPSHOT back. FILE can be a file or a folder and may no longer exist.
+Nothing is overwritten: the copy goes to DEST, by default next to FILE with
+the snapshot in its name. Asks for doas; the snapshots are then read with
+your own permissions, so you only get back what was yours to read.
+
+  -l           list the snapshots
+  -r SNAPSHOT  copy FILE back from SNAPSHOT, a date (2026-09-25) or a name
+               from the list (2026-09-25_2007)
+
+The snapshots are on the same disk as /home: they are not a backup.
+To delete a file from all of them, see 'forget --help'.
+"""
+
+FORGET_USAGE = """\
+Usage: forget [-n] FILE...
+Delete each FILE from every daily snapshot of /home, so that it is gone for
+good once you delete it yourself. FILE can be a file or a folder and may no
+longer exist; the live FILE is left alone. Asks for doas; the deletion then
+runs with your own permissions, so you can only remove what you could delete.
+
+  -n  only show the snapshots that hold each FILE, delete nothing
+"""
+
+
+def q(s):
+    return "'" + ''.join(c if c.isprintable() else '?' for c in s) + "'"
+
+
+def die(msg, code=1):
+    print(f'{PROG}: {msg}', file=sys.stderr)
+    sys.exit(code)
+
+
+def usage_error(msg):
+    print(f'{PROG}: {msg}', file=sys.stderr)
+    print(f"Try '{PROG} --help' for more information.", file=sys.stderr)
+    sys.exit(2)
+
+
+def human(n):
+    for unit in 'BKMG':
+        if n < 1024 or unit == 'G':
+            break
+        n /= 1024
+    return f'{n:.0f}{unit}' if unit == 'B' or n >= 10 else f'{n:.1f}{unit}'
+
+
+def open_snapshots():
+    try:
+        top = os.open(SNAPDIR, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except FileNotFoundError:
+        die(f'no snapshots: {SNAPDIR} does not exist')
+    st = os.fstat(top)
+    if st.st_uid != 0 or st.st_mode & 0o022:
+        die(f'{SNAPDIR} is not owned by root or is writable by others')
+    snaps = []
+    for name in sorted(os.listdir(top)):
+        m = NAME.fullmatch(name)
+        if not m:
+            continue
+        try:
+            fd = os.open(name, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=top)
+        except OSError:
+            continue
+        snaps.append((m.group(1), fd))
+    os.close(top)
+    if not snaps:
+        die(f'no snapshots in {SNAPDIR}')
+    return snaps
+
+
+def drop_to(user):
+    pw = pwd.getpwnam(user)
+    os.initgroups(user, pw.pw_gid)
+    os.setresgid(pw.pw_gid, pw.pw_gid, pw.pw_gid)
+    os.setresuid(pw.pw_uid, pw.pw_uid, pw.pw_uid)
+    if os.getresuid() != (pw.pw_uid,) * 3 or os.getresgid() != (pw.pw_gid,) * 3:
+        die('could not drop root privileges')
+    try:
+        os.setuid(0)
+    except PermissionError:
+        return
+    die('could not drop root privileges')
+
+
+def rel_path(path):
+    real = os.path.realpath(path)
+    rel = os.path.relpath(real, HOME)
+    if rel == '.' or rel.startswith('..') or rel.split('/')[0] == '.snapshots':
+        die(f'{q(path)}: not in {HOME}')
+    return real, rel
+
+
+def lookup(root, rel):
+    # O_NOFOLLOW: a symlink in the snapshot would point to the live system
+    *dirs, name = rel.split('/')
+    fd = os.open('.', os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC, dir_fd=root)
+    for part in dirs:
+        try:
+            nfd = os.open(part, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+        except OSError:
+            os.close(fd)
+            return None, name
+        os.close(fd)
+        fd = nfd
+    return fd, name
+
+
+def version(root, rel):
+    fd, name = lookup(root, rel)
+    if fd is None:
+        return None
+    try:
+        return os.stat(name, dir_fd=fd, follow_symlinks=False)
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
+def describe(st):
+    if st is None:
+        return '-', 'not there'
+    when = time.strftime('%Y-%m-%d %H:%M', time.localtime(st.st_mtime))
+    if stat.S_ISDIR(st.st_mode):
+        return 'folder', f'changed {when}'
+    if stat.S_ISLNK(st.st_mode):
+        return 'symlink', f'changed {when}'
+    return human(st.st_size), f'modified {when}'
+
+
+def list_versions(snaps, path):
+    real, rel = rel_path(path)
+    rows, last, found = [], (), False
+    for label, root in snaps:
+        st = version(root, rel)
+        key = None if st is None else (stat.S_IFMT(st.st_mode), st.st_size, st.st_mtime_ns)
+        found = found or st is not None
+        if key != last:
+            rows.append((label, *describe(st)))
+            last = key
+    if not found:
+        die(f'{q(path)}: not in any snapshot')
+    try:
+        now = os.lstat(real)
+    except OSError:
+        now = None
+    rows.append(('now', *describe(now)))
+    print(f'{"SNAPSHOT":<16} {"SIZE":>7}  STATE')
+    for label, size, state in rows:
+        print(f'{label:<16} {size:>7}  {state}')
+
+
+def as_user(user, func, *args):
+    r, w = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        os.close(r)
+        code = 0
+        try:
+            drop_to(user)
+            os.write(w, json.dumps(func(*args)).encode())
+        except SystemExit as e:
+            code = e.code if isinstance(e.code, int) else 1
+        except BaseException:
+            traceback.print_exc()
+            code = 1
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(code)
+    os.close(w)
+    with os.fdopen(r, 'rb') as f:
+        data = f.read()
+    code = os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
+    if code:
+        sys.exit(code)
+    return json.loads(data)
+
+
+def find(snaps, paths):
+    found = []
+    for path in paths:
+        try:
+            real, rel = rel_path(path)
+        except SystemExit:
+            found.append(None)
+            continue
+        if '/' not in rel:
+            print(f'{PROG}: {q(path)}: is a whole home folder, refusing', file=sys.stderr)
+            found.append(None)
+            continue
+        labels = [label for label, root in snaps if version(root, rel) is not None]
+        if not labels:
+            print(f'{PROG}: {q(path)}: not in any snapshot', file=sys.stderr)
+        found.append({'real': real, 'rel': rel, 'labels': labels, 'live': os.path.lexists(real)})
+    return found
+
+
+def unlock_tree(name, dir_fd):
+    # read-only folders block rmtree
+    try:
+        os.chmod(name, 0o700, dir_fd=dir_fd)
+    except OSError:
+        pass
+    for _, dirs, _, fd in os.fwalk(name, dir_fd=dir_fd):
+        for d in dirs:
+            try:
+                if stat.S_ISDIR(os.stat(d, dir_fd=fd, follow_symlinks=False).st_mode):
+                    os.chmod(d, 0o700, dir_fd=fd)
+            except OSError:
+                pass
+
+
+def delete(snaps, items):
+    roots = dict(snaps)
+    failed = 0
+    for it in items:
+        for label in it['labels']:
+            fd, name = lookup(roots[label], it['rel'])
+            try:
+                if fd is None:
+                    raise FileNotFoundError(2, 'No such file or directory')
+                if stat.S_ISDIR(os.stat(name, dir_fd=fd, follow_symlinks=False).st_mode):
+                    unlock_tree(name, fd)
+                    shutil.rmtree(name, dir_fd=fd)
+                else:
+                    os.unlink(name, dir_fd=fd)
+                print(f'removed {q(it["real"])} from {label}')
+            except OSError as e:
+                print(f'{PROG}: {q(it["real"])} in {label}: {e.strerror}', file=sys.stderr)
+                failed += 1
+            finally:
+                if fd is not None:
+                    os.close(fd)
+    return failed
+
+
+def set_ro(label, ro):
+    r = subprocess.run(['btrfs', 'property', 'set', '-ts', f'{SNAPDIR}/home-{label}', 'ro', ro],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if r.returncode:
+        print(f'{PROG}: {label}: cannot set ro={ro}: {r.stderr.strip()}', file=sys.stderr)
+    return r.returncode == 0
+
+
+def interrupted(signum, _frame):
+    raise KeyboardInterrupt
+
+
+def forget(snaps, user, paths, dry):
+    try:
+        lock = open(MAINT_LOCK, 'a')
+    except FileNotFoundError:
+        lock = None
+    except OSError as e:
+        die(f'{MAINT_LOCK}: {e.strerror}')
+    if lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            die('maint is running, try again in a few minutes')
+    found = as_user(user, find, snaps, paths)
+    failed = sum(1 for f in found if f is None or not f['labels'])
+    items = [f for f in found if f and f['labels']]
+    if dry:
+        for it in items:
+            print(f'{q(it["real"])}: ' + ', '.join(it['labels']))
+        return 1 if failed else 0
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, interrupted)
+    try:
+        wanted = sorted({label for it in items for label in it['labels']})
+        writable = {label for label in wanted if set_ro(label, 'false')}
+        for it in items:
+            failed += len(set(it['labels']) - writable)
+            it['labels'] = [label for label in it['labels'] if label in writable]
+        failed += as_user(user, delete, snaps, items)
+    finally:
+        # all of them: a killed run may have left others writable
+        for label, _ in snaps:
+            set_ro(label, 'true')
+    for it in items:
+        if it['live']:
+            print(f"{PROG}: {q(it['real'])} still exists: delete it too, or the next snapshot keeps it",
+                  file=sys.stderr)
+    return 1 if failed else 0
+
+
+def pick(snaps, want):
+    want = want.removeprefix('home-')
+    hits = [s for s in snaps if s[0] == want] or [s for s in snaps if s[0].startswith(want + '_')]
+    if not hits:
+        die(f"{q(want)}: no such snapshot, see '{PROG} -l'")
+    if len(hits) > 1:
+        die(f'{q(want)}: more than one snapshot that day: ' + ', '.join(s[0] for s in hits))
+    return hits[0]
+
+
+def copy_regular(src, dst):
+    # a fifo or a device would hang or leak
+    if not stat.S_ISREG(os.lstat(src).st_mode):
+        print(f'{PROG}: {q(dst)}: not a regular file, skipped', file=sys.stderr)
+        return dst
+    fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        with open(src, 'rb') as i, os.fdopen(fd, 'wb') as o:
+            shutil.copyfileobj(i, o)
+        shutil.copystat(src, dst)
+    except BaseException:
+        os.unlink(dst)
+        raise
+    return dst
+
+
+def restore(snaps, want, path, dest):
+    label, root = pick(snaps, want)
+    real, rel = rel_path(path)
+    fd, name = lookup(root, rel)
+    try:
+        st = None if fd is None else os.stat(name, dir_fd=fd, follow_symlinks=False)
+    except OSError:
+        st = None
+    if st is None:
+        die(f'{q(path)}: not in snapshot {label}')
+    if dest is None:
+        base, ext = os.path.splitext(real)
+        if stat.S_ISDIR(st.st_mode) or not ext:
+            base, ext = real, ''
+        dest = f'{base}.{label}{ext}'
+    elif os.path.isdir(dest) and not os.path.islink(dest):
+        dest = os.path.join(dest, os.path.basename(real))
+    src = f'/proc/self/fd/{fd}/{name}'
+    try:
+        if stat.S_ISLNK(st.st_mode):
+            os.symlink(os.readlink(name, dir_fd=fd), dest)
+        elif stat.S_ISDIR(st.st_mode):
+            shutil.copytree(src, dest, symlinks=True, copy_function=copy_regular)
+        elif stat.S_ISREG(st.st_mode):
+            copy_regular(src, dest)
+        else:
+            die(f'{q(path)}: not a file, folder or symlink')
+    except FileExistsError:
+        die(f'{q(dest)}: File exists')
+    except shutil.Error as e:
+        die(f'{q(dest)}: copied with errors: {len(e.args[0])} file(s) failed')
+    except OSError as e:
+        die(f'{q(e.filename or dest)}: {e.strerror}')
+    print(f'{q(real)} ({label}) -> {q(dest)}')
+
+
+def main():
+    global PROG
+    argv = sys.argv[1:]
+    forgetting = argv[:1] == ['--forget']
+    if forgetting:
+        PROG, argv = 'forget', argv[1:]
+    try:
+        opts, args = getopt.gnu_getopt(argv, 'hn' if forgetting else 'hlr:', ['help'])
+    except getopt.GetoptError as e:
+        if 'requires argument' in e.msg:
+            usage_error(f"option requires an argument -- '{e.opt}'")
+        if 'must not have an argument' in e.msg:
+            usage_error(f"option '--{e.opt}' doesn't allow an argument")
+        usage_error(f"invalid option -- '{e.opt}'" if len(e.opt) == 1 else f"unrecognized option '--{e.opt}'")
+    mode, want = ('forget' if forgetting else 'versions'), None
+    dry = False
+    for o, a in opts:
+        if o in ('-h', '--help'):
+            print(FORGET_USAGE if forgetting else USAGE, end='')
+            return 0
+        if o == '-n':
+            dry = True
+        if o == '-l':
+            mode = 'list'
+        if o == '-r':
+            mode, want = 'restore', a
+    if mode == 'list' and args:
+        usage_error(f'extra operand {q(args[0])}')
+    if mode == 'versions' and len(args) != 1:
+        usage_error('missing file operand' if not args else f'extra operand {q(args[1])}')
+    if mode == 'forget' and not args:
+        usage_error('missing file operand')
+    if mode == 'restore' and not 1 <= len(args) <= 2:
+        usage_error('missing file operand' if not args else f'extra operand {q(args[2])}')
+
+    if os.geteuid() != 0:
+        os.execvp('doas', ['doas', '--', os.path.realpath(sys.argv[0]), *sys.argv[1:]])
+    user = os.environ.get('DOAS_USER')
+    if not user or user == 'root':
+        die('run it as your own user, it asks for doas by itself')
+    snaps = open_snapshots()
+    if mode == 'forget':
+        return forget(snaps, user, args, dry)
+    drop_to(user)
+
+    if mode == 'list':
+        for label, _ in snaps:
+            print(label)
+    elif mode == 'versions':
+        list_versions(snaps, args[0])
+    else:
+        restore(snaps, want, args[0], args[1] if len(args) > 1 else None)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        code = main()
+        sys.stdout.flush()
+    except KeyboardInterrupt:
+        code = 130
+    except BrokenPipeError:
+        # stdout closed early (| head)
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        code = 141
+    sys.exit(code)

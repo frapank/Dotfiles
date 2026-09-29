@@ -40,6 +40,7 @@ do_maint() {
 	run "maint parses" sh -n /usr/local/sbin/maint
 	run "thumbs-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/thumbs-clean
 	run "trash-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/trash-clean
+	run "snap parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/bin/snap
 	grub_snaps
 }
 

@@ -262,6 +262,8 @@ verify() {
 		[[ $(stat -c %i "$THOME/.cache" 2>/dev/null) == 256 ]] || { warn "~/.cache is not a subvolume"; bad=1; }
 		[[ $(stat -c '%a %U' /usr/local/libexec/thumbs-clean) == '755 root' ]] || { warn "/usr/local/libexec/thumbs-clean permissions"; bad=1; }
 		[[ $(stat -c '%a %U' /usr/local/libexec/trash-clean) == '755 root' ]] || { warn "/usr/local/libexec/trash-clean permissions"; bad=1; }
+		[[ $(stat -c '%a %U' /usr/local/bin/snap) == '755 root' ]] || { warn "/usr/local/bin/snap permissions"; bad=1; }
+		[[ $(stat -c '%a %U' /usr/local/bin/forget) == '755 root' ]] || { warn "/usr/local/bin/forget permissions"; bad=1; }
 	fi
 	if ((SEL[logs])); then
 		[[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || { warn "socklog not enabled"; bad=1; }
