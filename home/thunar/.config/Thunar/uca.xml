@@ -43,4 +43,36 @@
 	<text-files/>
 	<video-files/>
 </action>
+<action>
+	<icon>document-revert</icon>
+	<name>Restore a Previous Version</name>
+	<submenu></submenu>
+	<unique-id>1790700000000000-4</unique-id>
+	<command>foot -T 'Previous versions' /usr/local/libexec/snap-ui restore %F</command>
+	<description>Pick a version from the daily snapshots of /home and copy it next to the file</description>
+	<range></range>
+	<patterns>*</patterns>
+	<directories/>
+	<audio-files/>
+	<image-files/>
+	<other-files/>
+	<text-files/>
+	<video-files/>
+</action>
+<action>
+	<icon>edit-delete</icon>
+	<name>Delete from the Snapshots</name>
+	<submenu></submenu>
+	<unique-id>1790700000000000-5</unique-id>
+	<command>foot -T 'Delete from the snapshots' /usr/local/libexec/snap-ui forget %F</command>
+	<description>Delete the selected files from every daily snapshot of /home, so they are gone for good</description>
+	<range></range>
+	<patterns>*</patterns>
+	<directories/>
+	<audio-files/>
+	<image-files/>
+	<other-files/>
+	<text-files/>
+	<video-files/>
+</action>
 </actions>
