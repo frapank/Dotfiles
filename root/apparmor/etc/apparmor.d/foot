@@ -5,6 +5,7 @@ include <tunables/global>
 profile foot /usr/bin/foot{,client} {
   include <abstractions/dotfiles/app-read>
   include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/pipewire-manager>
   include <abstractions/dotfiles/browser-data>
 
   /{usr,opt}/** ux,
