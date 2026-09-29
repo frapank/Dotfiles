@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""Show the network connections open right now and the programs behind them."""
+import getopt
+import ipaddress
+import os
+import pwd
+import sys
+
+PROG = 'conns'
+USAGE = f"""\
+Usage: {PROG} [-a] [-l]
+Show the network connections open right now, with the program that opened
+them and its AppArmor profile. Addresses are never resolved: nothing leaves
+this machine. Run it with doas to see the programs of the system and of the
+other users too. Exits 1 if something needs attention: DNS that does not go
+through dnscrypt-proxy, LAN discovery traffic, a TCP port open to the network.
+
+  -a  also show what stays inside this machine (loopback)
+  -l  also show the listening ports and the unconnected UDP sockets
+
+UDP sent without connect() shows no peer: the firewall DNS lock covers it.
+"""
+
+TCP_STATES = {
+    '01': 'ESTAB', '02': 'SYN-SENT', '03': 'SYN-RECV', '04': 'FIN-WAIT-1',
+    '05': 'FIN-WAIT-2', '06': 'TIME-WAIT', '07': 'CLOSE', '08': 'CLOSE-WAIT',
+    '09': 'LAST-ACK', '0A': 'LISTEN', '0B': 'CLOSING',
+}
+DNS_PORTS = {53, 853}
+DISCOVERY_PORTS = {5353, 5355, 1900, 137, 138, 3702}
+
+
+def q(s):
+    return ''.join(c if c.isprintable() else '?' for c in s)
+
+
+def usage_error(msg):
+    print(f'{PROG}: {msg}', file=sys.stderr)
+    print(f"Try '{PROG} --help' for more information.", file=sys.stderr)
+    sys.exit(2)
+
+
+def parse_addr(hexaddr):
+    ip, port = hexaddr.split(':')
+    raw = bytes.fromhex(ip)
+    # the kernel prints each 32-bit word in host order
+    raw = b''.join(raw[i:i + 4][::-1] for i in range(0, len(raw), 4))
+    addr = ipaddress.ip_address(raw)
+    if addr.version == 6 and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return addr, int(port, 16)
+
+
+def sockets():
+    for proto in ('tcp', 'tcp6', 'udp', 'udp6'):
+        try:
+            with open(f'/proc/net/{proto}') as f:
+                lines = f.readlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            p = line.split()
+            local, lport = parse_addr(p[1])
+            remote, rport = parse_addr(p[2])
+            yield {
+                'proto': proto.rstrip('6'), 'local': local, 'lport': lport,
+                'remote': remote, 'rport': rport, 'state': p[3],
+                'uid': int(p[7]), 'inode': int(p[9]),
+            }
+
+
+def owners():
+    # socket inode -> pids
+    found = {}
+    for pid in filter(str.isdigit, os.listdir('/proc')):
+        try:
+            fds = os.listdir(f'/proc/{pid}/fd')
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                link = os.readlink(f'/proc/{pid}/fd/{fd}')
+            except OSError:
+                continue
+            if link.startswith('socket:['):
+                found.setdefault(int(link[8:-1]), set()).add(int(pid))
+    return found
+
+
+def read(path):
+    try:
+        with open(path, errors='replace') as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def process(pid):
+    comm = q(read(f'/proc/{pid}/comm') or '?')
+    label = read(f'/proc/{pid}/attr/apparmor/current') or read(f'/proc/{pid}/attr/current')
+    if label and label != 'unconfined':
+        return f'{comm}[{pid}] {q(label)}'
+    return f'{comm}[{pid}]'
+
+
+def user(uid):
+    try:
+        return pwd.getpwuid(uid).pw_name
+    except KeyError:
+        return str(uid)
+
+
+def endpoint(addr, port):
+    return f'[{addr}]:{port}' if addr.version == 6 else f'{addr}:{port}'
+
+
+def main():
+    try:
+        opts, args = getopt.gnu_getopt(sys.argv[1:], 'ahl', ['help'])
+    except getopt.GetoptError as e:
+        if 'must not have an argument' in e.msg:
+            usage_error(f"option '--{e.opt}' doesn't allow an argument")
+        usage_error(f"invalid option -- '{e.opt}'" if len(e.opt) == 1 else f"unrecognized option '--{e.opt}'")
+    if args:
+        usage_error(f"extra operand '{q(args[0])}'")
+    loopback = listening = False
+    for o, _ in opts:
+        if o in ('-h', '--help'):
+            print(USAGE, end='')
+            return 0
+        loopback = loopback or o == '-a'
+        listening = listening or o == '-l'
+
+    try:
+        dnscrypt = pwd.getpwnam('dnscrypt_proxy').pw_uid
+    except KeyError:
+        dnscrypt = None
+    pids = owners()
+    rows, warnings, hidden = [], [], 0
+    for s in sockets():
+        if s['inode'] == 0 or s['state'] == '06':
+            continue
+        tcp = s['proto'] == 'tcp'
+        bound = s['state'] == '0A' if tcp else s['rport'] == 0
+        inside = s['local'].is_loopback and (bound or s['remote'].is_loopback)
+        why = []
+        if not bound and s['rport'] in DNS_PORTS and not s['remote'].is_loopback and s['uid'] != dnscrypt:
+            why.append('DNS outside dnscrypt-proxy')
+        if not inside and (s['lport'] in DISCOVERY_PORTS or s['rport'] in DISCOVERY_PORTS):
+            why.append('LAN discovery')
+        if tcp and bound and not s['local'].is_loopback:
+            why.append('TCP port open to the network')
+        if not why and ((inside and not loopback) or (bound and not listening)):
+            continue
+        who = s['inode'] in pids and ', '.join(process(p) for p in sorted(pids[s['inode']]))
+        if not who:
+            who = f'uid {user(s["uid"])}'
+            hidden += s['uid'] != os.getuid()
+        if bound:
+            state = 'LISTEN' if tcp else 'UNCONN'
+        else:
+            state = TCP_STATES.get(s['state'], s['state']) if tcp else 'ESTAB'
+        rows.append((s['proto'], state, endpoint(s['local'], s['lport']),
+                     '*' if bound else endpoint(s['remote'], s['rport']), who, why))
+        warnings += why
+
+    rows.sort(key=lambda r: (not r[5], r[4], r[0], r[3]))
+    if rows:
+        w = [max(len(r[i]) for r in rows + [('PROTO', 'STATE', 'LOCAL', 'REMOTE')]) for i in range(4)]
+        print(f'{"PROTO":<{w[0]}}  {"STATE":<{w[1]}}  {"LOCAL":<{w[2]}}  {"REMOTE":<{w[3]}}  PROGRAM')
+        for proto, state, local, remote, who, why in rows:
+            mark = f'  ! {"; ".join(why)}' if why else ''
+            print(f'{proto:<{w[0]}}  {state:<{w[1]}}  {local:<{w[2]}}  {remote:<{w[3]}}  {who}{mark}')
+    else:
+        print('no connections')
+    if hidden and os.geteuid() != 0:
+        sys.stdout.flush()
+        print(f"\n{PROG}: {hidden} socket(s) of other users: run 'doas {PROG}' to see their programs", file=sys.stderr)
+    return 1 if warnings else 0
+
+
+if __name__ == '__main__':
+    try:
+        code = main()
+        sys.stdout.flush()
+    except KeyboardInterrupt:
+        code = 130
+    except BrokenPipeError:
+        # stdout closed early (| head)
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        code = 141
+    sys.exit(code)
