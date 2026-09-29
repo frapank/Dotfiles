@@ -113,24 +113,8 @@
 		"barsinglemon": false,
 		"showsystray": true,
 		"systrayspacing": 2,
+		"systraypadding": 2,
 		"systrayiconsize": 16,
-		"traymenucmd": [
-			"wmenu",
-			"-f",
-			"Geist Mono 10",
-			"-N",
-			"000000ff",
-			"-n",
-			"ffffffff",
-			"-M",
-			"000000ff",
-			"-m",
-			"ffffffff",
-			"-S",
-			"000000ff",
-			"-s",
-			"ffffffff"
-		],
 		"shownotifications": true,
 		"notification_timeout": 5
 	},
@@ -325,6 +309,23 @@
 			"arg": [
 				"awake"
 			]
+		},
+		{
+			"mod": [
+				"logo"
+			],
+			"key": "n",
+			"action": "notifyscroll",
+			"arg": null
+		},
+		{
+			"mod": [
+				"shift",
+				"logo"
+			],
+			"key": "n",
+			"action": "notifyopen",
+			"arg": null
 		},
 		{
 			"mod": [
@@ -1229,7 +1230,7 @@
 			"click": "title",
 			"mod": [],
 			"button": "left",
-			"action": "notifyclick",
+			"action": "notifyopen",
 			"arg": null
 		},
 		{
