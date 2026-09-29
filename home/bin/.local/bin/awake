@@ -1,57 +1,34 @@
 #!/bin/sh
-set -eu
+set -u
 
-# While on, swayidle runs without its timeouts: the screen never locks or
-# turns off, but before-sleep still locks. Off brings back the saved one.
-uid=$(id -u)
-dir=${XDG_RUNTIME_DIR:-/tmp}
-pid=$dir/awake.pid
-saved=$dir/awake.cmd
+# the screen does not lock by itself, it still locks before sleep
+flag=${XDG_RUNTIME_DIR:-/tmp}/awake
 
-running() {
-    [ -r "$pid" ] || return 1
-    read -r p <"$pid" 2>/dev/null || return 1
-    [ "$(cat "/proc/$p/comm" 2>/dev/null)" = swayidle ]
+on() {
+    : >"$flag"
+    services status idle >/dev/null
+    case $? in
+    0) exec services restart idle ;;
+    3)
+        rm -f -- "$flag"
+        msg="the idle service is off, the screen does not lock by itself anyway: 'services enable idle'"
+        echo "awake: $msg" >&2
+        [ -t 2 ] || notify-send -a awake "$msg" 2>/dev/null
+        exit 1
+        ;;
+    *) rm -f -- "$flag"; exit 1 ;;
+    esac
 }
 
 off() {
-    if running; then
-        kill "$(cat "$pid")" 2>/dev/null || true
-    fi
-    rm -f "$pid"
-    if [ -s "$saved" ] && ! pgrep -u "$uid" -x swayidle >/dev/null; then
-        set --
-        while IFS= read -r a; do set -- "$@" "$a"; done <"$saved"
-        setsid -f "$@" </dev/null >/dev/null 2>&1
-    fi
-    rm -f "$saved"
-}
-
-on() {
-    running && return 0
-    # keep swayidle's arguments, minus argv[0] and every "timeout N cmd [resume cmd]"
-    set -- swayidle
-    old=$(pgrep -o -u "$uid" -x swayidle || true)
-    if [ -n "$old" ]; then
-        tr '\0' '\n' <"/proc/$old/cmdline" >"$saved"
-        skip=1
-        while IFS= read -r a; do
-            if [ "$skip" -gt 0 ]; then skip=$((skip - 1)); continue; fi
-            case $a in
-            timeout) skip=2 ;;
-            resume) skip=1 ;;
-            *) set -- "$@" "$a" ;;
-            esac
-        done <"$saved"
-        pkill -u "$uid" -x swayidle || true
-    fi
-    setsid -f sh -c 'echo $$ >"$1"; shift; exec "$@"' _ "$pid" \
-        "$@" </dev/null >/dev/null 2>&1
+    rm -f -- "$flag"
+    services status idle >/dev/null 2>&1 || exit 0
+    exec services restart idle
 }
 
 case ${1:-toggle} in
 on) on ;;
 off) off ;;
-toggle) if running; then off; else on; fi ;;
+toggle) if [ -e "$flag" ]; then off; else on; fi ;;
 *) echo "usage: awake [on|off|toggle]" >&2; exit 2 ;;
 esac

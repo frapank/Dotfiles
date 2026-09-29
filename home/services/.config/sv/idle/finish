@@ -1,0 +1,2 @@
+#!/bin/sh
+rm -f -- "${XDG_RUNTIME_DIR:-/tmp}/awake.pid"
