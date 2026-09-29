@@ -33,6 +33,14 @@ as_user() {
 
 notify() { as_user notify-send -a Maintenance -u critical "$1" "$2" >/dev/null 2>&1 || true; }
 
+notify_log() {
+	(
+		exec 9>&-
+		[ "$(as_user notify-send -a Maintenance -u critical -A default=Open "$1" "$2" 2>/dev/null)" = default ] &&
+			as_user foot -- /usr/local/bin/logs -p service maint
+	) >/dev/null 2>&1 &
+}
+
 on_ac() {
 	found=0
 	for s in /sys/class/power_supply/*; do
@@ -387,7 +395,7 @@ job() {
 	2) log "$1: skipped, retried within the hour"; return 0 ;;
 	*) log "$1: FAILED ($rc)"
 		date >"$STATE/$1.failed"
-		[ "$rc" = 3 ] || notify "Maintenance" "$1 failed, see 'maint status'" ;;
+		[ "$rc" = 3 ] || notify_log "Maintenance" "$1 failed, click to see the log" ;;
 	esac
 	[ "$rc" = 0 ] && rm -f "$STATE/$1.failed"
 	touch "$STATE/$1"
