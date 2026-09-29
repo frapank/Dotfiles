@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""Delete what has been in ~/.local/share/Trash for more than 30 days."""
+import os
+import shutil
+import sys
+from datetime import datetime, timedelta
+
+DAYS = 30
+
+
+def deletion_date(path):
+    with open(path, encoding='utf-8', errors='replace') as f:
+        for line in f:
+            if line.startswith('DeletionDate='):
+                return datetime.fromisoformat(line.split('=', 1)[1].strip())
+    return None
+
+
+def unlock(func, path, _exc):
+    # read-only folders (unpacked archives, go module cache) block the delete
+    os.chmod(os.path.dirname(path), 0o700)
+    func(path)
+
+
+def main():
+    trash = os.path.join(os.environ['HOME'], '.local', 'share', 'Trash')
+    info = os.path.join(trash, 'info')
+    files = os.path.join(trash, 'files')
+    if any(os.path.islink(d) for d in (trash, info, files)) or not os.path.isdir(info):
+        return 0
+    limit = datetime.now() - timedelta(days=DAYS)
+    removed = kept = failed = 0
+    for name in os.listdir(info):
+        path = os.path.join(info, name)
+        if not name.endswith('.trashinfo') or os.path.islink(path):
+            continue
+        try:
+            when = deletion_date(path)
+        except (OSError, ValueError):
+            continue
+        if when is None:
+            continue
+        if when.replace(tzinfo=None) > limit:
+            kept += 1
+            continue
+        target = os.path.join(files, name[:-len('.trashinfo')])
+        try:
+            if os.path.isdir(target) and not os.path.islink(target):
+                shutil.rmtree(target, onexc=unlock)
+            elif os.path.lexists(target):
+                os.unlink(target)
+            os.unlink(path)
+            removed += 1
+        except OSError:
+            failed += 1
+    print(f'trash: removed {removed}, kept {kept}, failed {failed}')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

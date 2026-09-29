@@ -123,6 +123,16 @@ job_thumbs() {
 	as_user /usr/local/libexec/thumbs-clean 2>&1
 }
 
+# trash
+
+job_trash() {
+	if ! pgrep -xo g0wm >/dev/null; then
+		log "trash: nobody logged in"
+		return 2
+	fi
+	as_user /usr/local/libexec/trash-clean 2>&1
+}
+
 # updates
 
 unotify() {
@@ -370,6 +380,7 @@ run_due() {
 	grub_quiet
 	due home "$DAY" && job home
 	due thumbs "$DAY" && job thumbs
+	due trash "$DAY" && job trash
 	due update "$DAY" && job update
 	due kernels "$((7 * DAY))" && job kernels
 	due packages "$((7 * DAY))" && job packages
@@ -379,7 +390,7 @@ run_due() {
 }
 
 status() {
-	for j in home thumbs update kernels packages scrub blocklist; do
+	for j in home thumbs trash update kernels packages scrub blocklist; do
 		if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
 		printf '%-9s last %s' "$j" "$last"
 		[ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
@@ -397,7 +408,7 @@ status() {
 case ${1:-} in
 status) status ;;
 run) (locked; run_due) ;;
-home | thumbs | update | kernels | packages | scrub | blocklist) (locked; job "$1") ;;
+home | thumbs | trash | update | kernels | packages | scrub | blocklist) (locked; job "$1") ;;
 update-now) update_now ;;
 loop)
 	sleep 900
@@ -406,5 +417,5 @@ loop)
 		sleep 3600
 	done
 	;;
-*) echo 'usage: maint status | run | home | thumbs | update | kernels | packages | scrub | blocklist' >&2; exit 1 ;;
+*) echo 'usage: maint status | run | home | thumbs | trash | update | kernels | packages | scrub | blocklist' >&2; exit 1 ;;
 esac
