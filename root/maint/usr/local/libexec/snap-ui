@@ -1,0 +1,100 @@
+#!/bin/sh
+# the snapshot actions of Thunar
+set -u
+
+SNAP=/usr/local/bin/snap
+
+bye() {
+	printf '\nPress Enter to close. '
+	read -r _ || :
+	exit "$1"
+}
+
+ask() {
+	printf '%s [y/N] ' "$1"
+	read -r a || return 1
+	case $a in [yY]*) return 0 ;; esac
+	return 1
+}
+
+pick() {
+	if command -v fzf >/dev/null; then
+		fzf --header-lines=1 --header="now: $1 · Enter copies it next to the file, Esc cancels" --no-sort --layout=reverse --prompt='copy back> ' <"$tmp" |
+			cut -d' ' -f1
+		return
+	fi
+	i=0
+	while IFS= read -r row; do
+		if [ "$i" = 0 ]; then printf '     %s\n' "$row"; else printf '%3d  %s\n' "$i" "$row"; fi
+		i=$((i + 1))
+	done <"$tmp" >&2
+	printf 'now: %s\nWhich one? Enter cancels: ' "$1" >&2
+	read -r n || return 1
+	case $n in '' | *[!0-9]*) return 1 ;; esac
+	[ "$n" -gt 0 ] && sed -n "$((n + 1))p" "$tmp" | cut -d' ' -f1
+}
+
+restore() {
+	printf '%s\n' "$1"
+	table=$("$SNAP" -- "$1") || return 1
+	now=$(printf '%s\n' "$table" | awk '$1 == "now" { $1 = ""; sub(/^ +/, ""); print }')
+	{
+		printf '%s\n' "$table" | head -n1
+		printf '%s\n' "$table" | awk 'NR > 1 && $1 != "now" && $2 != "-"' | tac
+	} >"$tmp"
+	if [ "$(wc -l <"$tmp")" -lt 2 ]; then
+		echo "no older version to copy back"
+		return 1
+	fi
+	label=$(pick "$now") || label=
+	if [ -z "$label" ]; then
+		echo "nothing copied"
+		return 0
+	fi
+	"$SNAP" -r "$label" -- "$1"
+}
+
+forget_ui() {
+	echo "Deleting from every daily snapshot of /home:"
+	list=$("$SNAP" --forget -n -- "$@")
+	if [ -z "$list" ]; then
+		echo "nothing to delete"
+		return 1
+	fi
+	printf '%s\n' "$list" | sed 's/^/  /'
+	echo
+	ask "Delete them from the snapshots? This cannot be undone." || { echo "nothing deleted"; return 0; }
+	"$SNAP" --forget -- "$@"
+	rc=$?
+	for f; do
+		[ -e "$f" ] || [ -L "$f" ] || continue
+		echo
+		if ask "Delete $f for good now (not to the trash)?"; then
+			rm -rf -- "$f" && echo "deleted $f" || rc=1
+		fi
+	done
+	return "$rc"
+}
+
+[ $# -ge 2 ] || { echo "usage: snap-ui restore|forget FILE..." >&2; exit 2; }
+[ -x "$SNAP" ] || { echo "snap is not installed: the maintenance section of the dotfiles has it"; bye 1; }
+tmp=$(mktemp) || exit 1
+trap 'rm -f -- "$tmp"' EXIT
+rc=0
+case $1 in
+restore)
+	shift
+	first=1
+	for f; do
+		[ "$first" = 1 ] || echo
+		first=0
+		restore "$f" || rc=1
+	done
+	;;
+forget)
+	shift
+	forget_ui "$@" || rc=1
+	;;
+*) echo "usage: snap-ui restore|forget FILE..." >&2; exit 2 ;;
+esac
+bye "$rc"
