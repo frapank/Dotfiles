@@ -1,0 +1,11 @@
+#!/bin/sh
+# lock the screen after 5 minutes and before sleep
+exec 2>&1
+run=${XDG_RUNTIME_DIR:-/tmp}
+pkill -u "$(id -u)" -x swayidle
+if [ -e "$run/awake" ]; then
+	# for the awake icon in the bar
+	echo $$ >"$run/awake.pid"
+	exec swayidle -w before-sleep 'gtklock -d'
+fi
+exec swayidle -w timeout 300 'gtklock -d' before-sleep 'gtklock -d'

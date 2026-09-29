@@ -1,0 +1,6 @@
+#!/bin/sh
+# Thunar in the background, mounts drives when plugged in
+exec 2>&1
+# another daemon would make this one exit in a loop
+pkill -u "$(id -u)" -x thunar
+exec thunar --daemon

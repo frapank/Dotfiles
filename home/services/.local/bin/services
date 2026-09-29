@@ -1,0 +1,296 @@
+#!/bin/sh
+set -u
+
+DEFS=${XDG_CONFIG_HOME:-$HOME/.config}/sv
+STATE=${XDG_STATE_HOME:-$HOME/.local/state}/services
+RUN=${XDG_RUNTIME_DIR:-}
+RT=$RUN/services
+
+usage() {
+	cat <<EOF
+Usage: services [COMMAND [NAME...]]
+The programs of the g0wm session, kept running by runit: they start with
+g0wm, come back if they crash and stop when g0wm quits. Each one is
+defined by $DEFS/NAME/run.
+
+  status [NAME]     what runs now and what starts at login (default);
+                    with NAME: exit 0 if it runs, 3 if it does not
+  start NAME...     start it now, for this session only
+  stop NAME...      stop it now, for this session only
+  restart NAME...   stop it and start it again (after editing its run file)
+  enable NAME...    start it now and at every login
+  disable NAME...   stop it now and no longer at login
+  log NAME          what it printed, times in UTC
+  session           supervise them until g0wm quits: g0wm autostart runs it
+EOF
+}
+
+die() {
+	printf 'services: %s\n' "$*" >&2
+	[ -t 2 ] || notify-send -a services "$*" 2>/dev/null
+	exit 1
+}
+
+names() {
+	for d in "$DEFS"/*/; do
+		[ -x "$d/run" ] && { d=${d%/}; echo "${d##*/}"; }
+	done
+}
+
+check_name() {
+	case $1 in '' | .* | */*) die "no service named '$1': $(names | tr '\n' ' ')" ;; esac
+	[ -x "$DEFS/$1/run" ] || die "no service named '$1': $(names | tr '\n' ' ')"
+}
+
+desc() { sed -n '2s/^# //p' "$DEFS/$1/run"; }
+
+at_login() {
+	[ -e "$STATE/$1.off" ] && return 1
+	[ -e "$STATE/$1.on" ] && return 0
+	[ ! -e "$DEFS/$1/down" ]
+}
+
+supervised() {
+	[ -n "$RUN" ] && [ -r "$RT/.pid" ] && kill -0 "$(cat "$RT/.pid")" 2>/dev/null
+}
+
+need_supervised() {
+	supervised || die "nothing is supervised in this session: g0wm starts it with 'services session'"
+}
+
+q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
+build() {
+	d=$RT/$1
+	mkdir -p "$d/log" "$STATE/log/$1"
+	ln -sfn "$DEFS/$1/run" "$d/run"
+	if [ -e "$DEFS/$1/finish" ]; then ln -sfn "$DEFS/$1/finish" "$d/finish"; else rm -f "$d/finish"; fi
+	[ -e "$STATE/log/$1/config" ] || printf 's200000\nn2\n' >"$STATE/log/$1/config"
+	printf '#!/bin/sh\nexec svlogd -tt %s\n' "$(q "$STATE/log/$1")" >"$d/log/run"
+	chmod 0700 "$d/log/run"
+	if at_login "$1"; then rm -f "$d/down"; else : >"$d/down"; fi
+}
+
+ready() {
+	i=0
+	until [ -p "$RT/$1/supervise/control" ]; do
+		i=$((i + 1))
+		[ "$i" -le 70 ] || die "$1: runsvdir did not pick it up"
+		sleep 0.1
+	done
+}
+
+ctl() {
+	c=$1
+	shift
+	[ $# -gt 0 ] || die "which one? $(names | tr '\n' ' ')"
+	for n; do check_name "$n"; done
+	need_supervised
+	rc=0
+	for n; do
+		[ -d "$RT/$n" ] || { build "$n"; ready "$n"; }
+		if [ -t 1 ]; then
+			SVDIR=$RT sv -w 5 "$c" "$n" || rc=1
+		else
+			SVDIR=$RT sv -w 5 "$c" "$n" >/dev/null || rc=1
+		fi
+	done
+	return "$rc"
+}
+
+toggle() {
+	on=$1
+	shift
+	[ $# -gt 0 ] || die "which one? $(names | tr '\n' ' ')"
+	for n; do check_name "$n"; done
+	mkdir -p "$STATE"
+	for n; do
+		rm -f "$STATE/$n.on" "$STATE/$n.off"
+		if [ "$on" = 1 ]; then
+			[ -e "$DEFS/$n/down" ] && : >"$STATE/$n.on"
+		else
+			[ -e "$DEFS/$n/down" ] || : >"$STATE/$n.off"
+		fi
+		[ -d "$RT/$n" ] && supervised && build "$n"
+	done
+	if supervised; then
+		if [ "$on" = 1 ]; then ctl up "$@"; else ctl down "$@"; fi
+	else
+		echo "saved for the next login: nothing is supervised in this session"
+	fi
+}
+
+age() {
+	if [ "$1" -lt 60 ]; then echo "${1}s"
+	elif [ "$1" -lt 3600 ]; then echo "$(($1 / 60))m"
+	elif [ "$1" -lt 86400 ]; then echo "$(($1 / 3600))h"
+	else echo "$(($1 / 86400))d"
+	fi
+}
+
+now() {
+	supervised && [ -d "$RT/$1" ] || { echo -; return; }
+	[ -e "$RT/.loop.$1.told" ] && { echo looping; return; }
+	s=$(SVDIR=$RT sv status "$1" 2>/dev/null)
+	case $s in
+	run:*)
+		t=$(printf '%s\n' "$s" | sed -nE 's/^run: [^:]*: \(pid [0-9]+\) ([0-9]+)s.*/\1/p')
+		echo "run ${t:+$(age "$t")}"
+		;;
+	down:*) echo down ;;
+	*) echo '?' ;;
+	esac
+}
+
+status() {
+	if [ $# -gt 0 ]; then
+		check_name "$1"
+		need_supervised
+		case $(now "$1") in run*) return 0 ;; esac
+		return 3
+	fi
+	printf '%-12s %-9s %-9s %s\n' SERVICE NOW 'AT LOGIN' WHAT
+	for n in $(names); do
+		if at_login "$n"; then l=on; else l=off; fi
+		printf '%-12s %-9s %-9s %s\n' "$n" "$(now "$n")" "$l" "$(desc "$n")"
+	done
+	supervised || printf '\nnothing is supervised in this session: g0wm starts it with %s\n' "'services session'"
+	return 0
+}
+
+log() {
+	[ $# -eq 1 ] || die "the log of which one? $(names | tr '\n' ' ')"
+	check_name "$1"
+	d=$STATE/log/$1
+	[ -s "$d/current" ] || [ -n "$(find "$d" -maxdepth 1 -name '@*' -print -quit 2>/dev/null)" ] ||
+		{ echo "$1 printed nothing yet"; return 0; }
+	set --
+	for f in "$d"/@*; do [ -f "$f" ] && set -- "$@" "$f"; done
+	[ -f "$d/current" ] && set -- "$@" "$d/current"
+	if [ -t 1 ]; then
+		cat -- "$@" | less +G
+	else
+		cat -- "$@"
+	fi
+}
+
+# a service that keeps exiting right after it starts gets one notification
+loops() {
+	for d in "$RT"/*/; do
+		[ -d "$d" ] || continue
+		n=${d%/}
+		n=${n##*/}
+		f=$RT/.loop.$n
+		s=$(SVDIR=$RT sv status "$n" 2>/dev/null) || continue
+		{ read -r old cnt <"$f"; } 2>/dev/null || { old= cnt=0; }
+		pid=$(printf '%s\n' "$s" | sed -nE 's/^run: [^:]*: \(pid ([0-9]+)\) ([0-9]+)s.*/\1/p')
+		t=$(printf '%s\n' "$s" | sed -nE 's/^run: [^:]*: \(pid ([0-9]+)\) ([0-9]+)s.*/\2/p')
+		case $s in
+		down:*'want up'*) cnt=$((cnt + 1)) ;;
+		down:*) cnt=0 ;;
+		run:*)
+			if [ "$pid" != "$old" ] && [ "$t" -lt 2 ]; then
+				cnt=$((cnt + 1))
+			elif [ "$t" -ge 10 ]; then
+				cnt=0
+			fi
+			old=$pid
+			;;
+		esac
+		echo "$old $cnt" >"$f"
+		if [ "$cnt" -ge 4 ] && ! [ -e "$f.told" ]; then
+			: >"$f.told"
+			(
+				exec 9>&-
+				[ "$(notify-send -a services -u critical -A default=Open "$n restarts in a loop" \
+					"It keeps exiting right after it starts: click to see what it printed" 2>/dev/null)" = default ] &&
+					foot -- "$self" log "$n"
+			) </dev/null >/dev/null 2>&1 &
+		elif [ "$cnt" = 0 ]; then
+			rm -f -- "$f.told"
+		fi
+	done
+}
+
+start_rsd() {
+	# runsvdir would keep the lock after a killed session
+	runsvdir "$RT" </dev/null >/dev/null 9>&- &
+	rsd=$!
+	echo "$rsd" >"$RT/.rsd"
+}
+
+# stop runsvdir first or it starts the services again
+stop_all() {
+	trap - TERM INT HUP
+	[ -z "${slp:-}" ] || kill "$slp" 2>/dev/null
+	[ -z "${rsd:-}" ] || { kill "$rsd" 2>/dev/null; wait "$rsd" 2>/dev/null; }
+	for d in "$RT"/*/; do
+		[ -d "$d" ] && SVDIR=$RT sv -w 3 force-shutdown "${d%/}" >/dev/null 2>&1 &
+	done
+	wait
+	rm -rf -- "$RT"
+}
+
+leftovers() {
+	[ -d "$RT" ] || return 0
+	rsd=$(cat "$RT/.rsd" 2>/dev/null) && [ "$(cat "/proc/$rsd/comm" 2>/dev/null)" = runsvdir ] || rsd=
+	stop_all
+	rsd=
+}
+
+find_g0wm() {
+	p=$$
+	while [ "$p" -gt 1 ] 2>/dev/null; do
+		[ "$(cat "/proc/$p/comm" 2>/dev/null)" = g0wm ] && { g0wm=$p; return 0; }
+		p=$(sed 's/.*) //' "/proc/$p/stat" 2>/dev/null | cut -d' ' -f2) || return 1
+	done
+	g0wm=$(pgrep -u "$(id -u)" -xo g0wm)
+}
+
+g0wm_alive() { [ "$(cat "/proc/$g0wm/comm" 2>/dev/null)" = g0wm ]; }
+
+session() {
+	[ -n "$RUN" ] && [ -d "$RUN" ] || die "XDG_RUNTIME_DIR is not set"
+	[ -n "${WAYLAND_DISPLAY:-}" ] || die "not inside a graphical session"
+	command -v runsvdir >/dev/null || die "runit is not installed"
+	find_g0wm || die "g0wm is not running"
+	rsd= slp=
+	self=$(command -v "$0") || self=$0
+	exec 9>"$RUN/services.lock"
+	# an old session stops within 2 seconds once its g0wm is gone
+	flock -w 8 9 || die "already supervised by 'services session' (pid $(cat "$RT/.pid" 2>/dev/null)): 'services' shows them"
+	leftovers
+	trap 'stop_all; exit 0' TERM INT HUP
+	mkdir -p "$STATE"
+	mkdir -m 0700 "$RT" || die "cannot create $RT"
+	echo $$ >"$RT/.pid"
+	rm -f -- "$RUN/awake"
+	for n in $(names); do build "$n"; done
+	start_rsd
+	while g0wm_alive; do
+		kill -0 "$rsd" 2>/dev/null || start_rsd
+		loops
+		sleep 2 &
+		slp=$!
+		wait "$slp"
+		slp=
+	done
+	stop_all
+}
+
+case ${1:-status} in
+-h | --help | help) usage; exit 0 ;;
+esac
+cmd=${1:-status}
+[ $# -eq 0 ] || shift
+case $cmd in
+status) status "$@" ;;
+start) ctl up "$@" ;;
+stop) ctl down "$@" ;;
+restart) ctl restart "$@" ;;
+enable) toggle 1 "$@" ;;
+disable) toggle 0 "$@" ;;
+log) log "$@" ;;
+session) session ;;
+*) echo "services: unknown command '$cmd'" >&2; echo "Try 'services --help' for more information." >&2; exit 2 ;;
+esac

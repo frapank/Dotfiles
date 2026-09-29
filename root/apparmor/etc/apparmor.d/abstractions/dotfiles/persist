@@ -6,7 +6,7 @@
   audit deny @{HOME}/.{vim,terminfo}/{,**} wl,
   audit deny @{HOME}/{bin,.local/bin,.local/src,.local/lib,.cargo/bin,.zvm}/{,**} wl,
   audit deny @{HOME}/.{cargo/env,bash_completion} wl,
-  audit deny @{HOME}/.config/{autostart,environment.d,systemd,g0wm,gtklock,foot,tmux,nvim,git}/{,**} wl,
+  audit deny @{HOME}/.config/{autostart,environment.d,systemd,sv,g0wm,gtklock,foot,tmux,nvim,git}/{,**} wl,
   audit deny @{HOME}/.config/{pipewire,wireplumber,fontconfig,Thunar,xfce4,fastfetch}/{,**} wl,
   audit deny @{HOME}/.config/{xdg-desktop-portal,xdg-desktop-portal-wlr}/{,**} wl,
   audit deny @{HOME}/.config/{mimeapps.list,user-dirs.dirs} wl,

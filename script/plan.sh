@@ -128,6 +128,7 @@ plan() {
 		Adds $TUSER to ${USER_GROUPS[*]}. Copies home/{$(join , "${HOME_DESKTOP[@]}")} with the default wallpaper.
 		Builds, tests and installs g0wm into ~/.local/bin, again only on new commits. A g0wm built elsewhere is left alone.
 		Log in on tty1 and g0wm starts.
+		'services': runit keeps the polkit agent, Thunar, the idle lock and the nightlight running while g0wm runs.
 	EOF
 	section media "Screen sharing and audio" <<-EOF
 		PipeWire with wireplumber and pipewire-pulse, ALSA through PipeWire.
