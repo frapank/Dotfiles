@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<EOF
+Usage: isolate [-n] [-w] [-r PATH]... [COMMAND [ARG]...]
+Run COMMAND in a sandbox, by default a shell. Inside, the system is
+read-only and the home is empty; there is no network, no graphical session,
+no sound, no D-Bus, no logs and no other process, and only TERM and LANG are
+passed from the environment. The current folder is visible read-only, unless
+it is your home or holds it. What is written in the empty home is lost.
+
+  -n       allow the network
+  -w       make the current folder writable
+  -r PATH  also make PATH visible, read-only; can be repeated
+
+Exit status is the one of COMMAND.
+EOF
+}
+
+die() { echo "isolate: $*" >&2; exit 125; }
+try() { echo "Try 'isolate --help' for more information." >&2; exit 125; }
+
+case ${1:-} in help|--help) usage; exit 0 ;; esac
+for a; do
+    case $a in
+    --) break ;;
+    --*) echo "isolate: unrecognized option '$a'" >&2; try ;;
+    -*) ;;
+    *) break ;;
+    esac
+done
+
+net=0 write=0 extra=()
+while getopts :nwr:h o; do
+    case $o in
+    :) echo "isolate: option requires an argument -- '$OPTARG'" >&2; try ;;
+    \?) echo "isolate: invalid option -- '$OPTARG'" >&2; try ;;
+    n) net=1 ;;
+    w) write=1 ;;
+    r) p=$(realpath -e -- "$OPTARG" 2>/dev/null) || die "$OPTARG: No such file or directory"
+        extra+=(--ro-bind "$p" "$p") ;;
+    h) usage; exit 0 ;;
+    *) try ;;
+    esac
+done
+shift $((OPTIND - 1))
+[[ $# -gt 0 ]] || set -- "$(command -v bash || echo /bin/sh)"
+
+command -v bwrap >/dev/null || die "bwrap is not installed"
+home=$(realpath -- "$HOME")
+cwd=$(pwd -P)
+
+args=(
+    --ro-bind / / --dev /dev --proc /proc
+    --tmpfs /tmp --tmpfs /var/tmp --tmpfs /var/log --tmpfs /run --tmpfs /home --tmpfs /mnt
+    --dir "$home"
+    --unshare-all --unshare-user --disable-userns --die-with-parent --hostname sandbox
+    --clearenv --setenv HOME "$home" --setenv PATH /usr/local/bin:/usr/bin:/bin
+    --setenv TERM "${TERM:-dumb}" --setenv LANG "${LANG:-C.UTF-8}"
+)
+[[ ! -d /media ]] || args+=(--tmpfs /media)
+((net)) && args+=(--share-net)
+# without the tiocsti block a sandboxed program could type into this terminal
+[[ $(cat /proc/sys/dev/tty/legacy_tiocsti 2>/dev/null) == 0 ]] || args+=(--new-session)
+
+# / or a folder above the home would bring the whole home back in
+if [[ $cwd == / || $home/ == "$cwd"/* ]]; then
+    ((write == 0)) || die "the current folder holds your home: it cannot be made writable"
+    echo "isolate: the current folder holds your home, it is not shared: cd into a folder or use -r" >&2
+    args+=(--chdir "$home")
+elif ((write)); then
+    args+=(--bind "$cwd" "$cwd" --chdir "$cwd")
+else
+    args+=(--ro-bind "$cwd" "$cwd" --chdir "$cwd")
+fi
+
+exec bwrap "${args[@]}" "${extra[@]}" -- "$@"
