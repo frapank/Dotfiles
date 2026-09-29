@@ -207,20 +207,8 @@
 			"--components=secrets"
 		],
 		[
-			"/usr/libexec/polkit-gnome-authentication-agent-1"
-		],
-		[
-			"thunar",
-			"--daemon"
-		],
-		[
-			"swayidle",
-			"-w",
-			"timeout",
-			"300",
-			"gtklock -d",
-			"before-sleep",
-			"gtklock -d"
+			"services",
+			"session"
 		]
 	],
 	"keys": [

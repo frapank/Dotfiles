@@ -1,0 +1,7 @@
+#!/bin/sh
+# ask for the password when an app needs more rights
+exec 2>&1
+agent=/usr/libexec/polkit-gnome-authentication-agent-1
+# another agent would make this one exit in a loop
+pkill -u "$(id -u)" -f "^$agent\$"
+exec "$agent"

@@ -1,26 +1,20 @@
 #!/bin/sh
-set -eu
+set -u
 
-temp=4000
-uid=$(id -u)
-pid=${XDG_RUNTIME_DIR:-/tmp}/nightlight.pid
-
-running() { pgrep -u "$uid" -x wlsunset >/dev/null; }
-
-off() {
-    pkill -u "$uid" -x wlsunset || true
-    rm -f "$pid"
-}
-
-on() {
-    running && return 0
-    setsid -f sh -c 'echo $$ >"$1"; shift; exec "$@"' _ "$pid" \
-        wlsunset -t "$temp" -T "$((temp + 1))" -S 06:00 -s 18:00 </dev/null >/dev/null 2>&1
-}
+# colors and hours are in ~/.config/sv/nightlight/run
+on() { exec services start nightlight; }
+off() { exec services stop nightlight; }
 
 case ${1:-toggle} in
 on) on ;;
 off) off ;;
-toggle) if running; then off; else on; fi ;;
+toggle)
+    services status nightlight >/dev/null
+    case $? in
+    0) off ;;
+    3) on ;;
+    *) exit 1 ;;
+    esac
+    ;;
 *) echo "usage: nightlight [on|off|toggle]" >&2; exit 2 ;;
 esac
