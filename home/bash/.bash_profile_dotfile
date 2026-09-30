@@ -1,5 +1,3 @@
-# .bash_profile
-
 [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
@@ -14,7 +12,14 @@ if [ -n "${XDG_RUNTIME_DIR:-}" ] && command -v ssh-agent >/dev/null 2>&1; then
     fi
 fi
 
-if [ "$(tty)" = /dev/tty1 ] && [ -z "${WAYLAND_DISPLAY:-}" ] &&
-    command -v start-g0wm >/dev/null 2>&1; then
-    exec start-g0wm
+# start g0wm at the first prompt so the rest of ~/.bash_profile runs first
+if [ "$(tty)" = /dev/tty1 ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    __start_g0wm() {
+        PROMPT_COMMAND=${PROMPT_COMMAND#__start_g0wm; }
+        unset -f __start_g0wm
+        if command -v start-g0wm >/dev/null 2>&1; then
+            exec start-g0wm
+        fi
+    }
+    PROMPT_COMMAND="__start_g0wm; ${PROMPT_COMMAND:-}"
 fi
