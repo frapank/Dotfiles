@@ -20,8 +20,8 @@ options() {
             cat <<EOF
 Usage: g0wm-status.sh [-1] [-c FILE] [SECONDS]
 
-Prints the bar status line once per interval. The modules shown and their
-format come from \$G0WM_STATUS_CONF, or from
+Prints the bar status line when it changes. The modules shown, their format
+and how often each one is read (<module>_interval, in seconds) come from \$G0WM_STATUS_CONF, or from
 \${XDG_CONFIG_HOME:-\$HOME/.config}/g0wm/status.conf, and fall back to the
 built-in clock and battery when that file is missing. Run ./status_gen to
 write it.
@@ -53,8 +53,9 @@ EOF
 defaults() {
     all_modules='date time battery cpu ram netdown netup rec mic cam dns nightlight awake'
     modules='date time battery'
-    interval=1
-    battery_interval=30
+    module_defaults='date:60 time:1 battery:30 cpu:2 ram:2 net:2 rec:0.5 mic:1 cam:1 dns:5 nightlight:0.5 awake:0.5'
+    interval=
+    for m in $module_defaults; do eval "${m%%:*}_interval="; done
     prefix=' '
     separator=' '
     suffix=' '
@@ -149,6 +150,9 @@ read_config() { # reads $conf if present, then finalizes the timing settings
             esac
             case $key in
             modules | interval | battery_interval | prefix | separator | suffix | \
+                date_interval | time_interval | cpu_interval | ram_interval | net_interval | \
+                rec_interval | mic_interval | cam_interval | dns_interval | \
+                nightlight_interval | awake_interval | \
                 date_format | time_format | battery_format | cpu_format | ram_format | \
                 netdown_format | netup_format | net_interface | icon_date | icon_time | \
                 icon_battery | icon_cpu | icon_ram | icon_netdown | icon_netup | \
@@ -167,30 +171,18 @@ read_config() { # reads $conf if present, then finalizes the timing settings
     fi
 
     [ -n "$arg_battery_interval" ] && battery_interval=$arg_battery_interval
-    case $interval in
-    '' | .* | *. | *[!0-9.]* | *.*.*) interval_ms=0 ;;
-    *)
-        rc_i=${interval%%.*} rc_f=${interval#"$rc_i"}
-        rc_f=${rc_f#.}000
-        rc_f=${rc_f%"${rc_f#???}"}
-        while :; do
-            case $rc_i in 0?*) rc_i=${rc_i#0} ;; *) break ;; esac
-        done
-        # the leading 1 keeps a fraction like 080 from being read as octal
-        interval_ms=$((rc_i * 1000 + 1$rc_f - 1000))
-        ;;
-    esac
-    [ "$interval_ms" -gt 0 ] ||
-        {
-            warn "interval '$interval' is not a positive number, using 1"
-            interval=1 interval_ms=1000
-        }
-    case $battery_interval in
-    '' | *[!0-9]* | 0)
-        warn "battery_interval '$battery_interval' is not a positive number, using 30"
-        battery_interval=30
-        ;;
-    esac
+    # interval sets every module without its own
+    for rc_d in $module_defaults; do
+        rc_m=${rc_d%%:*}
+        eval "rc_v=\${${rc_m}_interval}"
+        [ -n "$rc_v" ] || rc_v=${interval:-${rc_d#*:}}
+        to_ms "$rc_v"
+        if [ "$ms" -le 0 ]; then
+            warn "${rc_m}_interval '$rc_v' is not a positive number, using ${rc_d#*:}"
+            to_ms "${rc_d#*:}"
+        fi
+        eval "ivl_$rc_m=\$ms"
+    done
     case $battery_low in
     '' | *[!0-9]*)
         warn "battery_low '$battery_low' is not a number, using 20"
@@ -216,6 +208,28 @@ read_config() { # reads $conf if present, then finalizes the timing settings
     separator=$ec
     esc "$suffix"
     suffix=$ec
+}
+
+to_ms() { # seconds to ms, 0 when not a number
+    case $1 in
+    '' | .* | *. | *[!0-9.]* | *.*.*) ms=0 ;;
+    *)
+        tm_i=${1%%.*} tm_f=${1#"$tm_i"}
+        tm_f=${tm_f#.}000
+        tm_f=${tm_f%"${tm_f#???}"}
+        while :; do
+            case $tm_i in 0?*) tm_i=${tm_i#0} ;; *) break ;; esac
+        done
+        # the leading 1 keeps a fraction like 080 from being read as octal
+        ms=$((tm_i * 1000 + 1$tm_f - 1000))
+        ;;
+    esac
+}
+
+now_ms() { # ms since boot into now
+    read -r nm_u nm_rest </proc/uptime
+    nm_i=${nm_u%.*} nm_f=${nm_u#*.}
+    now=$((nm_i * 1000 + 1$nm_f * 10 - 1000))
 }
 
 esc() { # text -> ec, with every caret doubled so the bar draws it as one
@@ -274,6 +288,8 @@ detect() { # have_date, battery_method, cpu_method, ram_method, net_method
     done
     have_proc=0
     [ -r /proc/self/comm ] && have_proc=1
+    have_uptime=0
+    [ -r /proc/uptime ] && have_uptime=1
 
     # 127.0.0.1:53 is 0100007F:0035 in /proc/net/udp
     dns_sock=
@@ -374,6 +390,12 @@ filter_modules() { # -> modules trimmed to what is available, and want_*
     modules=${modules% }
     [ -n "$modules" ] || warn 'no module left to show'
 
+    groups=
+    for m in $modules; do
+        group_of "$m"
+        case " $groups " in *" $grp "*) ;; *) groups="$groups $grp" ;; esac
+    done
+
     want_battery=0 want_cpu=0 want_ram=0 want_net=0 want_date=0 want_time=0
     for m in $modules; do
         case $m in
@@ -385,6 +407,14 @@ filter_modules() { # -> modules trimmed to what is available, and want_*
         netdown | netup) want_net=1 ;;
         esac
     done
+}
+
+group_of() { # modules read together share a group
+    case $1 in
+    date | time) grp=clock ;;
+    netdown | netup) grp=net ;;
+    *) grp=$1 ;;
+    esac
 }
 
 subst() { # string token replacement -> sb
@@ -588,9 +618,12 @@ read_net() {
     # a counter that went backwards wrapped, or its interface is gone
     [ "$ns_drx" -lt 0 ] && ns_drx=0
     [ "$ns_dtx" -lt 0 ] && ns_dtx=0
-    human $((ns_drx * 1000 / interval_ms))
+    rn_ms=$((now - net_at))
+    [ "$rn_ms" -gt 0 ] || rn_ms=$ivl_net
+    net_at=$now
+    human $((ns_drx * 1000 / rn_ms))
     net_down=$hu
-    human $((ns_dtx * 1000 / interval_ms))
+    human $((ns_dtx * 1000 / rn_ms))
     net_up=$hu
 }
 
@@ -618,25 +651,69 @@ dns_up() {
     return 1
 }
 
-clk_date= clk_time=
-read_clock() {
+clk_date= clk_time= clk_ns=
+read_clock() { # the last line is %N to wake just after the second
     case $want_date$want_time in
     11)
         subst "$date_format" '%i' "$icon_date"
         rk_d=$sb
         subst "$time_format" '%i' "$icon_time"
-        rk=$(date "+$rk_d%n$sb")
-        clk_date=${rk%%"$nl"*} clk_time=${rk#*"$nl"}
+        rk=$(date "+$rk_d%n$sb%n%N")
+        clk_date=${rk%%"$nl"*} rk=${rk#*"$nl"}
+        clk_time=${rk%%"$nl"*} clk_ns=${rk#*"$nl"}
         ;;
     10)
         subst "$date_format" '%i' "$icon_date"
-        clk_date=$(date "+$sb")
+        rk=$(date "+$sb%n%N")
+        clk_date=${rk%%"$nl"*} clk_ns=${rk#*"$nl"}
         ;;
     01)
         subst "$time_format" '%i' "$icon_time"
-        clk_time=$(date "+$sb")
+        rk=$(date "+$sb%n%N")
+        clk_time=${rk%%"$nl"*} clk_ns=${rk#*"$nl"}
         ;;
     esac
+}
+
+update() { # read a group and set when it is due again
+    case $1 in
+    clock)
+        read_clock
+        ivl=$ivl_date
+        [ "$want_time" = 1 ] && ivl=$ivl_time
+        ;;
+    battery)
+        read_battery
+        ivl=$ivl_battery
+        ;;
+    cpu)
+        read_cpu
+        ivl=$ivl_cpu
+        ;;
+    ram)
+        read_ram
+        ivl=$ivl_ram
+        ;;
+    net)
+        read_net
+        ivl=$ivl_net
+        ;;
+    *) eval "ivl=\$ivl_$1" ;;
+    esac
+    if [ "$1" != clock ]; then
+        eval "nxt=\$((due_$1 + ivl))"
+        [ "$nxt" -gt "$now" ] || nxt=$((now + ivl))
+        eval "due_$1=\$nxt"
+        return 0
+    fi
+    nxt=$((now + ivl))
+    if [ "$ivl" -ge 1000 ]; then
+        # BSD date prints N for %N
+        case $clk_ns in
+        [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) nxt=$((nxt - 1${clk_ns%??????} + 1000 + 5)) ;;
+        esac
+    fi
+    eval "due_$1=\$nxt"
 }
 
 fmt() {
@@ -710,31 +787,64 @@ main() {
         net_rx_prev=$net_rx net_tx_prev=$net_tx
     }
 
-    [ "$once" = 1 ] && { [ "$want_cpu" = 1 ] || [ "$want_net" = 1 ]; } &&
-        sleep "$interval"
+    now=0
+    [ "$have_uptime" = 1 ] && now_ms
+    net_at=$now
+    if [ "$once" = 1 ] && { [ "$want_cpu" = 1 ] || [ "$want_net" = 1 ]; }; then
+        sleep 1
+        now=$((now + 1000))
+        [ "$have_uptime" = 1 ] && now_ms
+    fi
 
-    tick=0
+    due_clock=
+    for g in $groups; do eval "due_$g=\$now"; done
+    last=
     while :; do
-        if [ "$tick" -le 0 ]; then
-            [ "$want_battery" = 1 ] && read_battery
-            tick=$((battery_interval * 1000))
+        for g in $groups; do
+            # read groups due soon now so they share a wake
+            early=0
+            [ "$g" = clock ] || eval "early=\$((ivl_$g / 5))"
+            eval "gd=\$due_$g"
+            [ "$now" -ge "$((gd - early))" ] || continue
+            update "$g"
+            for m in $modules; do
+                group_of "$m"
+                [ "$grp" = "$g" ] || continue
+                render "$m"
+                eval "out_$m=\$r"
+            done
+        done
+
+        # align the other groups to the clock
+        if [ -z "$last" ] && [ -n "$due_clock" ]; then
+            for g in $groups; do eval "due_$g=\$due_clock"; done
         fi
-        read_clock
-        [ "$want_cpu" = 1 ] && read_cpu
-        [ "$want_ram" = 1 ] && read_ram
-        [ "$want_net" = 1 ] && read_net
 
         line=
         for m in $modules; do
-            render "$m"
+            eval "r=\$out_$m"
             [ -n "$r" ] || continue
             line=${line:+$line$separator}$r
         done
-        printf '%s%s%s\n' "$prefix" "$line" "$suffix"
-
+        # g0wm redraws the bar for every line
+        if [ "$once" = 1 ] || [ "$line" != "$last" ]; then
+            printf '%s%s%s\n' "$prefix" "$line" "$suffix"
+            last=$line
+        fi
         [ "$once" = 1 ] && break
-        tick=$((tick - interval_ms))
-        sleep "$interval"
+
+        wait=
+        for g in $groups; do
+            eval "gd=\$due_$g"
+            [ -z "$wait" ] || [ "$((gd - now))" -lt "$wait" ] && wait=$((gd - now))
+        done
+        [ -n "$wait" ] || wait=1000
+        [ "$wait" -gt 10 ] || wait=10
+        ws=$((wait % 1000))
+        case $ws in ?) ws=00$ws ;; ??) ws=0$ws ;; esac
+        sleep "$((wait / 1000)).$ws"
+        now=$((now + wait))
+        [ "$have_uptime" = 1 ] && now_ms
     done
 }
 
