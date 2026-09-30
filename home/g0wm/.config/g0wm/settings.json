@@ -52,7 +52,7 @@
         },
         "rootcolor": "#0a1224ff",
         "fullscreen_bg": "#0a1224ff",
-        "wallpaper": "/home/user/.config/g0wm/wallpaper.jpg",
+        "wallpaper": "@HOME@/.config/g0wm/wallpaper.jpg",
         "tags": [
             "1",
             "2",

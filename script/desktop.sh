@@ -21,7 +21,7 @@ do_g0wm() {
     do_home "${HOME_DESKTOP[@]}"
 
     local wp
-    wp=$(grep -o '"wallpaper": *"[^"]*"' "$REPO/home/g0wm/.config/g0wm/settings.json" | cut -d'"' -f4 || true)
+    wp=$(grep -o '"wallpaper": *"[^"]*"' "$THOME/.config/g0wm/settings.json" | cut -d'"' -f4 || true)
     [[ -z $wp || -f $wp ]] || warn "wallpaper $wp does not exist, set it in settings.json"
 
     local src=$THOME/.local/src/g0wm bin=$THOME/.local/bin before= rev out f where=
