@@ -1,0 +1,12 @@
+#!/bin/sh
+# PulseAudio apps and pactl on pipewire
+exec 2>&1
+pkill -u "$(id -u)" -x pipewire-pulse
+# wait for pipewire
+i=0
+until [ -S "${XDG_RUNTIME_DIR:-/tmp}/pipewire-0" ]; do
+    i=$((i + 1))
+    [ "$i" -le 50 ] || exit 1
+    sleep 0.1
+done
+exec pipewire-pulse

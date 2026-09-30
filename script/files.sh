@@ -48,20 +48,6 @@ put_text() {
     rm -f -- "$tmp"
 }
 
-put_link() {
-    local target=$1 dst=$2
-    [[ -e $target ]] || die "$target does not exist"
-    if [[ -L $dst && $(readlink -- "$dst") == "$target" ]]; then
-        skip "$dst"
-        return 0
-    fi
-    mkdirs "${dst%/*}"
-    backup "$dst"
-    ln -sfn -- "$target" "$dst.pi-new"
-    mv -Tf -- "$dst.pi-new" "$dst"
-    ok "$dst -> $target"
-}
-
 fix_perm() {
     local p=$1 mode=$2 cur
     cur=$(stat -c '%a %u:%g' -- "$p")

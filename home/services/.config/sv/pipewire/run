@@ -1,0 +1,5 @@
+#!/bin/sh
+# the sound server, wireplumber and pipewire-pulse connect to it
+exec 2>&1
+pkill -u "$(id -u)" -x pipewire
+exec pipewire
