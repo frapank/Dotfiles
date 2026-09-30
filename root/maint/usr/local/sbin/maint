@@ -16,20 +16,7 @@ DAY=86400
 
 log() { printf '%s\n' "$*"; }
 
-as_user() {
-    # a sandboxed app can rename itself g0wm
-    for pid in $(pgrep -x g0wm) ''; do
-        [ -n "$pid" ] || return 1
-        [ "$(cat "/proc/$pid/attr/apparmor/current" 2>/dev/null || echo unconfined)" = unconfined ] && break
-    done
-    user=$(stat -c %U "/proc/$pid") || return 1
-    for v in HOME DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY XDG_RUNTIME_DIR; do
-        val=$(tr '\0' '\n' <"/proc/$pid/environ" | sed -n "s/^$v=//p" | head -n1)
-        [ -z "$val" ] || set -- "$v=$val" "$@"
-    done
-    setpriv --reuid="$user" --regid="$user" --init-groups \
-        env -i PATH=/usr/bin:/bin "$@"
-}
+as_user() { /usr/local/libexec/as-session-user "$@"; }
 
 notify() { as_user notify-send -a Maintenance -u critical "$1" "$2" >/dev/null 2>&1 || true; }
 
