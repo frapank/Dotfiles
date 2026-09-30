@@ -165,10 +165,12 @@ status() {
         case $(now "$1") in run*) return 0 ;; esac
         return 3
     fi
-    printf '%-12s %-9s %-9s %s\n' SERVICE NOW 'AT LOGIN' WHAT
+    w=7
+    for n in $(names); do [ "${#n}" -le "$w" ] || w=${#n}; done
+    printf '%-*s  %-9s %-9s %s\n' "$w" SERVICE NOW 'AT LOGIN' WHAT
     for n in $(names); do
         if at_login "$n"; then l=on; else l=off; fi
-        printf '%-12s %-9s %-9s %s\n' "$n" "$(now "$n")" "$l" "$(desc "$n")"
+        printf '%-*s  %-9s %-9s %s\n' "$w" "$n" "$(now "$n")" "$l" "$(desc "$n")"
     done
     supervised || printf '\nnothing is supervised in this session: g0wm starts it with %s\n' "'services session'"
     return 0
