@@ -150,7 +150,7 @@ plan() {
 		Bluetooth is off at every boot: 'bluetooth on' or 'bluetooth off'.
 	EOF
     section theme "Theme: Adwaita dark" <<-EOF
-		GTK 2, 3, 4 and Qt 5, 6 in Adwaita dark, Geist 10 as UI font, Geist Mono 10 for code.
+		GTK 2, 3, 4 and Qt 5, 6 in Adwaita dark, Geist 11 as UI font, Geist Mono 11 for code.
 		Bibata-Modern-Classic cursor (sha256 checked) in the palette, size $CURSOR_SIZE.
 		AdwaitaLegacy $ICONS_TAG for full color icons in pavucontrol and Thunar.
 	EOF

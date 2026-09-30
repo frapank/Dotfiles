@@ -179,7 +179,7 @@ do_theme() {
     gset icon-theme "'Adwaita'"
     gset cursor-theme "'Bibata-Modern-Classic'"
     gset cursor-size "$CURSOR_SIZE"
-    gset font-name "'Geist 10'"
-    gset document-font-name "'Geist 10'"
-    gset monospace-font-name "'Geist Mono 10'"
+    gset font-name "'Geist 11'"
+    gset document-font-name "'Geist 11'"
+    gset monospace-font-name "'Geist Mono 11'"
 }
