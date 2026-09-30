@@ -20,7 +20,7 @@ defined by $DEFS/NAME/run.
   restart NAME...   stop it and start it again (after editing its run file)
   enable NAME...    start it now and at every login
   disable NAME...   stop it now and no longer at login
-  log NAME          what it printed, times in UTC
+  log NAME          what it printed, the same as 'logs service NAME'
   session           supervise them until g0wm quits: g0wm autostart runs it
 EOF
 }
@@ -179,6 +179,10 @@ status() {
 log() {
     [ $# -eq 1 ] || die "the log of which one? $(names | tr '\n' ' ')"
     check_name "$1"
+    if command -v logs >/dev/null 2>&1; then
+        [ -t 1 ] && exec logs -p service "$1"
+        exec logs -n service "$1"
+    fi
     d=$STATE/log/$1
     [ -s "$d/current" ] || [ -n "$(find "$d" -maxdepth 1 -name '@*' -print -quit 2>/dev/null)" ] ||
         {

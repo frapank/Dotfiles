@@ -23,7 +23,8 @@ _logs() {
     grep | around) ((COMP_CWORD == at + 1)) || COMPREPLY=($(compgen -W "$names" -- "$cur")) ;;
     service)
         if ((COMP_CWORD == at + 1)); then
-            COMPREPLY=($(compgen -W "$(cd /var/service 2>/dev/null && printf '%s\n' *)" -- "$cur"))
+            COMPREPLY=($(compgen -W "$(cd /var/service 2>/dev/null && printf '%s\n' *)
+                $(cd "${XDG_STATE_HOME:-$HOME/.local/state}/services/log" 2>/dev/null && printf '%s\n' *)" -- "$cur"))
         elif ((COMP_CWORD == at + 2)); then
             COMPREPLY=($(compgen -W "$when" -- "$cur"))
         fi
