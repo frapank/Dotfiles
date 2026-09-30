@@ -263,7 +263,7 @@ verify() {
             }
     fi
     if ((SEL[apps])); then
-        for c in librewolf loupe papers showtime soffice pavucontrol swaylock tree thunar xdg-open gtk-launch; do
+        for c in librewolf loupe papers showtime soffice pavucontrol gtklock tree thunar xdg-open gtk-launch; do
             command -v "$c" >/dev/null || {
                 warn "$c missing"
                 bad=1
