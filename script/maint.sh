@@ -59,6 +59,8 @@ do_nosnap() {
     fi
     nosnap "$THOME/Private"
     nosnap "$THOME/.cache"
+    nosnap "$THOME/Games"
+    nosnap "$THOME/.local/share/Steam" steam
     nosnap "$THOME/.config/librewolf" librewolf
 }
 
