@@ -74,6 +74,12 @@ resolve_user() {
 check_repo() {
     REPO=$(dirname -- "$(dirname -- "$(readlink -f -- "$0")")")
     [[ -d $REPO/home && -d $REPO/root && -d $REPO/src && -d $REPO/script ]] || die "$REPO does not look like the dotfiles repo"
+    # folders confined apps can write to, see abstractions/dotfiles/app
+    local w
+    for w in Get Random Media; do
+        [[ $REPO/ != "$THOME/$w"/* ]] ||
+            die "$REPO is in ~/$w, where a sandboxed app could have changed it: clone it somewhere else"
+    done
 
     local d=$REPO o bad
     while :; do
