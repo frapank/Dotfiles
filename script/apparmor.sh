@@ -41,6 +41,8 @@ aa_prune() {
         f=${f%% -> *}
         [[ $f == /etc/apparmor.d/* && $f != /etc/apparmor.d/*/* ]] || continue
         [[ $keep == *" ${f##*/} "* || ${f##*/} == README ]] && continue
+        # the repo has its own steam
+        [[ ! -e $REPO/root/apparmor$f ]] || continue
         noext+=("noextract=$f")
         [[ -e $f ]] || continue
         backup "$f"

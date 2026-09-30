@@ -48,6 +48,7 @@ plan() {
 		  foot: no network, no secrets. The shell inside is not confined.
 		  dnscrypt-proxy chronyd bluetoothd NetworkManager pipewire wireplumber fwupd: only what they use.
 		  wpa_supplicant reads certificates, so eduroam works.
+		  steam lutris, if you install them: all but secrets, shell startup and setuid programs.
 		  Loupe is left to glycin, which already sandboxes image decoding.
 		Sandbox: these apps start in bwrap via dbus-filter, with a filtered session bus (portals, dconf, gvfs, notifications, media keys), no X11, no user namespaces and no network (librewolf keeps both).
 		  With wp_security_context_v1 in g0wm they also cannot read the clipboard or screen or inject input. Copy and paste still work.
