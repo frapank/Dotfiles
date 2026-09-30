@@ -5,6 +5,7 @@ export LC_ALL=C
 D=/var/log/socklog
 PSTORE=/var/log/pstore
 SESSION=${XDG_STATE_HOME:-$HOME/.local/state}/g0wm
+USERSV=${XDG_STATE_HOME:-$HOME/.local/state}/services/log
 
 usage() {
     cat <<EOF
@@ -21,7 +22,8 @@ Long output opens in less at the end: q quits, / searches.
   grep REGEX [LOG...]       lines matching REGEX, any case (default: everything)
   around TEXT [LOG...]      each line holding TEXT, with what came before and
                             after it (default: everything)
-  service NAME [WHEN]       what a service logged: chronyd, maint, watchdog...
+  service NAME [WHEN]       what a service logged: chronyd, maint, watchdog,
+                            or one of 'services': pipewire, idle...
   crashes [WHEN]            segfaults, fatal signals, out of memory, kernel bugs
   apparmor [WHEN]           what AppArmor blocked, counted per app
   firewall [WHEN]           what the firewall dropped, counted per source
@@ -93,15 +95,18 @@ since() {
 }
 
 stream() {
-    if [ $# -eq 1 ]; then
-        cat -- "$D/$1"/@* "$D/$1/current" 2>/dev/null
-    else
-        for l; do cat -- "$D/$l"/@* "$D/$l/current" 2>/dev/null; done | sort -s -k1,1
-    fi | if [ -n "$SINCE" ]; then
-        awk -v s="$SINCE" 'substr($0, 1, 19) >= s'
-    else
-        cat
-    fi
+    for l; do
+        case $l in /*) ;; *) l=$D/$l ;; esac
+        cat -- "$l"/@* "$l/current" 2>/dev/null
+    done |
+        # user logs use _ where socklog uses T
+        sed 's/^\([0-9]\{4\}-[0-9][0-9]-[0-9][0-9]\)_/\1T/' |
+        if [ $# -gt 1 ]; then sort -s -k1,1; else cat; fi |
+        if [ -n "$SINCE" ]; then
+            awk -v s="$SINCE" 'substr($0, 1, 19) >= s'
+        else
+            cat
+        fi
 }
 
 LIB='
@@ -253,9 +258,13 @@ firewall() {
 }
 
 service() {
-    [ -n "${1:-}" ] || die "which service? $(cd /var/service && echo *)"
+    [ -n "${1:-}" ] || die "which service? $(cd /var/service && echo *) $(cd "$USERSV" 2>/dev/null && echo *)"
     case $1 in *[!A-Za-z0-9_.@-]*) die "not a service name: $1" ;; esac
     since "${2:-}"
+    if [ -d "$USERSV/$1" ]; then
+        stream "$USERSV/$1" | fmt | page
+        return
+    fi
     name=$(printf '%s' "$1" | sed 's/\./\\./g')
     pick "^[^ ]+ [a-z0-9]+\.[a-z]+: ([A-Z][a-z][a-z] [ 0-9][0-9] [0-9:]{8} )?$name(\[[0-9]+\])?: " everything
 }
@@ -301,14 +310,19 @@ panics() {
 }
 
 session() {
-    log=$SESSION/g0wm.log
-    [ -f "$log" ] || die "no $log: g0wm writes it when started with start-g0wm"
+    [ -d "$SESSION/log" ] || [ -f "$SESSION/g0wm.log" ] ||
+        die "no log in $SESSION: start-g0wm writes it"
     {
         for c in "$SESSION"/core*; do
             [ -f "$c" ] || continue
             echo "core dump: $c ($(used "$c"))"
         done
-        cat -- "$log"
+        # g0wm.log is from before svlogd
+        if [ -d "$SESSION/log" ]; then
+            stream "$SESSION/log" | fmt
+        else
+            cat -- "$SESSION/g0wm.log"
+        fi
     } | page
 }
 
