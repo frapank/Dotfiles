@@ -21,7 +21,7 @@ privacy-check|check MAC, DNS, firewall, AppArmor, camera and microphone
 conns|the open connections and the programs behind them
 isolate|run a command in a sandbox: empty home, no network
 Snapshots of /home
-snap|the older versions of a file, copy one back
+snap|the older versions of a file, copy one back, what changed since a day
 forget|delete a file from every snapshot, for good
 System
 logs|system logs in local time: errors, crashes, AppArmor, firewall

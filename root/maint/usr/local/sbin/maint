@@ -13,6 +13,12 @@ BATTERY_MIN=20
 SCRUB_LIMIT=300m
 STATE=/var/lib/maint
 DAY=86400
+# an update waits for a better connection: probes to the repository
+NET_PROBES=5
+NET_MAX_FAILED=1
+NET_SLOW_REPLY=3
+NET_MIN_KBS=100
+NET_MAX_MIN=30
 
 log() { printf '%s\n' "$*"; }
 
@@ -128,6 +134,23 @@ job_trash() {
     as_user /usr/local/libexec/trash-clean 2>&1
 }
 
+# disks
+
+job_disks() {
+    command -v smartctl >/dev/null || {
+        log "disks: smartmontools not installed"
+        return 0
+    }
+    out=$(/usr/local/libexec/disk-health "$STATE/disks.json" 2>&1) || {
+        printf '%s\n' "$out"
+        return 1
+    }
+    printf '%s\n' "$out" | sed 's/^! /worse: /; s/^/disks: /'
+    news=$(printf '%s\n' "$out" | sed -n 's/^! //p')
+    [ -z "$news" ] || notify_log "Disk health" "$news
+Back up what matters. Click to see the log."
+}
+
 # firmware
 
 job_firmware() {
@@ -189,6 +212,50 @@ snap_root() {
 }
 
 pending() { xbps-install -un 2>&1; }
+
+# $1 bytes to download, $2 the repository most of them come from
+# prints why the connection is not good enough
+net_bad() {
+    case $2 in https://*) ;; *) return 1 ;; esac
+    url=$2/$(xbps-uhelper arch)-repodata
+    get() { curl -fsS -o /dev/null -L --proto =https --proto-redir =https --tlsv1.2 "$@" "$url" 2>/dev/null; }
+    failed=0 slow=0 i=0
+    while [ "$i" -lt "$NET_PROBES" ]; do
+        t=$(get -r 0-16383 --max-time 10 -w '%{time_starttransfer}') || t=
+        if [ -z "$t" ]; then
+            failed=$((failed + 1))
+        elif awk -v t="$t" -v m="$NET_SLOW_REPLY" 'BEGIN { exit !(t > m) }'; then
+            slow=$((slow + 1))
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    if [ "$failed" -gt "$NET_MAX_FAILED" ]; then
+        echo "unstable connection, $failed of $NET_PROBES requests to the repository failed"
+        return 0
+    fi
+    if [ "$slow" -gt 1 ]; then
+        echo "unstable connection, $slow of $NET_PROBES replies took over ${NET_SLOW_REPLY}s"
+        return 0
+    fi
+    # 2 MiB, or what arrived in 20 seconds
+    bps=$(get -r 0-2097151 --max-time 20 -w '%{speed_download}') || [ -n "$bps" ] || bps=0
+    awk -v bps="$bps" -v dl="$1" -v kbs="$NET_MIN_KBS" -v mins="$NET_MAX_MIN" 'BEGIN {
+        if (bps < kbs * 1024) { printf "slow connection, %d KB/s\n", bps / 1024; exit 0 }
+        t = dl / bps / 60
+        if (t > mins) { printf "slow connection, %d MB at %d KB/s would take %d minutes\n", dl / 1048576, bps / 1024, t; exit 0 }
+        exit 1
+    }'
+}
+
+# notify once a day when updates have waited for days
+net_postponed() {
+    [ -e "$STATE/update" ] || return 0
+    days=$((($(date +%s) - $(stat -c %Y "$STATE/update")) / DAY))
+    [ "$days" -ge 3 ] && due netwait "$DAY" || return 0
+    touch "$STATE/netwait"
+    notify "Update postponed" "No update for $days days: $1. Retried every hour, or run 'doas maint update' to update anyway."
+}
 
 # returns 3 when it failed and already notified
 update_now() {
@@ -283,6 +350,16 @@ job_update() {
     if [ -z "$list" ]; then
         log "update: up to date"
         return 0
+    fi
+    # bytes to download and the repository with most of them, cached packages count 0
+    # shellcheck disable=SC2046
+    set -- $(printf '%s\n' "$list" | awk '
+        { d[$4] += $6; t += $6 }
+        END { for (r in d) if (d[r] > m) { m = d[r]; best = r } print t + 0, best }')
+    if [ "${FORCE:-0}" = 0 ] && [ "$1" -gt 0 ] && why=$(net_bad "$1" "${2:-}"); then
+        log "update: $why"
+        net_postponed "$why"
+        return 2
     fi
     if ! elogind-inhibit --list >/dev/null 2>&1; then
         log "update: cannot block sleep (elogind not running)"
@@ -452,6 +529,7 @@ run_due() {
     due thumbs "$DAY" && job thumbs
     due trash "$DAY" && job trash
     due update "$DAY" && job update
+    due disks "$((7 * DAY))" && job disks
     due kernels "$((7 * DAY))" && job kernels
     due packages "$((7 * DAY))" && job packages
     due firmware "$((7 * DAY))" && job firmware
@@ -461,7 +539,7 @@ run_due() {
 }
 
 status() {
-    for j in home thumbs trash update kernels packages firmware scrub blocklist; do
+    for j in home thumbs trash update disks kernels packages firmware scrub blocklist; do
         if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
         printf '%-9s last %s' "$j" "$last"
         [ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
@@ -485,7 +563,12 @@ run) (
     locked
     run_due
 ) ;;
-home | thumbs | trash | update | kernels | packages | firmware | scrub | blocklist) (
+update) (
+    # by hand: whatever the connection
+    locked
+    FORCE=1 job update
+) ;;
+home | thumbs | trash | disks | kernels | packages | firmware | scrub | blocklist) (
     locked
     job "$1"
 ) ;;
@@ -501,7 +584,7 @@ loop)
     done
     ;;
 *)
-    echo 'usage: maint status | run | home | thumbs | trash | update | kernels | packages | firmware | scrub | blocklist' >&2
+    echo 'usage: maint status | run | home | thumbs | trash | update | disks | kernels | packages | firmware | scrub | blocklist' >&2
     exit 1
     ;;
 esac
