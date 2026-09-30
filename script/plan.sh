@@ -144,6 +144,10 @@ plan() {
 		Super+= nightlight. Super+- always on: no lock or blank until off.
 		Default apps: images Loupe, video Showtime, PDF Papers, web librewolf, folders Thunar, archives xarchiver, documents LibreOffice, text vim (nvim in Open With).
 	EOF
+    section games "Games: Steam and Lutris work once you install them" <<-EOF
+		vm.max_map_count 1048576 as on SteamOS: many Proton games crash with the default 65530.
+		Steam and Lutris are not installed. Once you install them AppArmor confines them (apparmor) and ~/Games and ~/.local/share/Steam stay out of the snapshots (maint).
+	EOF
     section session "Keyring, polkit, network and bluetooth" <<-EOF
 		The keyring unlocks with your login password. Polkit agent in g0wm.
 		No tray icons: 'wifi' and 'bluetooth' open their managers.

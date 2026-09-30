@@ -125,6 +125,13 @@ do_apps() {
     ok "xdg-mime defaults answer as mimeapps.list says"
 }
 
+do_games() {
+    step "Games"
+    save_sysctl "$REPO"/root/games/etc/sysctl.d/*.conf
+    put_tree games
+    try "sysctl -p 70-games.conf" sysctl -p /etc/sysctl.d/70-games.conf
+}
+
 pam_keyring() {
     local f=$1
     shift
