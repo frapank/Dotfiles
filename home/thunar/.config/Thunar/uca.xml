@@ -1,78 +1,78 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <actions>
 <action>
-	<icon>utilities-terminal</icon>
-	<name>Open Terminal Here</name>
-	<submenu></submenu>
-	<unique-id>1782481455436303-1</unique-id>
-	<command>foot --working-directory=%f</command>
-	<description>Open foot in this folder</description>
-	<range></range>
-	<patterns>*</patterns>
-	<startup-notify/>
-	<directories/>
+    <icon>utilities-terminal</icon>
+    <name>Open Terminal Here</name>
+    <submenu></submenu>
+    <unique-id>1782481455436303-1</unique-id>
+    <command>foot --working-directory=%f</command>
+    <description>Open foot in this folder</description>
+    <range></range>
+    <patterns>*</patterns>
+    <startup-notify/>
+    <directories/>
 </action>
 <action>
-	<icon>edit-clear</icon>
-	<name>Remove Metadata</name>
-	<submenu></submenu>
-	<unique-id>1790500000000000-2</unique-id>
-	<command>metadata-remover -n %F</command>
-	<description>Remove camera, GPS, author and other metadata, in place</description>
-	<range></range>
-	<patterns>*</patterns>
-	<directories/>
-	<audio-files/>
-	<image-files/>
-	<other-files/>
-	<text-files/>
-	<video-files/>
+    <icon>edit-clear</icon>
+    <name>Remove Metadata</name>
+    <submenu></submenu>
+    <unique-id>1790500000000000-2</unique-id>
+    <command>metadata-remover -n %F</command>
+    <description>Remove camera, GPS, author and other metadata, in place</description>
+    <range></range>
+    <patterns>*</patterns>
+    <directories/>
+    <audio-files/>
+    <image-files/>
+    <other-files/>
+    <text-files/>
+    <video-files/>
 </action>
 <action>
-	<icon>document-properties</icon>
-	<name>Show Metadata</name>
-	<submenu></submenu>
-	<unique-id>1790500000000000-3</unique-id>
-	<command>foot -H sh -c 'exec metadata-remover -s "$@"' metadata-remover %F</command>
-	<description>List the metadata of the selected files</description>
-	<range></range>
-	<patterns>*</patterns>
-	<audio-files/>
-	<image-files/>
-	<other-files/>
-	<text-files/>
-	<video-files/>
+    <icon>document-properties</icon>
+    <name>Show Metadata</name>
+    <submenu></submenu>
+    <unique-id>1790500000000000-3</unique-id>
+    <command>foot -H sh -c 'exec metadata-remover -s "$@"' metadata-remover %F</command>
+    <description>List the metadata of the selected files</description>
+    <range></range>
+    <patterns>*</patterns>
+    <audio-files/>
+    <image-files/>
+    <other-files/>
+    <text-files/>
+    <video-files/>
 </action>
 <action>
-	<icon>document-revert</icon>
-	<name>Restore a Previous Version</name>
-	<submenu></submenu>
-	<unique-id>1790700000000000-4</unique-id>
-	<command>foot -T 'Previous versions' /usr/local/libexec/snap-ui restore %F</command>
-	<description>Pick a version from the daily snapshots of /home and copy it next to the file</description>
-	<range></range>
-	<patterns>*</patterns>
-	<directories/>
-	<audio-files/>
-	<image-files/>
-	<other-files/>
-	<text-files/>
-	<video-files/>
+    <icon>document-revert</icon>
+    <name>Restore a Previous Version</name>
+    <submenu></submenu>
+    <unique-id>1790700000000000-4</unique-id>
+    <command>foot -T 'Previous versions' /usr/local/libexec/snap-ui restore %F</command>
+    <description>Pick a version from the daily snapshots of /home and copy it next to the file</description>
+    <range></range>
+    <patterns>*</patterns>
+    <directories/>
+    <audio-files/>
+    <image-files/>
+    <other-files/>
+    <text-files/>
+    <video-files/>
 </action>
 <action>
-	<icon>edit-delete</icon>
-	<name>Delete from the Snapshots</name>
-	<submenu></submenu>
-	<unique-id>1790700000000000-5</unique-id>
-	<command>foot -T 'Delete from the snapshots' /usr/local/libexec/snap-ui forget %F</command>
-	<description>Delete the selected files from every daily snapshot of /home, so they are gone for good</description>
-	<range></range>
-	<patterns>*</patterns>
-	<directories/>
-	<audio-files/>
-	<image-files/>
-	<other-files/>
-	<text-files/>
-	<video-files/>
+    <icon>edit-delete</icon>
+    <name>Delete from the Snapshots</name>
+    <submenu></submenu>
+    <unique-id>1790700000000000-5</unique-id>
+    <command>foot -T 'Delete from the snapshots' /usr/local/libexec/snap-ui forget %F</command>
+    <description>Delete the selected files from every daily snapshot of /home, so they are gone for good</description>
+    <range></range>
+    <patterns>*</patterns>
+    <directories/>
+    <audio-files/>
+    <image-files/>
+    <other-files/>
+    <text-files/>
+    <video-files/>
 </action>
 </actions>

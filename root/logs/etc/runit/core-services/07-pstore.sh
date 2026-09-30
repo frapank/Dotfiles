@@ -8,7 +8,10 @@ for _f in /sys/fs/pstore/*; do
     if [ -z "$_dir" ]; then
         msg "Saving the kernel crash log of the last boot..."
         _dir=/var/log/pstore/$(date +%Y%m%d-%H%M%S)
-        mkdir -p "$_dir" || { _dir=; break; }
+        mkdir -p "$_dir" || {
+            _dir=
+            break
+        }
         chgrp socklog /var/log/pstore "$_dir" 2>/dev/null
         chmod 2750 /var/log/pstore "$_dir"
     fi

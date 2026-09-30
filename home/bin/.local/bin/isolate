@@ -18,14 +18,27 @@ Exit status is the one of COMMAND.
 EOF
 }
 
-die() { echo "isolate: $*" >&2; exit 125; }
-try() { echo "Try 'isolate --help' for more information." >&2; exit 125; }
+die() {
+    echo "isolate: $*" >&2
+    exit 125
+}
+try() {
+    echo "Try 'isolate --help' for more information." >&2
+    exit 125
+}
 
-case ${1:-} in help|--help) usage; exit 0 ;; esac
+case ${1:-} in help | --help)
+    usage
+    exit 0
+    ;;
+esac
 for a; do
     case $a in
     --) break ;;
-    --*) echo "isolate: unrecognized option '$a'" >&2; try ;;
+    --*)
+        echo "isolate: unrecognized option '$a'" >&2
+        try
+        ;;
     -*) ;;
     *) break ;;
     esac
@@ -34,13 +47,24 @@ done
 net=0 write=0 extra=()
 while getopts :nwr:h o; do
     case $o in
-    :) echo "isolate: option requires an argument -- '$OPTARG'" >&2; try ;;
-    \?) echo "isolate: invalid option -- '$OPTARG'" >&2; try ;;
+    :)
+        echo "isolate: option requires an argument -- '$OPTARG'" >&2
+        try
+        ;;
+    \?)
+        echo "isolate: invalid option -- '$OPTARG'" >&2
+        try
+        ;;
     n) net=1 ;;
     w) write=1 ;;
-    r) p=$(realpath -e -- "$OPTARG" 2>/dev/null) || die "$OPTARG: No such file or directory"
-        extra+=(--ro-bind "$p" "$p") ;;
-    h) usage; exit 0 ;;
+    r)
+        p=$(realpath -e -- "$OPTARG" 2>/dev/null) || die "$OPTARG: No such file or directory"
+        extra+=(--ro-bind "$p" "$p")
+        ;;
+    h)
+        usage
+        exit 0
+        ;;
     *) try ;;
     esac
 done

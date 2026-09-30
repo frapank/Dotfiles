@@ -1,6 +1,6 @@
 #!/bin/sh
 # Desktop notifications, sent to whoever runs g0wm, for: crashes, disk and
-# filesystem errors, overheating, USB devices, runit services restarting in a 
+# filesystem errors, overheating, USB devices, runit services restarting in a
 # loop, low batteries, full disks, microphone and webcam
 
 [ "$1" = pgrp ] || exec chpst -P "$0" pgrp
@@ -11,196 +11,199 @@ rm -rf "$st"
 mkdir -p "$st"
 
 as_user() {
-	# a sandboxed app can rename itself g0wm
-	for pid in $(pgrep -x g0wm) ''; do
-		[ -n "$pid" ] || return 1
-		[ "$(cat "/proc/$pid/attr/apparmor/current" 2>/dev/null || echo unconfined)" = unconfined ] && break
-	done
-	user=$(stat -c %U "/proc/$pid") || return 1
-	for v in HOME DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY XDG_RUNTIME_DIR; do
-		val=$(tr '\0' '\n' <"/proc/$pid/environ" | sed -n "s/^$v=//p" | head -n1)
-		[ -z "$val" ] || set -- "$v=$val" "$@"
-	done
-	setpriv --reuid="$user" --regid="$user" --init-groups \
-		env -i PATH=/usr/bin:/bin "$@"
+    # a sandboxed app can rename itself g0wm
+    for pid in $(pgrep -x g0wm) ''; do
+        [ -n "$pid" ] || return 1
+        [ "$(cat "/proc/$pid/attr/apparmor/current" 2>/dev/null || echo unconfined)" = unconfined ] && break
+    done
+    user=$(stat -c %U "/proc/$pid") || return 1
+    for v in HOME DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY XDG_RUNTIME_DIR; do
+        val=$(tr '\0' '\n' <"/proc/$pid/environ" | sed -n "s/^$v=//p" | head -n1)
+        [ -z "$val" ] || set -- "$v=$val" "$@"
+    done
+    setpriv --reuid="$user" --regid="$user" --init-groups \
+        env -i PATH=/usr/bin:/bin "$@"
 }
 
 notify() {
-	app=$1 text=$2
-	shift 2
-	if [ $# -eq 0 ]; then
-		as_user notify-send -a "$app" "$text"
-	elif [ "$(as_user notify-send -a "$app" -A default=Open "$text")" = default ]; then
-		as_user foot -- /usr/local/bin/logs -p "$@"
-	fi
+    app=$1 text=$2
+    shift 2
+    if [ $# -eq 0 ]; then
+        as_user notify-send -a "$app" "$text"
+    elif [ "$(as_user notify-send -a "$app" -A default=Open "$text")" = default ]; then
+        as_user foot -- /usr/local/bin/logs -p "$@"
+    fi
 }
 
 once() { [ ! -e "$st/$1" ] && : >"$st/$1"; }
 reset() { rm -f "$st/$1"; }
 every() {
-	now=$(date +%s)
-	t=$(cat "$st/$1" 2>/dev/null) || t=0
-	[ $((now - t)) -ge "$2" ] && echo "$now" >"$st/$1"
+    now=$(date +%s)
+    t=$(cat "$st/$1" 2>/dev/null) || t=0
+    [ $((now - t)) -ge "$2" ] && echo "$now" >"$st/$1"
 }
 
 kernel() {
-	stdbuf -oL dmesg -W -k --color=never 2>/dev/null | while IFS= read -r line; do
-		msg=${line#*] } raw=$msg
-		case $msg in
-		*"segfault at"*) prog=${msg%%\[*} why="segmentation fault" last=$prog ;;
-		traps:*)
-			msg=${msg#traps: }
-			prog=${msg%%\[*} why=${msg#*] } why=${why%% ip*} last=$prog
-			;;
-		*"potentially unexpected fatal signal"*)
-			prog=${msg%%: potentially*} prog=${prog##*: }
-			[ "$prog" = "$last" ] && { last=; continue; }
-			sig=${msg##*signal } sig=${sig%.}
-			case $sig in
-			11) why="segmentation fault" ;;
-			*) why="SIG$(kill -l "$sig")" ;;
-			esac
-			;;
-		*"Killed process"*) prog=${msg#*\(} prog=${prog%%\)*} why="out of memory" ;;
-		*"I/O error"*)
-			every disk 60 || continue
-			dev=${msg#*dev } dev=${dev%%,*}
-			prog=Disk why="I/O error on $dev"
-			;;
-		"BTRFS error"* | "BTRFS critical"* | *"csum failed"* | "EXT4-fs error"*)
-			every disk 60 || continue
-			dev=${msg#*(device } dev=${dev%%)*}
-			prog=Disk why="filesystem error on $dev"
-			;;
-		*"temperature above threshold"* | *"critical temperature reached"*)
-			every thermal 60 || continue
-			prog=CPU why="overheating, throttled"
-			case $msg in *critical*) why="critical temperature" ;; esac
-			;;
-		"usb "*": Product: "*)
-			port=${msg#usb } port=${port%%:*}
-			echo "${msg#*Product: }" >"$st/usb.$port"
-			prog=USB why="$(cat "$st/usb.$port") connected"
-			;;
-		"usb "*": USB disconnect"*)
-			port=${msg#usb } port=${port%%:*}
-			name=$(cat "$st/usb.$port" 2>/dev/null) || name="device on $port"
-			rm -f "$st/usb.$port"
-			prog=USB why="$name disconnected"
-			;;
-		*'apparmor="DENIED"'*)
-			prog=${msg#*profile=\"} prog=${prog%%\"*}
-			every "aa.$(printf %s "$prog" | tr -c 'A-Za-z0-9._-' _)" 30 || continue
-			why=${msg#*operation=\"} why="AppArmor blocked ${why%%\"*}"
-			case $msg in
-			*' name="'*) name=${msg#* name=\"} why="$why ${name%%\"*}" ;;
-			*' capname="'*) name=${msg#* capname=\"} why="$why ${name%%\"*}" ;;
-			esac
-			;;
-		"usb "*"error -"* | "usb "*"unable to enumerate"*)
-			every usberr 60 || continue
-			port=${msg#usb } port=${port%%:*}
-			prog=USB why="errors on $port"
-			;;
-		*) continue ;;
-		esac
-		notify "$prog" "$why" around "$raw" kernel &
-	done
+    stdbuf -oL dmesg -W -k --color=never 2>/dev/null | while IFS= read -r line; do
+        msg=${line#*] } raw=$msg
+        case $msg in
+        *"segfault at"*) prog=${msg%%\[*} why="segmentation fault" last=$prog ;;
+        traps:*)
+            msg=${msg#traps: }
+            prog=${msg%%\[*} why=${msg#*] } why=${why%% ip*} last=$prog
+            ;;
+        *"potentially unexpected fatal signal"*)
+            prog=${msg%%: potentially*} prog=${prog##*: }
+            [ "$prog" = "$last" ] && {
+                last=
+                continue
+            }
+            sig=${msg##*signal } sig=${sig%.}
+            case $sig in
+            11) why="segmentation fault" ;;
+            *) why="SIG$(kill -l "$sig")" ;;
+            esac
+            ;;
+        *"Killed process"*) prog=${msg#*\(} prog=${prog%%\)*} why="out of memory" ;;
+        *"I/O error"*)
+            every disk 60 || continue
+            dev=${msg#*dev } dev=${dev%%,*}
+            prog=Disk why="I/O error on $dev"
+            ;;
+        "BTRFS error"* | "BTRFS critical"* | *"csum failed"* | "EXT4-fs error"*)
+            every disk 60 || continue
+            dev=${msg#*(device } dev=${dev%%)*}
+            prog=Disk why="filesystem error on $dev"
+            ;;
+        *"temperature above threshold"* | *"critical temperature reached"*)
+            every thermal 60 || continue
+            prog=CPU why="overheating, throttled"
+            case $msg in *critical*) why="critical temperature" ;; esac
+            ;;
+        "usb "*": Product: "*)
+            port=${msg#usb } port=${port%%:*}
+            echo "${msg#*Product: }" >"$st/usb.$port"
+            prog=USB why="$(cat "$st/usb.$port") connected"
+            ;;
+        "usb "*": USB disconnect"*)
+            port=${msg#usb } port=${port%%:*}
+            name=$(cat "$st/usb.$port" 2>/dev/null) || name="device on $port"
+            rm -f "$st/usb.$port"
+            prog=USB why="$name disconnected"
+            ;;
+        *'apparmor="DENIED"'*)
+            prog=${msg#*profile=\"} prog=${prog%%\"*}
+            every "aa.$(printf %s "$prog" | tr -c 'A-Za-z0-9._-' _)" 30 || continue
+            why=${msg#*operation=\"} why="AppArmor blocked ${why%%\"*}"
+            case $msg in
+            *' name="'*) name=${msg#* name=\"} why="$why ${name%%\"*}" ;;
+            *' capname="'*) name=${msg#* capname=\"} why="$why ${name%%\"*}" ;;
+            esac
+            ;;
+        "usb "*"error -"* | "usb "*"unable to enumerate"*)
+            every usberr 60 || continue
+            port=${msg#usb } port=${port%%:*}
+            prog=USB why="errors on $port"
+            ;;
+        *) continue ;;
+        esac
+        notify "$prog" "$why" around "$raw" kernel &
+    done
 }
 
 services() {
-	sv status /var/service/* 2>/dev/null |
-		sed -nE 's|^([a-z]+): /var/service/([^:]+): (\(pid ([0-9]+)\) )?([0-9]+)s.*|\2 \1\4 \5|p' |
-		while read -r s pid up; do
-			read -r old n 2>/dev/null <"$st/sv.$s" || { old=$pid n=0; }
-			[ "$pid" != "$old" ] && n=$((n + 1))
-			[ "$up" -ge 60 ] && n=0
-			echo "$pid $n" >"$st/sv.$s"
-			if [ "$n" -ge 3 ]; then
-				if once "svloop.$s"; then notify "$s" "restarting in a loop" service "$s" & fi
-			elif [ "$n" -eq 0 ]; then
-				reset "svloop.$s"
-			fi
-		done
+    sv status /var/service/* 2>/dev/null |
+        sed -nE 's|^([a-z]+): /var/service/([^:]+): (\(pid ([0-9]+)\) )?([0-9]+)s.*|\2 \1\4 \5|p' |
+        while read -r s pid up; do
+            read -r old n 2>/dev/null <"$st/sv.$s" || { old=$pid n=0; }
+            [ "$pid" != "$old" ] && n=$((n + 1))
+            [ "$up" -ge 60 ] && n=0
+            echo "$pid $n" >"$st/sv.$s"
+            if [ "$n" -ge 3 ]; then
+                if once "svloop.$s"; then notify "$s" "restarting in a loop" service "$s" & fi
+            elif [ "$n" -eq 0 ]; then
+                reset "svloop.$s"
+            fi
+        done
 }
 
 batteries() {
-	for b in /sys/class/power_supply/*; do
-		[ "$(cat "$b/type" 2>/dev/null)" = Battery ] || continue
-		read -r cap 2>/dev/null <"$b/capacity" || continue
-		k=bat.${b##*/}
-		case $(cat "$b/status" 2>/dev/null) in
+    for b in /sys/class/power_supply/*; do
+        [ "$(cat "$b/type" 2>/dev/null)" = Battery ] || continue
+        read -r cap 2>/dev/null <"$b/capacity" || continue
+        k=bat.${b##*/}
+        case $(cat "$b/status" 2>/dev/null) in
 
-		Charging | Full | "Not charging")
-			reset "$k.20"
-			reset "$k.10"
-			continue
-			;;
-		esac
+        Charging | Full | "Not charging")
+            reset "$k.20"
+            reset "$k.10"
+            continue
+            ;;
+        esac
 
-		name=Battery
-		[ "$(cat "$b/scope" 2>/dev/null)" = Device ] && name=$(cat "$b/model_name")
-		if [ "$cap" -le 10 ]; then
-			once "$k.20"
-			once "$k.10" && notify "$name" "battery at $cap%"
-		elif [ "$cap" -le 20 ]; then
-			once "$k.20" && notify "$name" "battery at $cap%"
-		fi
-	done
+        name=Battery
+        [ "$(cat "$b/scope" 2>/dev/null)" = Device ] && name=$(cat "$b/model_name")
+        if [ "$cap" -le 10 ]; then
+            once "$k.20"
+            once "$k.10" && notify "$name" "battery at $cap%"
+        elif [ "$cap" -le 20 ]; then
+            once "$k.20" && notify "$name" "battery at $cap%"
+        fi
+    done
 }
 
 disks() {
-	df -P 2>/dev/null | awk '$1 ~ "^/dev/" && !seen[$1]++ { print $5 + 0, $6 }' |
-		while read -r pct mnt; do
-			k=df.$(echo "$mnt" | tr / _)
-			if [ "$pct" -ge 90 ]; then
-				once "$k" && notify Disk "$mnt $pct% full"
-			else
-				reset "$k"
-			fi
-		done
+    df -P 2>/dev/null | awk '$1 ~ "^/dev/" && !seen[$1]++ { print $5 + 0, $6 }' |
+        while read -r pct mnt; do
+            k=df.$(echo "$mnt" | tr / _)
+            if [ "$pct" -ge 90 ]; then
+                once "$k" && notify Disk "$mnt $pct% full"
+            else
+                reset "$k"
+            fi
+        done
 }
 
 mic() {
-	if grep -qs RUNNING /proc/asound/card*/pcm*c/sub*/status; then
-		once mic || return 0
-		apps=$(as_user pactl list source-outputs |
-			sed -n 's/^[[:space:]]*application.name = "\(.*\)"$/\1/p' | sort -u | paste -sd, -)
-		notify Microphone "in use${apps:+ by $apps}"
-	else
-		reset mic
-	fi
+    if grep -qs RUNNING /proc/asound/card*/pcm*c/sub*/status; then
+        once mic || return 0
+        apps=$(as_user pactl list source-outputs |
+            sed -n 's/^[[:space:]]*application.name = "\(.*\)"$/\1/p' | sort -u | paste -sd, -)
+        notify Microphone "in use${apps:+ by $apps}"
+    else
+        reset mic
+    fi
 }
 
 webcam() {
-	pids=$(fuser /dev/video* 2>/dev/null)
-	if [ -n "$pids" ]; then
-		once cam || return 0
-		# shellcheck disable=SC2086
-		apps=$(ps -o comm= -p "$(echo $pids | tr ' ' ,)" | sort -u | paste -sd, -)
-		notify Webcam "in use by $apps"
-	else
-		reset cam
-	fi
+    pids=$(fuser /dev/video* 2>/dev/null)
+    if [ -n "$pids" ]; then
+        once cam || return 0
+        # shellcheck disable=SC2086
+        apps=$(ps -o comm= -p "$(echo $pids | tr ' ' ,)" | sort -u | paste -sd, -)
+        notify Webcam "in use by $apps"
+    else
+        reset cam
+    fi
 }
 
 pstore() {
-	[ -e /run/pstore-new ] || return 0
-	as_user true || return 0
-	notify Kernel "crashed during the last boot, click to see why" panics &
-	rm -f /run/pstore-new
+    [ -e /run/pstore-new ] || return 0
+    as_user true || return 0
+    notify Kernel "crashed during the last boot, click to see why" panics &
+    rm -f /run/pstore-new
 }
 
 poll() {
-	while :; do
-		pstore
-		services
-		batteries
-		disks
-		mic
-		webcam
-		sleep 5
-	done
+    while :; do
+        pstore
+        services
+        batteries
+        disks
+        mic
+        webcam
+        sleep 5
+    done
 }
 
 trap 'trap - TERM; kill 0' TERM

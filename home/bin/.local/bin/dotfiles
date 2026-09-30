@@ -2,7 +2,7 @@
 set -u
 
 usage() {
-	cat <<EOF
+    cat <<EOF
 Usage: dotfiles [COMMAND]
 List the commands these dotfiles add: first the ones to use by hand, then,
 dimmed, the helpers behind the g0wm keys and the default apps.
@@ -39,51 +39,66 @@ open-default|what photo, video, pdf... run
 g0wm-status.sh|the text of the bar'
 
 if [ -t 1 ]; then
-	B=$(printf '\033[1m') D=$(printf '\033[2m') O=$(printf '\033[0m')
+    B=$(printf '\033[1m') D=$(printf '\033[2m') O=$(printf '\033[0m')
 else
-	B= D= O=
+    B= D= O=
 fi
 
 where() {
-	command -v -- "$1" 2>/dev/null && return 0
-	for d in /usr/local/sbin /usr/local/bin; do
-		[ -x "$d/$1" ] && { echo "$d/$1"; return 0; }
-	done
-	return 1
+    command -v -- "$1" 2>/dev/null && return 0
+    for d in /usr/local/sbin /usr/local/bin; do
+        [ -x "$d/$1" ] && {
+            echo "$d/$1"
+            return 0
+        }
+    done
+    return 1
 }
 
 tool() { printf '%s\n' "$TOOLS" | grep -q "^$1|"; }
 
 list() {
-	printf '%s\n' "$TOOLS" | while IFS='|' read -r name what; do
-		if [ -z "$what" ]; then
-			printf '\n%s%s%s\n' "$B" "$name" "$O"
-		elif where "$name" >/dev/null; then
-			printf '  %s%-17s%s %s\n' "$B" "$name" "$O" "$what"
-		else
-			printf '  %s%-17s %s (not installed)%s\n' "$D" "$name" "$what" "$O"
-		fi
-	done
-	printf '\n%sg0wm helpers%s\n' "$D" "$O"
-	printf '%s\n' "$HELPERS" | while IFS='|' read -r names what; do
-		if [ "${#names}" -le 17 ]; then
-			printf '  %s%-17s %s%s\n' "$D" "$names" "$what" "$O"
-		else
-			printf '  %s%s: %s%s\n' "$D" "$names" "$what" "$O"
-		fi
-	done
-	printf "\nEach one has --help: 'dotfiles NAME' shows it.\n"
+    printf '%s\n' "$TOOLS" | while IFS='|' read -r name what; do
+        if [ -z "$what" ]; then
+            printf '\n%s%s%s\n' "$B" "$name" "$O"
+        elif where "$name" >/dev/null; then
+            printf '  %s%-17s%s %s\n' "$B" "$name" "$O" "$what"
+        else
+            printf '  %s%-17s %s (not installed)%s\n' "$D" "$name" "$what" "$O"
+        fi
+    done
+    printf '\n%sg0wm helpers%s\n' "$D" "$O"
+    printf '%s\n' "$HELPERS" | while IFS='|' read -r names what; do
+        if [ "${#names}" -le 17 ]; then
+            printf '  %s%-17s %s%s\n' "$D" "$names" "$what" "$O"
+        else
+            printf '  %s%s: %s%s\n' "$D" "$names" "$what" "$O"
+        fi
+    done
+    printf "\nEach one has --help: 'dotfiles NAME' shows it.\n"
 }
 
 case ${1:-} in
 '') list ;;
 -h | --help | help) usage ;;
--*) echo "dotfiles: unknown option '$1'" >&2; echo "Try 'dotfiles --help' for more information." >&2; exit 2 ;;
+-*)
+    echo "dotfiles: unknown option '$1'" >&2
+    echo "Try 'dotfiles --help' for more information." >&2
+    exit 2
+    ;;
 *)
-	# helpers have no --help and would just run
-	tool "$1" || { echo "dotfiles: '$1' is not one of the commands, see 'dotfiles'" >&2; exit 2; }
-	p=$(where "$1") || { echo "dotfiles: $1 is not installed" >&2; exit 1; }
-	[ "$1" != maint ] || { echo "maint: snapshots, updates and cleanup, run by the maint service every hour"; exec cat <<EOF
+    # helpers have no --help and would just run
+    tool "$1" || {
+        echo "dotfiles: '$1' is not one of the commands, see 'dotfiles'" >&2
+        exit 2
+    }
+    p=$(where "$1") || {
+        echo "dotfiles: $1 is not installed" >&2
+        exit 1
+    }
+    [ "$1" != maint ] || {
+        echo "maint: snapshots, updates and cleanup, run by the maint service every hour"
+        exec cat <<EOF
 
   doas maint status    when each job last ran, the snapshots, the last scrub
   doas maint run       every job that is due
@@ -91,7 +106,7 @@ case ${1:-} in
                        firmware scrub blocklist
   logs service maint   what it did
 EOF
-	}
-	exec "$p" --help
-	;;
+    }
+    exec "$p" --help
+    ;;
 esac

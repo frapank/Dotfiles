@@ -7,10 +7,16 @@ case $# in
 1)
     case $1 in
     region | screen | edit) mode=$1 ;;
-    *) echo "usage: screenshot [region|screen|edit]" >&2; exit 2 ;;
+    *)
+        echo "usage: screenshot [region|screen|edit]" >&2
+        exit 2
+        ;;
     esac
     ;;
-*) echo "usage: screenshot [region|screen|edit]" >&2; exit 2 ;;
+*)
+    echo "usage: screenshot [region|screen|edit]" >&2
+    exit 2
+    ;;
 esac
 
 geo= out=

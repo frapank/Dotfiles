@@ -7,7 +7,7 @@ PSTORE=/var/log/pstore
 SESSION=${XDG_STATE_HOME:-$HOME/.local/state}/g0wm
 
 usage() {
-	cat <<EOF
+    cat <<EOF
 Usage: logs [-u] [-n|-p] [COMMAND [ARGS]]
 Reads the system logs kept by socklog in $D, in local time.
 Long output opens in less at the end: q quits, / searches.
@@ -43,65 +43,65 @@ EOF
 }
 
 die() {
-	printf 'logs: %s\n' "$*" >&2
-	exit 2
+    printf 'logs: %s\n' "$*" >&2
+    exit 2
 }
 
 nogroup() {
-	id -Gn | tr ' ' '\n' | grep -qx socklog && die "cannot read $D"
-	die "you are not in the socklog group: run 'doas usermod -aG socklog $(id -un)', then log in again"
+    id -Gn | tr ' ' '\n' | grep -qx socklog && die "cannot read $D"
+    die "you are not in the socklog group: run 'doas usermod -aG socklog $(id -un)', then log in again"
 }
 
 check() {
-	case $1 in '' | */* | .*) die "no log named '$1', see 'logs list'" ;; esac
-	[ -x "$D" ] || nogroup
-	[ -d "$D/$1" ] || die "no log named '$1', see 'logs list'"
-	[ -r "$D/$1" ] && [ -x "$D/$1" ] && return 0
-	[ "$1" != secure ] || die "the secure log is readable by root only: use 'logs auth'"
-	nogroup
+    case $1 in '' | */* | .*) die "no log named '$1', see 'logs list'" ;; esac
+    [ -x "$D" ] || nogroup
+    [ -d "$D/$1" ] || die "no log named '$1', see 'logs list'"
+    [ -r "$D/$1" ] && [ -x "$D/$1" ] && return 0
+    [ "$1" != secure ] || die "the secure log is readable by root only: use 'logs auth'"
+    nogroup
 }
 
 when() {
-	case $1 in
-	boot) s=$(awk '/^btime/ { print $2 }' /proc/stat) ;;
-	today) s=$(date -d 'today 00:00' +%s) ;;
-	yesterday) s=$(date -d 'yesterday 00:00' +%s) ;;
-	*[0-9][mhdw])
-		n=${1%?}
-		case $n in *[!0-9]*) die "cannot read '$1' as a time" ;; esac
-		case $1 in
-		*m) u=minutes ;;
-		*h) u=hours ;;
-		*d) u=days ;;
-		*) u=weeks ;;
-		esac
-		s=$(date -d "$n $u ago" +%s)
-		;;
-	*)
-		# date reads '5x' as military time zone X
-		case $1 in *[0-9]*[-:/]* | *[-:/]*[0-9]*) ;; *) false ;; esac &&
-			s=$(date -d "$1" +%s 2>/dev/null) ||
-			die "cannot read '$1' as a time: try 30m 2h 3d boot today or '2026-09-28 14:00'"
-		;;
-	esac
-	date -u -d "@$s" +%Y-%m-%dT%H:%M:%S
+    case $1 in
+    boot) s=$(awk '/^btime/ { print $2 }' /proc/stat) ;;
+    today) s=$(date -d 'today 00:00' +%s) ;;
+    yesterday) s=$(date -d 'yesterday 00:00' +%s) ;;
+    *[0-9][mhdw])
+        n=${1%?}
+        case $n in *[!0-9]*) die "cannot read '$1' as a time" ;; esac
+        case $1 in
+        *m) u=minutes ;;
+        *h) u=hours ;;
+        *d) u=days ;;
+        *) u=weeks ;;
+        esac
+        s=$(date -d "$n $u ago" +%s)
+        ;;
+    *)
+        # date reads '5x' as military time zone X
+        case $1 in *[0-9]*[-:/]* | *[-:/]*[0-9]*) ;; *) false ;; esac &&
+            s=$(date -d "$1" +%s 2>/dev/null) ||
+            die "cannot read '$1' as a time: try 30m 2h 3d boot today or '2026-09-28 14:00'"
+        ;;
+    esac
+    date -u -d "@$s" +%Y-%m-%dT%H:%M:%S
 }
 
 since() {
-	SINCE=
-	[ -z "${1:-}" ] || SINCE=$(when "$1") || exit 2
+    SINCE=
+    [ -z "${1:-}" ] || SINCE=$(when "$1") || exit 2
 }
 
 stream() {
-	if [ $# -eq 1 ]; then
-		cat -- "$D/$1"/@* "$D/$1/current" 2>/dev/null
-	else
-		for l; do cat -- "$D/$l"/@* "$D/$l/current" 2>/dev/null; done | sort -s -k1,1
-	fi | if [ -n "$SINCE" ]; then
-		awk -v s="$SINCE" 'substr($0, 1, 19) >= s'
-	else
-		cat
-	fi
+    if [ $# -eq 1 ]; then
+        cat -- "$D/$1"/@* "$D/$1/current" 2>/dev/null
+    else
+        for l; do cat -- "$D/$l"/@* "$D/$l/current" 2>/dev/null; done | sort -s -k1,1
+    fi | if [ -n "$SINCE" ]; then
+        awk -v s="$SINCE" 'substr($0, 1, 19) >= s'
+    else
+        cat
+    fi
 }
 
 LIB='
@@ -115,7 +115,7 @@ function shown(ts,   t) {
 }'
 
 fmt() {
-	gawk -v utc="$UTC" -v follow="${1:-0}" -v dim="$C_D" -v red="$C_R" -v yellow="$C_Y" -v off="$C_0" "$LIB"'
+    gawk -v utc="$UTC" -v follow="${1:-0}" -v dim="$C_D" -v red="$C_R" -v yellow="$C_Y" -v off="$C_0" "$LIB"'
 	{
 		if ($0 !~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}[.0-9]* /) {
 			print
@@ -142,67 +142,67 @@ fmt() {
 
 # output that fits the screen skips less, which would pad it with ~
 page() {
-	TMP=$(mktemp -p "${XDG_RUNTIME_DIR:-/tmp}" logs.XXXXXX) || exit 2
-	cat >"$TMP"
-	if ! [ -s "$TMP" ]; then
-		printf '%snothing found%s\n' "$C_D" "$C_0" >&2
-		[ "$PAGE" != 2 ] || printf 'nothing found\n' | less
-	elif [ "$PAGE" = 0 ]; then
-		cat -- "$TMP"
-	else
-		size=$(stty size </dev/tty 2>/dev/null) || size='24 80'
-		h=$(gawk -v w="${size#* }" '{
+    TMP=$(mktemp -p "${XDG_RUNTIME_DIR:-/tmp}" logs.XXXXXX) || exit 2
+    cat >"$TMP"
+    if ! [ -s "$TMP" ]; then
+        printf '%snothing found%s\n' "$C_D" "$C_0" >&2
+        [ "$PAGE" != 2 ] || printf 'nothing found\n' | less
+    elif [ "$PAGE" = 0 ]; then
+        cat -- "$TMP"
+    else
+        size=$(stty size </dev/tty 2>/dev/null) || size='24 80'
+        h=$(gawk -v w="${size#* }" '{
 			gsub(/\033\[[0-9;]*m/, "")
 			n += length($0) > w ? int((length($0) - 1) / w) + 1 : 1
 		} END { print n + 0 }' "$TMP")
-		if [ "$PAGE" = 1 ] && [ "$h" -lt "${size% *}" ]; then
-			cat -- "$TMP"
-		else
-			[ "$(id -u)" != 0 ] || export LESSSECURE=1
-			# stdin keeps lesspipe and the temp file name out
-			case ${1:-} in
-			top) env -u LESSOPEN -u LESSCLOSE less -R <"$TMP" ;;
-			table) env -u LESSOPEN -u LESSCLOSE less -R --header=1 +G <"$TMP" ;;
-			*) env -u LESSOPEN -u LESSCLOSE less -R +G <"$TMP" ;;
-			esac
-		fi
-	fi
-	rm -f -- "$TMP"
-	TMP=
+        if [ "$PAGE" = 1 ] && [ "$h" -lt "${size% *}" ]; then
+            cat -- "$TMP"
+        else
+            [ "$(id -u)" != 0 ] || export LESSSECURE=1
+            # stdin keeps lesspipe and the temp file name out
+            case ${1:-} in
+            top) env -u LESSOPEN -u LESSCLOSE less -R <"$TMP" ;;
+            table) env -u LESSOPEN -u LESSCLOSE less -R --header=1 +G <"$TMP" ;;
+            *) env -u LESSOPEN -u LESSCLOSE less -R +G <"$TMP" ;;
+            esac
+        fi
+    fi
+    rm -f -- "$TMP"
+    TMP=
 }
 
 table() {
-	IFS= read -r first || return 0
-	f=$1
-	shift
-	printf "%s$f%s\n" "$C_B" "$@" "$C_0"
-	printf '%s\n' "$first"
-	cat
+    IFS= read -r first || return 0
+    f=$1
+    shift
+    printf "%s$f%s\n" "$C_B" "$@" "$C_0"
+    printf '%s\n' "$first"
+    cat
 }
 
 show() {
-	[ $# -gt 0 ] || set -- everything
-	for l; do check "$l"; done
-	stream "$@" | fmt | page
+    [ $# -gt 0 ] || set -- everything
+    for l; do check "$l"; done
+    stream "$@" | fmt | page
 }
 
 follow() {
-	[ $# -gt 0 ] || set -- everything
-	for l; do check "$l"; done
-	n=$#
-	for l; do set -- "$@" "$D/$l/current"; done
-	shift "$n"
-	tail -q -n 20 -F -- "$@" 2>/dev/null | fmt 1
+    [ $# -gt 0 ] || set -- everything
+    for l; do check "$l"; done
+    n=$#
+    for l; do set -- "$@" "$D/$l/current"; done
+    shift "$n"
+    tail -q -n 20 -F -- "$@" 2>/dev/null | fmt 1
 }
 
 pick() {
-	check "$2"
-	stream "$2" | grep -E -- "$1" | fmt | page
+    check "$2"
+    stream "$2" | grep -E -- "$1" | fmt | page
 }
 
 apparmor() {
-	check kernel
-	stream kernel | grep -F 'apparmor="DENIED"' | gawk -v utc="$UTC" "$LIB"'
+    check kernel
+    stream kernel | grep -F 'apparmor="DENIED"' | gawk -v utc="$UTC" "$LIB"'
 	function get(f) {
 		if (!match($0, " " f "=\"[^\"]*\"")) return ""
 		return substr($0, RSTART + length(f) + 3, RLENGTH - length(f) - 4)
@@ -226,8 +226,8 @@ apparmor() {
 }
 
 firewall() {
-	check kernel
-	stream kernel | grep -E 'nft-[a-z-]+: ' | gawk -v utc="$UTC" "$LIB"'
+    check kernel
+    stream kernel | grep -E 'nft-[a-z-]+: ' | gawk -v utc="$UTC" "$LIB"'
 	function get(f) {
 		if (!match($0, " " f "=[^ ]*")) return ""
 		return substr($0, RSTART + length(f) + 2, RLENGTH - length(f) - 2)
@@ -253,61 +253,67 @@ firewall() {
 }
 
 service() {
-	[ -n "${1:-}" ] || die "which service? $(cd /var/service && echo *)"
-	case $1 in *[!A-Za-z0-9_.@-]*) die "not a service name: $1" ;; esac
-	since "${2:-}"
-	name=$(printf '%s' "$1" | sed 's/\./\\./g')
-	pick "^[^ ]+ [a-z0-9]+\.[a-z]+: ([A-Z][a-z][a-z] [ 0-9][0-9] [0-9:]{8} )?$name(\[[0-9]+\])?: " everything
+    [ -n "${1:-}" ] || die "which service? $(cd /var/service && echo *)"
+    case $1 in *[!A-Za-z0-9_.@-]*) die "not a service name: $1" ;; esac
+    since "${2:-}"
+    name=$(printf '%s' "$1" | sed 's/\./\\./g')
+    pick "^[^ ]+ [a-z0-9]+\.[a-z]+: ([A-Z][a-z][a-z] [ 0-9][0-9] [0-9:]{8} )?$name(\[[0-9]+\])?: " everything
 }
 
 auth() {
-	if [ "$(id -u)" != 0 ] && ! [ -r "$D/secure" ]; then
-		o=
-		[ "$UTC" = 0 ] || o="$o -u"
-		[ "$PAGE" != 0 ] || o="$o -n"
-		[ "$PAGE" != 2 ] || o="$o -p"
-		# shellcheck disable=SC2086
-		exec doas -- "$(readlink -f -- "$0")" $o auth "$@"
-	fi
-	since "${1:-}"
-	check secure
-	stream secure | fmt | page
+    if [ "$(id -u)" != 0 ] && ! [ -r "$D/secure" ]; then
+        o=
+        [ "$UTC" = 0 ] || o="$o -u"
+        [ "$PAGE" != 0 ] || o="$o -n"
+        [ "$PAGE" != 2 ] || o="$o -p"
+        # shellcheck disable=SC2086
+        exec doas -- "$(readlink -f -- "$0")" $o auth "$@"
+    fi
+    since "${1:-}"
+    check secure
+    stream secure | fmt | page
 }
 
 panics() {
-	[ -d "$PSTORE" ] || { echo "no kernel crash saved: $PSTORE is created at the first one"; return 0; }
-	[ -r "$PSTORE" ] && [ -x "$PSTORE" ] || nogroup
-	last=
-	for d in "$PSTORE"/*/; do [ -d "$d" ] && last=${d%/}; done
-	[ -n "$last" ] || { echo "no kernel crash saved"; return 0; }
-	{
-		echo "kernel crashes saved by pstore, the newest shown below:"
-		for d in "$PSTORE"/*/; do
-			d=${d%/}
-			printf '  %s  %s\n' "${d##*/}" "$(cat -- "$d"/* 2>/dev/null |
-				grep -m1 -E 'Kernel panic|Oops|BUG|general protection|RIP:' | sed 's/^<[0-9]>//')"
-		done
-		for f in "$last"/*; do
-			printf '\n==> %s\n' "$f"
-			cat -- "$f"
-		done
-	} | page top
+    [ -d "$PSTORE" ] || {
+        echo "no kernel crash saved: $PSTORE is created at the first one"
+        return 0
+    }
+    [ -r "$PSTORE" ] && [ -x "$PSTORE" ] || nogroup
+    last=
+    for d in "$PSTORE"/*/; do [ -d "$d" ] && last=${d%/}; done
+    [ -n "$last" ] || {
+        echo "no kernel crash saved"
+        return 0
+    }
+    {
+        echo "kernel crashes saved by pstore, the newest shown below:"
+        for d in "$PSTORE"/*/; do
+            d=${d%/}
+            printf '  %s  %s\n' "${d##*/}" "$(cat -- "$d"/* 2>/dev/null |
+                grep -m1 -E 'Kernel panic|Oops|BUG|general protection|RIP:' | sed 's/^<[0-9]>//')"
+        done
+        for f in "$last"/*; do
+            printf '\n==> %s\n' "$f"
+            cat -- "$f"
+        done
+    } | page top
 }
 
 session() {
-	log=$SESSION/g0wm.log
-	[ -f "$log" ] || die "no $log: g0wm writes it when started with start-g0wm"
-	{
-		for c in "$SESSION"/core*; do
-			[ -f "$c" ] || continue
-			echo "core dump: $c ($(used "$c"))"
-		done
-		cat -- "$log"
-	} | page
+    log=$SESSION/g0wm.log
+    [ -f "$log" ] || die "no $log: g0wm writes it when started with start-g0wm"
+    {
+        for c in "$SESSION"/core*; do
+            [ -f "$c" ] || continue
+            echo "core dump: $c ($(used "$c"))"
+        done
+        cat -- "$log"
+    } | page
 }
 
 used() {
-	du -sk -- "$1" 2>/dev/null | awk '{
+    du -sk -- "$1" 2>/dev/null | awk '{
 		if ($1 < 1024) printf "%d KB", $1
 		else if ($1 < 1048576) printf "%.1f MB", $1 / 1024
 		else printf "%.1f GB", $1 / 1048576
@@ -315,82 +321,82 @@ used() {
 }
 
 list() {
-	[ -x "$D" ] || nogroup
-	for d in "$D"/*/; do
-		d=${d%/}
-		if [ -r "$d" ] && [ -x "$d" ]; then
-			s=$(used "$d")
-			[ -s "$d/current" ] || [ -n "$(find "$d" -maxdepth 1 -name '@*' -print -quit)" ] || s=empty
-		else
-			s='root only'
-		fi
-		printf '  %-12s %9s\n' "${d##*/}" "$s"
-	done
+    [ -x "$D" ] || nogroup
+    for d in "$D"/*/; do
+        d=${d%/}
+        if [ -r "$d" ] && [ -x "$d" ]; then
+            s=$(used "$d")
+            [ -s "$d/current" ] || [ -n "$(find "$d" -maxdepth 1 -name '@*' -print -quit)" ] || s=empty
+        else
+            s='root only'
+        fi
+        printf '  %-12s %9s\n' "${d##*/}" "$s"
+    done
 }
 
 status() {
-	ok() { printf '  %s✓%s %s\n' "$C_G" "$C_0" "$*"; }
-	bad() { printf '  %s!%s %s\n' "$C_Y" "$C_0" "$*"; }
-	info() { printf '  %s· %s%s\n' "$C_D" "$*" "$C_0"; }
-	sec() { printf '\n%s%s%s\n' "$C_B" "$1" "$C_0"; }
-	run() {
-		m=$1
-		shift
-		if pgrep "$@" >/dev/null; then ok "$m"; else bad "$m: not running"; fi
-	}
+    ok() { printf '  %s✓%s %s\n' "$C_G" "$C_0" "$*"; }
+    bad() { printf '  %s!%s %s\n' "$C_Y" "$C_0" "$*"; }
+    info() { printf '  %s· %s%s\n' "$C_D" "$*" "$C_0"; }
+    sec() { printf '\n%s%s%s\n' "$C_B" "$1" "$C_0"; }
+    run() {
+        m=$1
+        shift
+        if pgrep "$@" >/dev/null; then ok "$m"; else bad "$m: not running"; fi
+    }
 
-	sec Services
-	run "socklog-unix: apps log to /dev/log" -x socklog
-	run "nanoklogd: the kernel log" -x nanoklogd
-	run "svlogd: writes $D" -x svlogd
-	run "watchdog: notifications" -f 'dmesg -W -k'
-	if id -Gn | tr ' ' '\n' | grep -qx socklog; then ok "$(id -un) reads the logs (socklog group)"; else bad "$(id -un) is not in the socklog group"; fi
+    sec Services
+    run "socklog-unix: apps log to /dev/log" -x socklog
+    run "nanoklogd: the kernel log" -x nanoklogd
+    run "svlogd: writes $D" -x svlogd
+    run "watchdog: notifications" -f 'dmesg -W -k'
+    if id -Gn | tr ' ' '\n' | grep -qx socklog; then ok "$(id -un) reads the logs (socklog group)"; else bad "$(id -un) is not in the socklog group"; fi
 
-	sec "Logs (local time)"
-	if [ -x "$D" ]; then
-		printf '  %s%-11s %9s %9s  %s%s\n' "$C_D" log used 'up to' 'goes back to' "$C_0"
-		for d in "$D"/*/; do
-			d=${d%/}
-			n=${d##*/}
-			if ! [ -r "$d" ] || ! [ -x "$d" ]; then
-				printf '  %-11s %9s\n' "$n" 'root only'
-				continue
-			fi
-			first=$d/current
-			for f in "$d"/@*; do
-				[ -f "$f" ] && first=$f
-				break
-			done
-			[ -s "$first" ] || continue
-			ts=$(head -c 19 -- "$first" | tr T ' ')
-			if [ "$UTC" = 1 ]; then from=$ts; else from=$(date -d "$ts UTC" '+%Y-%m-%d %H:%M' 2>/dev/null || echo "$ts"); fi
-			max=$(awk '/^s[0-9]+$/ { s = substr($0, 2) } /^n[0-9]+$/ { n = substr($0, 2) }
+    sec "Logs (local time)"
+    if [ -x "$D" ]; then
+        printf '  %s%-11s %9s %9s  %s%s\n' "$C_D" log used 'up to' 'goes back to' "$C_0"
+        for d in "$D"/*/; do
+            d=${d%/}
+            n=${d##*/}
+            if ! [ -r "$d" ] || ! [ -x "$d" ]; then
+                printf '  %-11s %9s\n' "$n" 'root only'
+                continue
+            fi
+            first=$d/current
+            for f in "$d"/@*; do
+                [ -f "$f" ] && first=$f
+                break
+            done
+            [ -s "$first" ] || continue
+            ts=$(head -c 19 -- "$first" | tr T ' ')
+            if [ "$UTC" = 1 ]; then from=$ts; else from=$(date -d "$ts UTC" '+%Y-%m-%d %H:%M' 2>/dev/null || echo "$ts"); fi
+            max=$(awk '/^s[0-9]+$/ { s = substr($0, 2) } /^n[0-9]+$/ { n = substr($0, 2) }
 				END { printf "%d MB", (s ? s : 1000000) * (n ? n : 10) / 1000000 }' "$d/config" 2>/dev/null)
-			printf '  %-11s %9s %9s  %s\n' "$n" "$(used "$d")" "$max" "$from"
-		done
-	else
-		bad "cannot read $D"
-	fi
+            printf '  %-11s %9s %9s  %s\n' "$n" "$(used "$d")" "$max" "$from"
+        done
+    else
+        bad "cannot read $D"
+    fi
 
-	sec Crashes
-	if ! [ -d /sys/firmware/efi ]; then
-		info "no UEFI: kernel panics are not saved"
-	elif [ "$(cat /sys/module/efi_pstore/parameters/pstore_disable 2>/dev/null)" = N ]; then
-		ok "pstore keeps the kernel log of a panic across the reboot"
-	else
-		bad "pstore is off: efi_pstore.pstore_disable=0 is missing from the kernel command line"
-	fi
-	n=0
-	for d in "$PSTORE"/*/; do [ -d "$d" ] && n=$((n + 1)); done
-	if [ "$n" -gt 0 ]; then bad "$n kernel crash(es) saved: logs panics"; else ok "no kernel crash saved"; fi
-	if [ "$(cat /proc/sys/fs/suid_dumpable)" = 0 ]; then
-		ok "no core dumps of programs running with more rights (suid_dumpable 0)"
-	else
-		bad "setuid programs can leave core dumps (fs.suid_dumpable $(cat /proc/sys/fs/suid_dumpable))"
-	fi
-	n=0
-	for c in "$SESSION"/core*; do [ -f "$c" ] && n=$((n + 1)); done
-	[ "$n" = 0 ] || info "$n g0wm core dump(s) in $SESSION: logs session"
+    sec Crashes
+    if ! [ -d /sys/firmware/efi ]; then
+        info "no UEFI: kernel panics are not saved"
+    elif [ "$(cat /sys/module/efi_pstore/parameters/pstore_disable 2>/dev/null)" = N ]; then
+        ok "pstore keeps the kernel log of a panic across the reboot"
+    else
+        bad "pstore is off: efi_pstore.pstore_disable=0 is missing from the kernel command line"
+    fi
+    n=0
+    for d in "$PSTORE"/*/; do [ -d "$d" ] && n=$((n + 1)); done
+    if [ "$n" -gt 0 ]; then bad "$n kernel crash(es) saved: logs panics"; else ok "no kernel crash saved"; fi
+    if [ "$(cat /proc/sys/fs/suid_dumpable)" = 0 ]; then
+        ok "no core dumps of programs running with more rights (suid_dumpable 0)"
+    else
+        bad "setuid programs can leave core dumps (fs.suid_dumpable $(cat /proc/sys/fs/suid_dumpable))"
+    fi
+    n=0
+    for c in "$SESSION"/core*; do [ -f "$c" ] && n=$((n + 1)); done
+    [ "$n" = 0 ] || info "$n g0wm core dump(s) in $SESSION: logs session"
 }
 
 TMP=
@@ -399,23 +405,29 @@ trap 'exit 130' INT HUP TERM
 
 UTC=0 PAGE=1
 while [ $# -gt 0 ]; do
-	case $1 in
-	-u) UTC=1 ;;
-	-n) PAGE=0 ;;
-	-p) PAGE=2 ;;
-	-h | --help | help) usage; exit 0 ;;
-	--) shift; break ;;
-	-*) die "unknown option $1, see 'logs -h'" ;;
-	*) break ;;
-	esac
-	shift
+    case $1 in
+    -u) UTC=1 ;;
+    -n) PAGE=0 ;;
+    -p) PAGE=2 ;;
+    -h | --help | help)
+        usage
+        exit 0
+        ;;
+    --)
+        shift
+        break
+        ;;
+    -*) die "unknown option $1, see 'logs -h'" ;;
+    *) break ;;
+    esac
+    shift
 done
 [ -t 1 ] || PAGE=0
 if [ "$PAGE" != 0 ]; then
-	C_R=$(printf '\033[31m') C_G=$(printf '\033[32m') C_Y=$(printf '\033[33m')
-	C_B=$(printf '\033[1m') C_D=$(printf '\033[2m') C_0=$(printf '\033[0m')
+    C_R=$(printf '\033[31m') C_G=$(printf '\033[32m') C_Y=$(printf '\033[33m')
+    C_B=$(printf '\033[1m') C_D=$(printf '\033[2m') C_0=$(printf '\033[0m')
 else
-	C_R= C_G= C_Y= C_B= C_D= C_0=
+    C_R= C_G= C_Y= C_B= C_D= C_0=
 fi
 SINCE=
 
@@ -425,47 +437,59 @@ case $cmd in
 follow) follow "$@" ;;
 show) show "$@" ;;
 since)
-	[ $# -gt 0 ] || die "since when? 30m 2h 3d boot today or '2026-09-28 14:00'"
-	since "$1"
-	shift
-	show "$@"
-	;;
-boot) since boot; show "$@" ;;
-errors) since "${1:-boot}"; show errors ;;
+    [ $# -gt 0 ] || die "since when? 30m 2h 3d boot today or '2026-09-28 14:00'"
+    since "$1"
+    shift
+    show "$@"
+    ;;
+boot)
+    since boot
+    show "$@"
+    ;;
+errors)
+    since "${1:-boot}"
+    show errors
+    ;;
 grep)
-	[ $# -gt 0 ] || die "grep what?"
-	re=$1
-	shift
-	[ $# -gt 0 ] || set -- everything
-	for l; do check "$l"; done
-	stream "$@" | grep -iE -- "$re" | fmt | page
-	;;
+    [ $# -gt 0 ] || die "grep what?"
+    re=$1
+    shift
+    [ $# -gt 0 ] || set -- everything
+    for l; do check "$l"; done
+    stream "$@" | grep -iE -- "$re" | fmt | page
+    ;;
 around)
-	[ $# -gt 0 ] || die "around what?"
-	txt=$1
-	shift
-	[ $# -gt 0 ] || set -- everything
-	for l; do check "$l"; done
-	stream "$@" | grep -F -B5 -A20 -- "$txt" | fmt | page
-	;;
+    [ $# -gt 0 ] || die "around what?"
+    txt=$1
+    shift
+    [ $# -gt 0 ] || set -- everything
+    for l; do check "$l"; done
+    stream "$@" | grep -F -B5 -A20 -- "$txt" | fmt | page
+    ;;
 service) service "$@" ;;
 crashes)
-	since "${1:-}"
-	pick 'segfault at |traps: |potentially unexpected fatal signal|Out of memory|oom-kill:|Killed process|Oops|BUG: |kernel BUG|general protection fault|Kernel panic|blocked for more than|WARNING: CPU: ' kernel
-	;;
-apparmor) since "${1:-}"; apparmor ;;
-firewall) since "${1:-}"; firewall ;;
+    since "${1:-}"
+    pick 'segfault at |traps: |potentially unexpected fatal signal|Out of memory|oom-kill:|Killed process|Oops|BUG: |kernel BUG|general protection fault|Kernel panic|blocked for more than|WARNING: CPU: ' kernel
+    ;;
+apparmor)
+    since "${1:-}"
+    apparmor
+    ;;
+firewall)
+    since "${1:-}"
+    firewall
+    ;;
 usb)
-	since "${1:-}"
-	pick 'usb [0-9.-]+: (New USB device found|Product: |Manufacturer: |USB disconnect)' kernel
-	;;
+    since "${1:-}"
+    pick 'usb [0-9.-]+: (New USB device found|Product: |Manufacturer: |USB disconnect)' kernel
+    ;;
 auth) auth "$@" ;;
 panics) panics ;;
 session) session ;;
 status) status ;;
 list) list ;;
 *)
-	[ -d "$D/$cmd" ] || die "unknown command '$cmd', see 'logs -h'"
-	follow "$cmd" "$@"
-	;;
+    [ -d "$D/$cmd" ] || die "unknown command '$cmd', see 'logs -h'"
+    follow "$cmd" "$@"
+    ;;
 esac

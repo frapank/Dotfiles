@@ -17,264 +17,292 @@ DAY=86400
 log() { printf '%s\n' "$*"; }
 
 as_user() {
-	# a sandboxed app can rename itself g0wm
-	for pid in $(pgrep -x g0wm) ''; do
-		[ -n "$pid" ] || return 1
-		[ "$(cat "/proc/$pid/attr/apparmor/current" 2>/dev/null || echo unconfined)" = unconfined ] && break
-	done
-	user=$(stat -c %U "/proc/$pid") || return 1
-	for v in HOME DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY XDG_RUNTIME_DIR; do
-		val=$(tr '\0' '\n' <"/proc/$pid/environ" | sed -n "s/^$v=//p" | head -n1)
-		[ -z "$val" ] || set -- "$v=$val" "$@"
-	done
-	setpriv --reuid="$user" --regid="$user" --init-groups \
-		env -i PATH=/usr/bin:/bin "$@"
+    # a sandboxed app can rename itself g0wm
+    for pid in $(pgrep -x g0wm) ''; do
+        [ -n "$pid" ] || return 1
+        [ "$(cat "/proc/$pid/attr/apparmor/current" 2>/dev/null || echo unconfined)" = unconfined ] && break
+    done
+    user=$(stat -c %U "/proc/$pid") || return 1
+    for v in HOME DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY XDG_RUNTIME_DIR; do
+        val=$(tr '\0' '\n' <"/proc/$pid/environ" | sed -n "s/^$v=//p" | head -n1)
+        [ -z "$val" ] || set -- "$v=$val" "$@"
+    done
+    setpriv --reuid="$user" --regid="$user" --init-groups \
+        env -i PATH=/usr/bin:/bin "$@"
 }
 
 notify() { as_user notify-send -a Maintenance -u critical "$1" "$2" >/dev/null 2>&1 || true; }
 
 notify_log() {
-	(
-		exec 9>&-
-		[ "$(as_user notify-send -a Maintenance -u critical -A default=Open "$1" "$2" 2>/dev/null)" = default ] &&
-			as_user foot -- /usr/local/bin/logs -p service maint
-	) >/dev/null 2>&1 &
+    (
+        exec 9>&-
+        [ "$(as_user notify-send -a Maintenance -u critical -A default=Open "$1" "$2" 2>/dev/null)" = default ] &&
+            as_user foot -- /usr/local/bin/logs -p service maint
+    ) >/dev/null 2>&1 &
 }
 
 on_ac() {
-	found=0
-	for s in /sys/class/power_supply/*; do
-		[ "$(cat "$s/type" 2>/dev/null)" = Mains ] || continue
-		found=1
-		[ "$(cat "$s/online" 2>/dev/null)" = 1 ] && return 0
-	done
-	[ "$found" = 0 ]
+    found=0
+    for s in /sys/class/power_supply/*; do
+        [ "$(cat "$s/type" 2>/dev/null)" = Mains ] || continue
+        found=1
+        [ "$(cat "$s/online" 2>/dev/null)" = 1 ] && return 0
+    done
+    [ "$found" = 0 ]
 }
 
 battery() {
-	sum=0 n=0
-	for s in /sys/class/power_supply/*; do
-		[ "$(cat "$s/type" 2>/dev/null)" = Battery ] || continue
-		# mouse and keyboard batteries have scope Device
-		[ "$(cat "$s/scope" 2>/dev/null)" != Device ] || continue
-		c=$(cat "$s/capacity" 2>/dev/null) || continue
-		sum=$((sum + c)) n=$((n + 1))
-	done
-	[ "$n" = 0 ] || echo "$((sum / n))"
+    sum=0 n=0
+    for s in /sys/class/power_supply/*; do
+        [ "$(cat "$s/type" 2>/dev/null)" = Battery ] || continue
+        # mouse and keyboard batteries have scope Device
+        [ "$(cat "$s/scope" 2>/dev/null)" != Device ] || continue
+        c=$(cat "$s/capacity" 2>/dev/null) || continue
+        sum=$((sum + c)) n=$((n + 1))
+    done
+    [ "$n" = 0 ] || echo "$((sum / n))"
 }
 
 # home
 
 snapshots() {
-	find "$1" -mindepth 1 -maxdepth 1 -type d -name "$2-*" -printf '%f\n' |
-		grep -xE "$2-[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{4}" | sort
+    find "$1" -mindepth 1 -maxdepth 1 -type d -name "$2-*" -printf '%f\n' |
+        grep -xE "$2-[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{4}" | sort
 }
 
 prune() {
-	n=$(snapshots "$1" "$2" | wc -l)
-	[ "$n" -gt "$3" ] || return 0
-	rc=0
-	for s in $(snapshots "$1" "$2" | head -n "$((n - $3))"); do
-		if [ "$(btrfs property get -ts "$1/$s" ro 2>/dev/null)" != ro=true ]; then
-			log "$2: $s is not a read-only snapshot, left alone"
-			continue
-		fi
-		if btrfs subvolume delete "$1/$s" >/dev/null; then
-			log "$2: deleted $s"
-		else
-			log "$2: could not delete $s"
-			rc=1
-		fi
-	done
-	return "$rc"
+    n=$(snapshots "$1" "$2" | wc -l)
+    [ "$n" -gt "$3" ] || return 0
+    rc=0
+    for s in $(snapshots "$1" "$2" | head -n "$((n - $3))"); do
+        if [ "$(btrfs property get -ts "$1/$s" ro 2>/dev/null)" != ro=true ]; then
+            log "$2: $s is not a read-only snapshot, left alone"
+            continue
+        fi
+        if btrfs subvolume delete "$1/$s" >/dev/null; then
+            log "$2: deleted $s"
+        else
+            log "$2: could not delete $s"
+            rc=1
+        fi
+    done
+    return "$rc"
 }
 
 job_home() {
-	if [ "$(stat -f -c %T /home)" != btrfs ] || ! btrfs subvolume show /home >/dev/null 2>&1; then
-		log "home: /home is not a btrfs subvolume"
-		return 1
-	fi
-	if [ ! -e "$SNAPDIR" ] && [ ! -L "$SNAPDIR" ]; then
-		btrfs subvolume create "$SNAPDIR" >/dev/null || return 1
-		chmod 0700 "$SNAPDIR"
-		log "home: created $SNAPDIR"
-	fi
-	if [ -L "$SNAPDIR" ] || [ ! -d "$SNAPDIR" ] || [ "$(stat -c %u "$SNAPDIR")" != 0 ]; then
-		log "home: $SNAPDIR is not a directory owned by root"
-		return 1
-	fi
+    if [ "$(stat -f -c %T /home)" != btrfs ] || ! btrfs subvolume show /home >/dev/null 2>&1; then
+        log "home: /home is not a btrfs subvolume"
+        return 1
+    fi
+    if [ ! -e "$SNAPDIR" ] && [ ! -L "$SNAPDIR" ]; then
+        btrfs subvolume create "$SNAPDIR" >/dev/null || return 1
+        chmod 0700 "$SNAPDIR"
+        log "home: created $SNAPDIR"
+    fi
+    if [ -L "$SNAPDIR" ] || [ ! -d "$SNAPDIR" ] || [ "$(stat -c %u "$SNAPDIR")" != 0 ]; then
+        log "home: $SNAPDIR is not a directory owned by root"
+        return 1
+    fi
 
-	used=$(df --output=pcent /home | tail -n1 | tr -dc 0-9)
-	if [ "$((100 - used))" -lt "$MIN_FREE" ]; then
-		log "home: /home is $used% full, no new snapshot, keeping the newest $KEEP_LOW"
-		prune "$SNAPDIR" home "$KEEP_LOW"
-		return 2
-	fi
+    used=$(df --output=pcent /home | tail -n1 | tr -dc 0-9)
+    if [ "$((100 - used))" -lt "$MIN_FREE" ]; then
+        log "home: /home is $used% full, no new snapshot, keeping the newest $KEEP_LOW"
+        prune "$SNAPDIR" home "$KEEP_LOW"
+        return 2
+    fi
 
-	name=home-$(date +%Y-%m-%d_%H%M)
-	if [ -e "$SNAPDIR/$name" ]; then
-		log "home: $name already there"
-	else
-		btrfs subvolume snapshot -r /home "$SNAPDIR/$name" >/dev/null || return 1
-		log "home: created $name"
-	fi
-	prune "$SNAPDIR" home "$KEEP"
+    name=home-$(date +%Y-%m-%d_%H%M)
+    if [ -e "$SNAPDIR/$name" ]; then
+        log "home: $name already there"
+    else
+        btrfs subvolume snapshot -r /home "$SNAPDIR/$name" >/dev/null || return 1
+        log "home: created $name"
+    fi
+    prune "$SNAPDIR" home "$KEEP"
 }
 
 # thumbnails
 
 job_thumbs() {
-	if ! pgrep -xo g0wm >/dev/null; then
-		log "thumbs: nobody logged in"
-		return 2
-	fi
-	as_user /usr/local/libexec/thumbs-clean 2>&1
+    if ! pgrep -xo g0wm >/dev/null; then
+        log "thumbs: nobody logged in"
+        return 2
+    fi
+    as_user /usr/local/libexec/thumbs-clean 2>&1
 }
 
 # trash
 
 job_trash() {
-	if ! pgrep -xo g0wm >/dev/null; then
-		log "trash: nobody logged in"
-		return 2
-	fi
-	as_user /usr/local/libexec/trash-clean 2>&1
+    if ! pgrep -xo g0wm >/dev/null; then
+        log "trash: nobody logged in"
+        return 2
+    fi
+    as_user /usr/local/libexec/trash-clean 2>&1
 }
 
 # firmware
 
 job_firmware() {
-	command -v fwupdmgr >/dev/null || { log "firmware: fwupd not installed"; return 0; }
-	fwupdmgr refresh >/dev/null 2>&1
-	# 2: metadata already fresh
-	case $? in 0 | 2) ;; *) log "firmware: metadata not reachable"; return 2 ;; esac
-	json=$(fwupdmgr get-updates --no-unreported-check --no-metadata-check --json 2>/dev/null)
-	case $? in 0) ;; 2) log "firmware: up to date"; return 0 ;; *) return 1 ;; esac
-	list=$(printf '%s' "$json" | python3 -c '
+    command -v fwupdmgr >/dev/null || {
+        log "firmware: fwupd not installed"
+        return 0
+    }
+    fwupdmgr refresh >/dev/null 2>&1
+    # 2: metadata already fresh
+    case $? in 0 | 2) ;; *)
+        log "firmware: metadata not reachable"
+        return 2
+        ;;
+    esac
+    json=$(fwupdmgr get-updates --no-unreported-check --no-metadata-check --json 2>/dev/null)
+    case $? in 0) ;; 2)
+        log "firmware: up to date"
+        return 0
+        ;;
+    *) return 1 ;; esac
+    list=$(printf '%s' "$json" | python3 -c '
 import json, sys
 for d in json.load(sys.stdin).get("Devices", []):
     if d.get("Releases"):
         print(d.get("Name", "?"), d.get("Version", "?"), "->", d["Releases"][0].get("Version", "?"))
 ') || return 1
-	if [ -z "$list" ]; then
-		log "firmware: up to date"
-		return 0
-	fi
-	printf '%s\n' "$list"
-	notify "Firmware update" "$(printf '%s\n' "$list")
+    if [ -z "$list" ]; then
+        log "firmware: up to date"
+        return 0
+    fi
+    printf '%s\n' "$list"
+    notify "Firmware update" "$(printf '%s\n' "$list")
 Install with 'doas fwupdmgr update'."
 }
 
 # updates
 
 unotify() {
-	nid=$(as_user notify-send -p -r "${nid:-0}" -a Update -u critical "$1" "$2" 2>/dev/null) || nid=0
+    nid=$(as_user notify-send -p -r "${nid:-0}" -a Update -u critical "$1" "$2" 2>/dev/null) || nid=0
 }
 
 snap_root() {
-	if [ "$(stat -f -c %T /)" != btrfs ] || ! btrfs subvolume show / >/dev/null 2>&1; then
-		log "update: / is not a btrfs subvolume"
-		return 1
-	fi
-	if [ ! -e "$ROOTSNAP" ] && [ ! -L "$ROOTSNAP" ]; then
-		btrfs subvolume create "$ROOTSNAP" >/dev/null || return 1
-		chmod 0700 "$ROOTSNAP"
-	fi
-	if [ -L "$ROOTSNAP" ] || [ ! -d "$ROOTSNAP" ] || [ "$(stat -c %u "$ROOTSNAP")" != 0 ]; then
-		log "update: $ROOTSNAP is not a directory owned by root"
-		return 1
-	fi
-	snap=root-$(date +%Y-%m-%d_%H%M)
-	[ -e "$ROOTSNAP/$snap" ] || btrfs subvolume snapshot -r / "$ROOTSNAP/$snap" >/dev/null || return 1
-	log "update: snapshot $ROOTSNAP/$snap"
-	grub_snaps
+    if [ "$(stat -f -c %T /)" != btrfs ] || ! btrfs subvolume show / >/dev/null 2>&1; then
+        log "update: / is not a btrfs subvolume"
+        return 1
+    fi
+    if [ ! -e "$ROOTSNAP" ] && [ ! -L "$ROOTSNAP" ]; then
+        btrfs subvolume create "$ROOTSNAP" >/dev/null || return 1
+        chmod 0700 "$ROOTSNAP"
+    fi
+    if [ -L "$ROOTSNAP" ] || [ ! -d "$ROOTSNAP" ] || [ "$(stat -c %u "$ROOTSNAP")" != 0 ]; then
+        log "update: $ROOTSNAP is not a directory owned by root"
+        return 1
+    fi
+    snap=root-$(date +%Y-%m-%d_%H%M)
+    [ -e "$ROOTSNAP/$snap" ] || btrfs subvolume snapshot -r / "$ROOTSNAP/$snap" >/dev/null || return 1
+    log "update: snapshot $ROOTSNAP/$snap"
+    grub_snaps
 }
 
 pending() { xbps-install -un 2>&1; }
 
 # returns 3 when it failed and already notified
 update_now() {
-	nid=0 snap=
-	list=$(pending) || { log "$list"; unotify "Update failed" "Could not list the updates, nothing was installed."; return 3; }
-	total=$(printf '%s\n' "$list" | grep -c .)
-	unotify "Starting update..." "$total package(s). Sleep is blocked until it is done."
-	log "update: $total package(s)"
-	printf '%s\n' "$list"
+    nid=0 snap=
+    list=$(pending) || {
+        log "$list"
+        unotify "Update failed" "Could not list the updates, nothing was installed."
+        return 3
+    }
+    total=$(printf '%s\n' "$list" | grep -c .)
+    unotify "Starting update..." "$total package(s). Sleep is blocked until it is done."
+    log "update: $total package(s)"
+    printf '%s\n' "$list"
 
-	# a new xbps has to go in on its own before the rest can be resolved
-	if printf '%s\n' "$list" | grep -q '^xbps-[0-9]'; then
-		if ! xbps-install -yuD xbps 2>&1; then
-			unotify "Update failed" "Download of xbps failed, nothing was installed."
-			return 3
-		fi
-		snap_root || { unotify "Update failed" "No snapshot of /, nothing was installed."; return 3; }
-		if ! xbps-install -yu xbps 2>&1; then
-			unotify "Update failed" "xbps did not update. Snapshot: $ROOTSNAP/$snap"
-			return 3
-		fi
-		list=$(pending) || { log "$list"; unotify "Update failed" "Could not list the updates after xbps. Snapshot: $ROOTSNAP/$snap"; return 3; }
-	fi
+    # a new xbps has to go in on its own before the rest can be resolved
+    if printf '%s\n' "$list" | grep -q '^xbps-[0-9]'; then
+        if ! xbps-install -yuD xbps 2>&1; then
+            unotify "Update failed" "Download of xbps failed, nothing was installed."
+            return 3
+        fi
+        snap_root || {
+            unotify "Update failed" "No snapshot of /, nothing was installed."
+            return 3
+        }
+        if ! xbps-install -yu xbps 2>&1; then
+            unotify "Update failed" "xbps did not update. Snapshot: $ROOTSNAP/$snap"
+            return 3
+        fi
+        list=$(pending) || {
+            log "$list"
+            unotify "Update failed" "Could not list the updates after xbps. Snapshot: $ROOTSNAP/$snap"
+            return 3
+        }
+    fi
 
-	if [ -n "$list" ]; then
-		if ! xbps-install -yuD 2>&1; then
-			unotify "Update failed" "Download failed, nothing was installed. Retried tomorrow."
-			return 3
-		fi
-		b=$(battery)
-		if [ -n "$b" ] && [ "$b" -le "$BATTERY_MIN" ]; then
-			unotify "Update postponed" "Battery at $b%, nothing was installed. Retried within the hour."
-			return 2
-		fi
-		[ -n "$snap" ] || snap_root || { unotify "Update failed" "No snapshot of /, nothing was installed."; return 3; }
-		unotify "Download done. Installing..." "Snapshot of / in $ROOTSNAP/$snap. Do not turn it off."
-		if ! xbps-install -yu 2>&1; then
-			unotify "Update failed" "Stopped while installing: run 'doas xbps-install -Su'. Snapshot: $ROOTSNAP/$snap, bootable from GRUB > Snapshots before updates"
-			return 3
-		fi
-	fi
-	prune "$ROOTSNAP" root "$ROOT_KEEP"
-	grub_quiet
-	grub_snaps
+    if [ -n "$list" ]; then
+        if ! xbps-install -yuD 2>&1; then
+            unotify "Update failed" "Download failed, nothing was installed. Retried tomorrow."
+            return 3
+        fi
+        b=$(battery)
+        if [ -n "$b" ] && [ "$b" -le "$BATTERY_MIN" ]; then
+            unotify "Update postponed" "Battery at $b%, nothing was installed. Retried within the hour."
+            return 2
+        fi
+        [ -n "$snap" ] || snap_root || {
+            unotify "Update failed" "No snapshot of /, nothing was installed."
+            return 3
+        }
+        unotify "Download done. Installing..." "Snapshot of / in $ROOTSNAP/$snap. Do not turn it off."
+        if ! xbps-install -yu 2>&1; then
+            unotify "Update failed" "Stopped while installing: run 'doas xbps-install -Su'. Snapshot: $ROOTSNAP/$snap, bootable from GRUB > Snapshots before updates"
+            return 3
+        fi
+    fi
+    prune "$ROOTSNAP" root "$ROOT_KEEP"
+    grub_quiet
+    grub_snaps
 
-	msg="$total package(s) updated."
-	printf '%s\n' "$list" | grep -qE '^linux[0-9.]*-[0-9]' && msg="$msg Restart to use the new kernel."
-	unotify "Update done!" "$msg"
+    msg="$total package(s) updated."
+    printf '%s\n' "$list" | grep -qE '^linux[0-9.]*-[0-9]' && msg="$msg Restart to use the new kernel."
+    unotify "Update done!" "$msg"
 }
 
 job_update() {
-	if ! pgrep -xo g0wm >/dev/null; then
-		log "update: nobody logged in"
-		return 2
-	fi
-	if pgrep -x 'xbps-(install|remove|reconfigur|pkgdb)' >/dev/null; then
-		log "update: xbps is running"
-		return 2
-	fi
-	b=$(battery)
-	if [ -n "$b" ] && [ "$b" -le "$BATTERY_MIN" ]; then
-		log "update: battery at $b%"
-		return 2
-	fi
-	used=$(df --output=pcent / | tail -n1 | tr -dc 0-9)
-	if [ "$((100 - used))" -lt "$MIN_FREE" ]; then
-		log "update: / is $used% full"
-		return 1
-	fi
-	if ! xbps-install -S >/dev/null 2>&1; then
-		log "update: repositories not reachable"
-		return 2
-	fi
-	list=$(pending) || { log "$list"; return 1; }
-	if [ -z "$list" ]; then
-		log "update: up to date"
-		return 0
-	fi
-	if ! elogind-inhibit --list >/dev/null 2>&1; then
-		log "update: cannot block sleep (elogind not running)"
-		return 2
-	fi
-	elogind-inhibit --what=sleep:shutdown:handle-lid-switch:handle-suspend-key:handle-hibernate-key \
-		--who=maint --why="system update" --mode=block /usr/local/sbin/maint update-now
+    if ! pgrep -xo g0wm >/dev/null; then
+        log "update: nobody logged in"
+        return 2
+    fi
+    if pgrep -x 'xbps-(install|remove|reconfigur|pkgdb)' >/dev/null; then
+        log "update: xbps is running"
+        return 2
+    fi
+    b=$(battery)
+    if [ -n "$b" ] && [ "$b" -le "$BATTERY_MIN" ]; then
+        log "update: battery at $b%"
+        return 2
+    fi
+    used=$(df --output=pcent / | tail -n1 | tr -dc 0-9)
+    if [ "$((100 - used))" -lt "$MIN_FREE" ]; then
+        log "update: / is $used% full"
+        return 1
+    fi
+    if ! xbps-install -S >/dev/null 2>&1; then
+        log "update: repositories not reachable"
+        return 2
+    fi
+    list=$(pending) || {
+        log "$list"
+        return 1
+    }
+    if [ -z "$list" ]; then
+        log "update: up to date"
+        return 0
+    fi
+    if ! elogind-inhibit --list >/dev/null 2>&1; then
+        log "update: cannot block sleep (elogind not running)"
+        return 2
+    fi
+    elogind-inhibit --what=sleep:shutdown:handle-lid-switch:handle-suspend-key:handle-hibernate-key \
+        --who=maint --why="system update" --mode=block /usr/local/sbin/maint update-now
 }
 
 # grub
@@ -283,172 +311,210 @@ QUIET_MARK='# void-postinstall: no Loading messages'
 
 # a grub update keeps the edited 10_linux and adds 10_linux.new-*, both would make boot entries
 grub_quiet() {
-	f=/etc/grub.d/10_linux
-	grep -qx "$QUIET_MARK" "$f" 2>/dev/null || return 0
-	src=$(printf '%s\n' "$f".new-* | sort -V | tail -n1)
-	[ -f "$src" ] || return 0
-	flock -n /var/db/xbps/lock true || { log "grub: xbps is running"; return 0; }
-	if sed -E -e '/^[[:space:]]*echo[[:space:]].*"\$message" \| grub_quote/d' \
-		-e "/^$QUIET_MARK\$/d" -e "1a $QUIET_MARK" "$src" >"$f.maint" &&
-		! grep -qE '^[[:space:]]*echo[[:space:]].*\$message' "$f.maint" &&
-		grep -q '^[[:space:]]linux' "$f.maint" && sh -n "$f.maint"; then
-		log "grub: $src in place of 10_linux, without the Loading messages"
-	else
-		cp -f "$src" "$f.maint" || return 1
-		log "grub: $src has a new layout, in place of 10_linux as it is"
-		notify "GRUB" "10_linux changed in the grub update, the Loading messages are back."
-	fi
-	chmod 0755 "$f.maint" && mv -f "$f.maint" "$f" || { rm -f "$f.maint"; return 1; }
-	rm -f "$f".new-*
-	update-grub 2>&1 || { notify "GRUB" "update-grub failed, run 'doas update-grub'."; return 1; }
+    f=/etc/grub.d/10_linux
+    grep -qx "$QUIET_MARK" "$f" 2>/dev/null || return 0
+    src=$(printf '%s\n' "$f".new-* | sort -V | tail -n1)
+    [ -f "$src" ] || return 0
+    flock -n /var/db/xbps/lock true || {
+        log "grub: xbps is running"
+        return 0
+    }
+    if sed -E -e '/^[[:space:]]*echo[[:space:]].*"\$message" \| grub_quote/d' \
+        -e "/^$QUIET_MARK\$/d" -e "1a $QUIET_MARK" "$src" >"$f.maint" &&
+        ! grep -qE '^[[:space:]]*echo[[:space:]].*\$message' "$f.maint" &&
+        grep -q '^[[:space:]]linux' "$f.maint" && sh -n "$f.maint"; then
+        log "grub: $src in place of 10_linux, without the Loading messages"
+    else
+        cp -f "$src" "$f.maint" || return 1
+        log "grub: $src has a new layout, in place of 10_linux as it is"
+        notify "GRUB" "10_linux changed in the grub update, the Loading messages are back."
+    fi
+    chmod 0755 "$f.maint" && mv -f "$f.maint" "$f" || {
+        rm -f "$f.maint"
+        return 1
+    }
+    rm -f "$f".new-*
+    update-grub 2>&1 || {
+        notify "GRUB" "update-grub failed, run 'doas update-grub'."
+        return 1
+    }
 }
 
 grub_snaps() {
-	[ -x /etc/grub.d/41_snapshots-btrfs ] || return 0
-	if grep -qs snapshots-btrfs /boot/grub/grub.cfg; then
-		{ /etc/grub.d/41_snapshots-btrfs >/dev/null; } 2>&1
-	else
-		update-grub 2>&1
-	fi || { notify "GRUB" "The snapshots of / are not in the boot menu, run 'doas update-grub'."; return 1; }
+    [ -x /etc/grub.d/41_snapshots-btrfs ] || return 0
+    if grep -qs snapshots-btrfs /boot/grub/grub.cfg; then
+        { /etc/grub.d/41_snapshots-btrfs >/dev/null; } 2>&1
+    else
+        update-grub 2>&1
+    fi || {
+        notify "GRUB" "The snapshots of / are not in the boot menu, run 'doas update-grub'."
+        return 1
+    }
 }
 
 # kernels
 
 job_kernels() {
-	old=$(vkpurge list all)
-	for m in "$ROOTSNAP"/root-*/usr/lib/modules/*; do
-		[ -d "$m" ] || continue
-		old=$(printf '%s\n' "$old" | grep -vxF "${m##*/}")
-	done
-	if [ -z "$old" ]; then
-		log "kernels: nothing to remove"
-		return 0
-	fi
-	# shellcheck disable=SC2086
-	flock -n -E 75 /var/db/xbps/lock vkpurge rm $old
-	rc=$?
-	if [ "$rc" = 75 ]; then
-		log "kernels: xbps is running"
-		return 2
-	fi
-	for k in /boot/vmlinu[xz]-*; do
-		[ -e "$k" ] || continue
-		[ -e "/boot/initramfs-${k#*-}.img" ] || { log "kernels: /boot/initramfs-${k#*-}.img missing"; rc=1; }
-	done
-	return "$rc"
+    old=$(vkpurge list all)
+    for m in "$ROOTSNAP"/root-*/usr/lib/modules/*; do
+        [ -d "$m" ] || continue
+        old=$(printf '%s\n' "$old" | grep -vxF "${m##*/}")
+    done
+    if [ -z "$old" ]; then
+        log "kernels: nothing to remove"
+        return 0
+    fi
+    # shellcheck disable=SC2086
+    flock -n -E 75 /var/db/xbps/lock vkpurge rm $old
+    rc=$?
+    if [ "$rc" = 75 ]; then
+        log "kernels: xbps is running"
+        return 2
+    fi
+    for k in /boot/vmlinu[xz]-*; do
+        [ -e "$k" ] || continue
+        [ -e "/boot/initramfs-${k#*-}.img" ] || {
+            log "kernels: /boot/initramfs-${k#*-}.img missing"
+            rc=1
+        }
+    done
+    return "$rc"
 }
 
 job_packages() {
-	if ! flock -n /var/db/xbps/lock true; then
-		log "packages: xbps is running"
-		return 2
-	fi
-	keep=linux$(uname -r | cut -d. -f1-2)
-	orphans=$(xbps-query -O | xargs -r -n1 xbps-uhelper getpkgname | grep -vxE "$keep(-headers)?")
-	if [ -n "$orphans" ]; then
-		# shellcheck disable=SC2086
-		xbps-remove -Ry $orphans 2>&1 || return 1
-	else
-		log "packages: no orphans"
-	fi
-	xbps-remove -Oy 2>&1
+    if ! flock -n /var/db/xbps/lock true; then
+        log "packages: xbps is running"
+        return 2
+    fi
+    keep=linux$(uname -r | cut -d. -f1-2)
+    orphans=$(xbps-query -O | xargs -r -n1 xbps-uhelper getpkgname | grep -vxE "$keep(-headers)?")
+    if [ -n "$orphans" ]; then
+        # shellcheck disable=SC2086
+        xbps-remove -Ry $orphans 2>&1 || return 1
+    else
+        log "packages: no orphans"
+    fi
+    xbps-remove -Oy 2>&1
 }
 
 # scrub
 
 job_scrub() {
-	if ! on_ac; then
-		log "scrub: on battery"
-		return 2
-	fi
-	if btrfs scrub status / 2>/dev/null | grep -q 'Status:.*running'; then
-		log "scrub: already running"
-		return 2
-	fi
-	btrfs scrub limit -a -l "$SCRUB_LIMIT" / >/dev/null 2>&1 || true
-	btrfs scrub start -B / 2>&1
-	rc=$?
-	btrfs scrub limit -a -l 0 / >/dev/null 2>&1 || true
-	return "$rc"
+    if ! on_ac; then
+        log "scrub: on battery"
+        return 2
+    fi
+    if btrfs scrub status / 2>/dev/null | grep -q 'Status:.*running'; then
+        log "scrub: already running"
+        return 2
+    fi
+    btrfs scrub limit -a -l "$SCRUB_LIMIT" / >/dev/null 2>&1 || true
+    btrfs scrub start -B / 2>&1
+    rc=$?
+    btrfs scrub limit -a -l 0 / >/dev/null 2>&1 || true
+    return "$rc"
 }
 
 # dns
 
 job_blocklist() {
-	/usr/local/sbin/dns-blocklist 2>&1
+    /usr/local/sbin/dns-blocklist 2>&1
 }
 
 # scheduling
 
 due() {
-	[ -e "$STATE/$1" ] || return 0
-	age=$(($(date +%s) - $(stat -c %Y "$STATE/$1")))
-	[ "$age" -lt 0 ] || [ "$age" -ge "$(($2 - 1800))" ]
+    [ -e "$STATE/$1" ] || return 0
+    age=$(($(date +%s) - $(stat -c %Y "$STATE/$1")))
+    [ "$age" -lt 0 ] || [ "$age" -ge "$(($2 - 1800))" ]
 }
 
 job() {
-	log "$1: start"
-	"job_$1"
-	rc=$?
-	case $rc in
-	0) log "$1: ok" ;;
-	2) log "$1: skipped, retried within the hour"; return 0 ;;
-	*) log "$1: FAILED ($rc)"
-		date >"$STATE/$1.failed"
-		[ "$rc" = 3 ] || notify_log "Maintenance" "$1 failed, click to see the log" ;;
-	esac
-	[ "$rc" = 0 ] && rm -f "$STATE/$1.failed"
-	touch "$STATE/$1"
+    log "$1: start"
+    "job_$1"
+    rc=$?
+    case $rc in
+    0) log "$1: ok" ;;
+    2)
+        log "$1: skipped, retried within the hour"
+        return 0
+        ;;
+    *)
+        log "$1: FAILED ($rc)"
+        date >"$STATE/$1.failed"
+        [ "$rc" = 3 ] || notify_log "Maintenance" "$1 failed, click to see the log"
+        ;;
+    esac
+    [ "$rc" = 0 ] && rm -f "$STATE/$1.failed"
+    touch "$STATE/$1"
 }
 
 locked() {
-	# shellcheck disable=SC2174
-	mkdir -p -m 0700 "$STATE"
-	exec 9>"$STATE/lock"
-	flock -n 9 || { log "maint is already running"; exit 1; }
+    # shellcheck disable=SC2174
+    mkdir -p -m 0700 "$STATE"
+    exec 9>"$STATE/lock"
+    flock -n 9 || {
+        log "maint is already running"
+        exit 1
+    }
 }
 
 run_due() {
-	grub_quiet
-	due home "$DAY" && job home
-	due thumbs "$DAY" && job thumbs
-	due trash "$DAY" && job trash
-	due update "$DAY" && job update
-	due kernels "$((7 * DAY))" && job kernels
-	due packages "$((7 * DAY))" && job packages
-	due firmware "$((7 * DAY))" && job firmware
-	due scrub "$((30 * DAY))" && job scrub
-	[ -x /usr/local/sbin/dns-blocklist ] && due blocklist "$DAY" && job blocklist
-	return 0
+    grub_quiet
+    due home "$DAY" && job home
+    due thumbs "$DAY" && job thumbs
+    due trash "$DAY" && job trash
+    due update "$DAY" && job update
+    due kernels "$((7 * DAY))" && job kernels
+    due packages "$((7 * DAY))" && job packages
+    due firmware "$((7 * DAY))" && job firmware
+    due scrub "$((30 * DAY))" && job scrub
+    [ -x /usr/local/sbin/dns-blocklist ] && due blocklist "$DAY" && job blocklist
+    return 0
 }
 
 status() {
-	for j in home thumbs trash update kernels packages firmware scrub blocklist; do
-		if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
-		printf '%-9s last %s' "$j" "$last"
-		[ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
-		printf '\n'
-	done
-	printf '\nsnapshots in %s:\n' "$SNAPDIR"
-	snapshots "$SNAPDIR" home 2>/dev/null | sed 's/^/  /'
-	printf '\nsnapshots in %s:\n' "$ROOTSNAP"
-	snapshots "$ROOTSNAP" root 2>/dev/null | sed 's/^/  /'
-	printf '\n'
-	btrfs scrub status / 2>/dev/null | grep -E '^(Scrub started|Status|Error summary)'
+    for j in home thumbs trash update kernels packages firmware scrub blocklist; do
+        if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
+        printf '%-9s last %s' "$j" "$last"
+        [ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
+        printf '\n'
+    done
+    printf '\nsnapshots in %s:\n' "$SNAPDIR"
+    snapshots "$SNAPDIR" home 2>/dev/null | sed 's/^/  /'
+    printf '\nsnapshots in %s:\n' "$ROOTSNAP"
+    snapshots "$ROOTSNAP" root 2>/dev/null | sed 's/^/  /'
+    printf '\n'
+    btrfs scrub status / 2>/dev/null | grep -E '^(Scrub started|Status|Error summary)'
 }
 
-[ "$(id -u)" = 0 ] || { echo "maint: run as root" >&2; exit 1; }
+[ "$(id -u)" = 0 ] || {
+    echo "maint: run as root" >&2
+    exit 1
+}
 case ${1:-} in
 status) status ;;
-run) (locked; run_due) ;;
-home | thumbs | trash | update | kernels | packages | firmware | scrub | blocklist) (locked; job "$1") ;;
+run) (
+    locked
+    run_due
+) ;;
+home | thumbs | trash | update | kernels | packages | firmware | scrub | blocklist) (
+    locked
+    job "$1"
+) ;;
 update-now) update_now ;;
 loop)
-	sleep 900
-	while :; do
-		(locked; run_due)
-		sleep 3600
-	done
-	;;
-*) echo 'usage: maint status | run | home | thumbs | trash | update | kernels | packages | firmware | scrub | blocklist' >&2; exit 1 ;;
+    sleep 900
+    while :; do
+        (
+            locked
+            run_due
+        )
+        sleep 3600
+    done
+    ;;
+*)
+    echo 'usage: maint status | run | home | thumbs | trash | update | kernels | packages | firmware | scrub | blocklist' >&2
+    exit 1
+    ;;
 esac

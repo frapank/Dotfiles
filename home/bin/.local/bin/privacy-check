@@ -14,18 +14,31 @@ Exits 1 if something needs attention.
 EOF
 }
 
-case ${1:-} in help|--help) usage; exit 0 ;; esac
+case ${1:-} in help | --help)
+    usage
+    exit 0
+    ;;
+esac
 
 public=0
 while getopts ih o; do
     case $o in
     i) public=1 ;;
-    h) usage; exit 0 ;;
-    *) echo "Try 'privacy-check --help' for more information." >&2; exit 2 ;;
+    h)
+        usage
+        exit 0
+        ;;
+    *)
+        echo "Try 'privacy-check --help' for more information." >&2
+        exit 2
+        ;;
     esac
 done
 shift $((OPTIND - 1))
-[ $# -eq 0 ] || { echo "privacy-check: unexpected argument: $1" >&2; exit 2; }
+[ $# -eq 0 ] || {
+    echo "privacy-check: unexpected argument: $1" >&2
+    exit 2
+}
 
 if [ -t 1 ]; then
     G=$(printf '\033[32m') Y=$(printf '\033[33m') B=$(printf '\033[1m') D=$(printf '\033[2m') N=$(printf '\033[0m')
@@ -34,7 +47,10 @@ else
 fi
 bad=0
 ok() { printf '  %s✓%s %s\n' "$G" "$N" "$*"; }
-warn() { printf '  %s!%s %s\n' "$Y" "$N" "$*"; bad=$((bad + 1)); }
+warn() {
+    printf '  %s!%s %s\n' "$Y" "$N" "$*"
+    bad=$((bad + 1))
+}
 info() { printf '  %s· %s%s\n' "$D" "$*" "$N"; }
 section() { printf '\n%s%s%s\n' "$B" "$1" "$N"; }
 
@@ -116,7 +132,8 @@ else
     probe=
 fi
 
-dns=$(python3 - "$probe" <<'EOF'
+dns=$(
+    python3 - "$probe" <<'EOF'
 import errno, random, socket, struct, sys
 
 def query(server, name, qtype, port=53, timeout=3):
@@ -293,7 +310,10 @@ fi
 cam=
 for fd in /proc/[0-9]*/fd/*; do
     case $(readlink "$fd" 2>/dev/null) in
-    /dev/video*) p=${fd#/proc/}; cam="$cam $(cat "/proc/${p%%/*}/comm")" ;;
+    /dev/video*)
+        p=${fd#/proc/}
+        cam="$cam $(cat "/proc/${p%%/*}/comm")"
+        ;;
     esac
 done
 cam=$(for c in $cam; do echo "$c"; done | sort -u | tr '\n' ' ')
