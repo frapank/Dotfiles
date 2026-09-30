@@ -22,6 +22,8 @@ do_logs() {
     local d=/var/log/socklog
     [[ -d $d/everything && -d $d/kernel && -d $d/secure ]] || die "socklog-void did not create $d"
     sv_refresh socklog-unix/log put_tree logs
+    # watchdog needs it
+    put_tree session
     fix_perm "$d/secure" 2700
     run "logs parses" sh -n /usr/local/bin/logs
     run "pstore script parses" sh -n /etc/runit/core-services/07-pstore.sh
@@ -36,6 +38,7 @@ do_maint() {
     step "Maintenance"
     local conf=etc/dracut.conf.d/40-snapshots.conf
     cmp -s -- "$REPO/root/maint/$conf" "/$conf" || REGEN=1
+    put_tree session
     sv_refresh maint put_tree maint
     run "maint parses" sh -n /usr/local/sbin/maint
     run "thumbs-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/thumbs-clean

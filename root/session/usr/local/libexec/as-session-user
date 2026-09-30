@@ -1,0 +1,18 @@
+#!/bin/sh
+# run a command as the user of the g0wm session
+set -u
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+# a sandboxed app can rename itself g0wm
+for pid in $(pgrep -x g0wm) ''; do
+    [ -n "$pid" ] || exit 1
+    [ "$(cat "/proc/$pid/attr/apparmor/current" 2>/dev/null || echo unconfined)" = unconfined ] && break
+done
+# numeric ids since the group name can differ from the user name
+ids=$(stat -c '%u %g' "/proc/$pid") || exit 1
+for v in HOME DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY XDG_RUNTIME_DIR; do
+    val=$(tr '\0' '\n' <"/proc/$pid/environ" | sed -n "s/^$v=//p" | head -n1)
+    [ -z "$val" ] || set -- "$v=$val" "$@"
+done
+exec setpriv --reuid="${ids% *}" --regid="${ids#* }" --init-groups \
+    env -i PATH=/usr/bin:/bin "$@"
