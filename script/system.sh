@@ -332,6 +332,12 @@ verify() {
             bad=1
         }
     fi
+    if ((SEL[games])); then
+        [[ $(</proc/sys/vm/max_map_count) == 1048576 ]] || {
+            warn "vm.max_map_count is not 1048576"
+            bad=1
+        }
+    fi
     if ((SEL[logs])); then
         [[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || {
             warn "socklog not enabled"

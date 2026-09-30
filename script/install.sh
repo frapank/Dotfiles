@@ -81,6 +81,7 @@ main() {
     ((SEL[desktop])) && do_g0wm
     ((SEL[media])) && do_media
     ((SEL[apps])) && do_apps
+    ((SEL[games])) && do_games
     ((SEL[session])) && do_session
     ((SEL[fonts])) && do_fonts
     ((SEL[theme])) && do_theme
