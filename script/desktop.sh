@@ -111,7 +111,7 @@ do_apps() {
     local mime want got
     for mime in image/png=org.gnome.Loupe.desktop video/mp4=org.gnome.Showtime.desktop \
         application/pdf=org.gnome.Papers.desktop inode/directory=thunar.desktop \
-        x-scheme-handler/https=librewolf.desktop text/plain=nvim-foot.desktop; do
+        x-scheme-handler/https=librewolf.desktop text/plain=vim-foot.desktop; do
         want=${mime#*=}
         got=$(as_user xdg-mime query default "${mime%%=*}" 2>/dev/null || true)
         [[ $got == "$want" ]] || die "xdg-mime: ${mime%%=*} opens '$got', expected $want"

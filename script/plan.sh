@@ -142,7 +142,7 @@ plan() {
 		Print: region, Shift: screen, Ctrl: edit in swappy. Saved to Pictures and the clipboard.
 		Super+Print: record, Shift: region, Ctrl: no audio.
 		Super+= nightlight. Super+- always on: no lock or blank until off.
-		Default apps: images Loupe, video Showtime, PDF Papers, web librewolf, folders Thunar, archives xarchiver, documents LibreOffice, text nvim.
+		Default apps: images Loupe, video Showtime, PDF Papers, web librewolf, folders Thunar, archives xarchiver, documents LibreOffice, text vim (nvim in Open With).
 	EOF
     section session "Keyring, polkit, network and bluetooth" <<-EOF
 		The keyring unlocks with your login password. Polkit agent in g0wm.

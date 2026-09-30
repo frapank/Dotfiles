@@ -223,20 +223,20 @@ MIME_DEFAULTS=(
     application/vnd.oasis.opendocument.presentation=libreoffice-impress.desktop
     application/vnd.openxmlformats-officedocument.presentationml.presentation=libreoffice-impress.desktop
     application/vnd.ms-powerpoint=libreoffice-impress.desktop
-    text/plain=nvim-foot.desktop
-    text/markdown=nvim-foot.desktop
-    text/x-c=nvim-foot.desktop
-    text/x-csrc=nvim-foot.desktop
-    text/x-chdr=nvim-foot.desktop
-    text/x-c++src=nvim-foot.desktop
-    text/x-rust=nvim-foot.desktop
-    text/x-python=nvim-foot.desktop
-    text/x-shellscript=nvim-foot.desktop
-    application/x-shellscript=nvim-foot.desktop
-    application/json=nvim-foot.desktop
-    application/toml=nvim-foot.desktop
-    application/x-yaml=nvim-foot.desktop
-    text/x-log=nvim-foot.desktop
+    text/plain=vim-foot.desktop
+    text/markdown=vim-foot.desktop
+    text/x-c=vim-foot.desktop
+    text/x-csrc=vim-foot.desktop
+    text/x-chdr=vim-foot.desktop
+    text/x-c++src=vim-foot.desktop
+    text/x-rust=vim-foot.desktop
+    text/x-python=vim-foot.desktop
+    text/x-shellscript=vim-foot.desktop
+    application/x-shellscript=vim-foot.desktop
+    application/json=vim-foot.desktop
+    application/toml=vim-foot.desktop
+    application/x-yaml=vim-foot.desktop
+    text/x-log=vim-foot.desktop
 )
 
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
