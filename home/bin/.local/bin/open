@@ -2,7 +2,7 @@
 set -uo pipefail
 
 usage() {
-	cat <<EOF
+    cat <<EOF
 Usage: open [OPTION]... [FILE]...
 Open each FILE with its default app.
 Files of the same kind are opened together in one app.
@@ -25,41 +25,70 @@ Exit status is 0 if every FILE was opened, 1 if some failed, 2 on bad usage.
 EOF
 }
 
-err() { printf 'open: %s\n' "$*" >&2; status=1; }
-try() { echo "Try 'open --help' for more information." >&2; exit 2; }
+err() {
+    printf 'open: %s\n' "$*" >&2
+    status=1
+}
+try() {
+    echo "Try 'open --help' for more information." >&2
+    exit 2
+}
 
 status=0 dry=0 force=
 
 # command line
 args=()
 while (($#)); do
-	case $1 in
-	--) shift; args+=("$@"); break ;;
-	--help) usage; exit 0 ;;
-	--version) echo "open (dotfiles) 1.0"; exit 0 ;;
-	--dry-run) dry=1 ;;
-	--edit) force=text ;;
-	--hex) force=hex ;;
-	--*) echo "open: unrecognized option '$1'" >&2; try ;;
-	-?*)
-		opts=${1#-}
-		while [[ -n $opts ]]; do
-			o=${opts:0:1} opts=${opts:1}
-			case $o in
-			n) dry=1 ;;
-			e) force=text ;;
-			x) force=hex ;;
-			h) usage; exit 0 ;;
-			*) echo "open: invalid option -- '$o'" >&2; try ;;
-			esac
-		done ;;
-	*) args+=("$1") ;;
-	esac
-	shift
+    case $1 in
+    --)
+        shift
+        args+=("$@")
+        break
+        ;;
+    --help)
+        usage
+        exit 0
+        ;;
+    --version)
+        echo "open (dotfiles) 1.0"
+        exit 0
+        ;;
+    --dry-run) dry=1 ;;
+    --edit) force=text ;;
+    --hex) force=hex ;;
+    --*)
+        echo "open: unrecognized option '$1'" >&2
+        try
+        ;;
+    -?*)
+        opts=${1#-}
+        while [[ -n $opts ]]; do
+            o=${opts:0:1} opts=${opts:1}
+            case $o in
+            n) dry=1 ;;
+            e) force=text ;;
+            x) force=hex ;;
+            h)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "open: invalid option -- '$o'" >&2
+                try
+                ;;
+            esac
+        done
+        ;;
+    *) args+=("$1") ;;
+    esac
+    shift
 done
 if ((${#args[@]} == 0)); then
-	[[ -t 0 ]] && { echo "open: missing file operand" >&2; try; }
-	args=(-)
+    [[ -t 0 ]] && {
+        echo "open: missing file operand" >&2
+        try
+    }
+    args=(-)
 fi
 
 # what kind of file is it
@@ -67,208 +96,252 @@ fi
 GLOBS=/usr/share/mime/globs2
 
 mime_of_ext() {
-	[[ -r $GLOBS ]] || return 1
-	LC_ALL=C awk -F: -v g="*.${1,,}" '
+    [[ -r $GLOBS ]] || return 1
+    LC_ALL=C awk -F: -v g="*.${1,,}" '
 		!/^#/ && tolower($3) == g && $1 + 0 > w { w = $1 + 0; m = $2 }
 		END { if (m == "") exit 1; print m }' "$GLOBS"
 }
 
 mime_of() {
-	local f=$1 base ext=
-	if [[ -d $f ]]; then echo inode/directory; return; fi
-	base=${f##*/}
-	[[ $base == ?*.* ]] && ext=${base##*.}
-	# .ts is both MPEG-TS video and TypeScript
-	if [[ -n $ext && ${ext,,} != ts ]] && mime_of_ext "$ext"; then return; fi
-	file -b -L --mime-type -- "$f" 2>/dev/null
+    local f=$1 base ext=
+    if [[ -d $f ]]; then
+        echo inode/directory
+        return
+    fi
+    base=${f##*/}
+    [[ $base == ?*.* ]] && ext=${base##*.}
+    # .ts is both MPEG-TS video and TypeScript
+    if [[ -n $ext && ${ext,,} != ts ]] && mime_of_ext "$ext"; then return; fi
+    file -b -L --mime-type -- "$f" 2>/dev/null
 }
 
 is_text() {
-	case $1 in
-	text/* | inode/x-empty | application/json | application/x-shellscript | application/javascript | \
-		application/xml | application/toml | application/x-yaml) return 0 ;;
-	esac
-	[[ $(file -b -L --mime-encoding -- "$2" 2>/dev/null) != binary ]]
+    case $1 in
+    text/* | inode/x-empty | application/json | application/x-shellscript | application/javascript | \
+        application/xml | application/toml | application/x-yaml) return 0 ;;
+    esac
+    [[ $(file -b -L --mime-encoding -- "$2" 2>/dev/null) != binary ]]
 }
 
 # which app opens it
 
 declare -A defaults=()
 app_for() { # MIME -> $app, the desktop id of its default app; false when there is none
-	[[ -v defaults[$1] ]] || defaults[$1]=$(xdg-mime query default "$1" 2>/dev/null | head -n1)
-	app=${defaults[$1]%.desktop}
-	[[ -n $app ]]
+    [[ -v defaults[$1] ]] || defaults[$1]=$(xdg-mime query default "$1" 2>/dev/null | head -n1)
+    app=${defaults[$1]%.desktop}
+    [[ -n $app ]]
 }
 
 installed() {
-	local d dirs
-	IFS=: read -ra dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-	for d in "${dirs[@]}"; do
-		[[ -f $d/applications/$1.desktop ]] && return 0
-	done
-	return 1
+    local d dirs
+    IFS=: read -ra dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+    for d in "${dirs[@]}"; do
+        [[ -f $d/applications/$1.desktop ]] && return 0
+    done
+    return 1
 }
 
 tty=0
 [[ -t 0 && -t 1 ]] && tty=1
 
 where() { # FILE MIME -> $to: app:ID, text, hex, or empty when nothing opens it
-	local own
-	to=
-	case $force in hex) to=hex; return ;; text) to=text ;; esac
-	if [[ -z $to ]] && app_for "$2"; then
-		own=$app
-		if ((tty)) && app_for text/plain && [[ $app == "$own" ]]; then to=text; else to=app:$own; fi
-	elif [[ -n $to || $2 == inode/directory || $2 == x-scheme-handler/* ]]; then
-		:
-	elif is_text "$2" "$1"; then
-		to=text
-	else
-		to=hex
-	fi
-	if [[ $to == text ]] && ! ((tty)) && app_for text/plain; then to=app:$app; fi
-	return 0
+    local own
+    to=
+    case $force in hex)
+        to=hex
+        return
+        ;;
+    text) to=text ;; esac
+    if [[ -z $to ]] && app_for "$2"; then
+        own=$app
+        if ((tty)) && app_for text/plain && [[ $app == "$own" ]]; then to=text; else to=app:$own; fi
+    elif [[ -n $to || $2 == inode/directory || $2 == x-scheme-handler/* ]]; then
+        :
+    elif is_text "$2" "$1"; then
+        to=text
+    else
+        to=hex
+    fi
+    if [[ $to == text ]] && ! ((tty)) && app_for text/plain; then to=app:$app; fi
+    return 0
 }
 
 have_gui() { [[ -n ${WAYLAND_DISPLAY:-} || -n ${DISPLAY:-} ]]; }
 
-show() { printf '%q' "$1"; shift; (($#)) && printf ' %q' "$@"; echo; }
+show() {
+    printf '%q' "$1"
+    shift
+    (($#)) && printf ' %q' "$@"
+    echo
+}
 
 detached() {
-	local a
-	for a; do [[ $a == "$stdin" ]] && keep=1; done
-	return 0
+    local a
+    for a; do [[ $a == "$stdin" ]] && keep=1; done
+    return 0
 }
 
 launch() {
-	if ((dry)); then show "$@"; return; fi
-	detached "$@"
-	setsid -f "$@" </dev/null >/dev/null 2>&1
+    if ((dry)); then
+        show "$@"
+        return
+    fi
+    detached "$@"
+    setsid -f "$@" </dev/null >/dev/null 2>&1
 }
 
 editor() { # -> ed, the terminal editor with its arguments
-	read -ra ed <<<"${VISUAL:-${EDITOR:-vim}}"
-	((${#ed[@]})) || ed=(vim)
-	case ${ed[0]##*/} in vim | nvim | vi) ed+=(-p) ;; esac
+    read -ra ed <<<"${VISUAL:-${EDITOR:-vim}}"
+    ((${#ed[@]})) || ed=(vim)
+    case ${ed[0]##*/} in vim | nvim | vi) ed+=(-p) ;; esac
 }
 
 in_terminal() {
-	if ((dry)); then show "$@"; return 0; fi
-	if ((tty)); then
-		"$@"
-	elif have_gui && command -v foot >/dev/null; then
-		detached "$@"
-		setsid -f foot -- "$@" </dev/null >/dev/null 2>&1
-	else
-		echo "open: no terminal to run $1 in" >&2; return 1
-	fi
+    if ((dry)); then
+        show "$@"
+        return 0
+    fi
+    if ((tty)); then
+        "$@"
+    elif have_gui && command -v foot >/dev/null; then
+        detached "$@"
+        setsid -f foot -- "$@" </dev/null >/dev/null 2>&1
+    else
+        echo "open: no terminal to run $1 in" >&2
+        return 1
+    fi
 }
 
 hexdump() {
-	local f color=never
-	[[ -t 1 ]] && color=always
-	for f; do
-		if [[ $f == "$stdin" ]]; then
-			printf '==> standard input <==\n'
-		else
-			printf '==> %s <==\n' "$f"
-		fi
-		printf 'type: %s\n' "$(file -b -L -- "$f")"
-		printf 'size: %s bytes\n\n' "$(stat -L -c %s -- "$f")"
-		xxd -g 1 -c 16 -R "$color" -- "$f" || return
-		echo
-	done
+    local f color=never
+    [[ -t 1 ]] && color=always
+    for f; do
+        if [[ $f == "$stdin" ]]; then
+            printf '==> standard input <==\n'
+        else
+            printf '==> %s <==\n' "$f"
+        fi
+        printf 'type: %s\n' "$(file -b -L -- "$f")"
+        printf 'size: %s bytes\n\n' "$(stat -L -c %s -- "$f")"
+        xxd -g 1 -c 16 -R "$color" -- "$f" || return
+        echo
+    done
 }
 
 # shellcheck disable=SC2034
 stdin= keep=0
 read_stdin() {
-	local d
-	d=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/open.XXXXXX") || return
-	stdin=$d/stdin
-	trap '((keep)) || rm -rf -- "${stdin%/*}"' EXIT
-	cat >"$stdin" || { err "-: cannot read standard input"; return 1; }
-	# give the keyboard back to vim and less
-	{ exec </dev/tty; } 2>/dev/null || exec </dev/null
-	[[ -t 0 && -t 1 ]] && tty=1
-	return 0
+    local d
+    d=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/open.XXXXXX") || return
+    stdin=$d/stdin
+    trap '((keep)) || rm -rf -- "${stdin%/*}"' EXIT
+    cat >"$stdin" || {
+        err "-: cannot read standard input"
+        return 1
+    }
+    # give the keyboard back to vim and less
+    { exec </dev/tty; } 2>/dev/null || exec </dev/null
+    [[ -t 0 && -t 1 ]] && tty=1
+    return 0
 }
 
 tos=() paths=()
 for f in "${args[@]}"; do
-	case $f in
-	'') err "'': No such file or directory"; continue ;;
-	-)
-		if [[ -n $stdin ]]; then err "-: standard input given more than once"; continue; fi
-		read_stdin || continue
-		f=$stdin m=$(mime_of "$f")
-		;;
-	http://* | https://*) m=x-scheme-handler/${f%%:*} ;;
-	www.*)
-		if [[ -e $f ]]; then m=; else f=https://$f m=x-scheme-handler/https; fi ;;
-	*) m= ;;
-	esac
-	if [[ -z $m ]]; then
-		if [[ ! -e $f ]]; then
-			if [[ -L $f ]]; then err "$f: Broken symbolic link"
-			else err "$f: No such file or directory"; fi
-			continue
-		fi
-		if [[ ! -r $f ]]; then err "$f: Permission denied"; continue; fi
-		if [[ ! -f $f && ! -d $f ]]; then err "$f: Not a regular file or directory"; continue; fi
-		[[ $f == -* ]] && f=./$f
-		if [[ -n $force && -d $f ]]; then err "$f: Is a directory"; continue; fi
-		m=$(mime_of "$f")
-	fi
-	where "$f" "$m"
-	if [[ -z $to ]]; then err "$f: no default app for $m, set one in ~/.config/mimeapps.list"; continue; fi
-	tos+=("$to") paths+=("$f")
+    case $f in
+    '')
+        err "'': No such file or directory"
+        continue
+        ;;
+    -)
+        if [[ -n $stdin ]]; then
+            err "-: standard input given more than once"
+            continue
+        fi
+        read_stdin || continue
+        f=$stdin m=$(mime_of "$f")
+        ;;
+    http://* | https://*) m=x-scheme-handler/${f%%:*} ;;
+    www.*)
+        if [[ -e $f ]]; then m=; else f=https://$f m=x-scheme-handler/https; fi
+        ;;
+    *) m= ;;
+    esac
+    if [[ -z $m ]]; then
+        if [[ ! -e $f ]]; then
+            if [[ -L $f ]]; then
+                err "$f: Broken symbolic link"
+            else err "$f: No such file or directory"; fi
+            continue
+        fi
+        if [[ ! -r $f ]]; then
+            err "$f: Permission denied"
+            continue
+        fi
+        if [[ ! -f $f && ! -d $f ]]; then
+            err "$f: Not a regular file or directory"
+            continue
+        fi
+        [[ $f == -* ]] && f=./$f
+        if [[ -n $force && -d $f ]]; then
+            err "$f: Is a directory"
+            continue
+        fi
+        m=$(mime_of "$f")
+    fi
+    where "$f" "$m"
+    if [[ -z $to ]]; then
+        err "$f: no default app for $m, set one in ~/.config/mimeapps.list"
+        continue
+    fi
+    tos+=("$to") paths+=("$f")
 done
 
 list() {
-	local i
-	list=()
-	for i in "${!tos[@]}"; do
-		[[ ${tos[i]} == "$1" ]] && list+=("${paths[i]}")
-	done
-	((${#list[@]}))
+    local i
+    list=()
+    for i in "${!tos[@]}"; do
+        [[ ${tos[i]} == "$1" ]] && list+=("${paths[i]}")
+    done
+    ((${#list[@]}))
 }
 
 declare -A seen=()
 for to in "${tos[@]}"; do
-	[[ $to == app:* && ! -v seen[$to] ]] || continue
-	seen[$to]=1
-	app=${to#app:}
-	list "$to"
-	if ! installed "$app"; then
-		err "$app.desktop: not installed (needed for ${list[*]})"; continue
-	fi
-	if ! ((dry)) && ! have_gui; then
-		err "no graphical session to run $app (needed for ${list[*]})"; continue
-	fi
-	launch gtk-launch "$app" "${list[@]}" || err "cannot run $app"
+    [[ $to == app:* && ! -v seen[$to] ]] || continue
+    seen[$to]=1
+    app=${to#app:}
+    list "$to"
+    if ! installed "$app"; then
+        err "$app.desktop: not installed (needed for ${list[*]})"
+        continue
+    fi
+    if ! ((dry)) && ! have_gui; then
+        err "no graphical session to run $app (needed for ${list[*]})"
+        continue
+    fi
+    launch gtk-launch "$app" "${list[@]}" || err "cannot run $app"
 done
 
 if list hex; then
-	if ((dry)); then
-		for f in "${list[@]}"; do printf 'xxd -g 1 -c 16 %q | less -R\n' "$f"; done
-	elif [[ -t 1 ]]; then
-		hexdump "${list[@]}" | less -R
-	elif [[ -t 0 ]]; then
-		# run from a terminal with the output to a pipe or a file: no pager
-		hexdump "${list[@]}" || status=1
-	else
-		in_terminal "$0" --hex -- "${list[@]}" || status=1
-	fi
+    if ((dry)); then
+        for f in "${list[@]}"; do printf 'xxd -g 1 -c 16 %q | less -R\n' "$f"; done
+    elif [[ -t 1 ]]; then
+        hexdump "${list[@]}" | less -R
+    elif [[ -t 0 ]]; then
+        # run from a terminal with the output to a pipe or a file: no pager
+        hexdump "${list[@]}" || status=1
+    else
+        in_terminal "$0" --hex -- "${list[@]}" || status=1
+    fi
 fi
 
 if list text; then
-	editor
-	if command -v -- "${ed[0]}" >/dev/null; then
-		in_terminal "${ed[@]}" "${list[@]}" || status=1
-	else
-		err "${ed[0]}: command not found (needed for ${list[*]})"
-	fi
+    editor
+    if command -v -- "${ed[0]}" >/dev/null; then
+        in_terminal "${ed[@]}" "${list[@]}" || status=1
+    else
+        err "${ed[0]}: command not found (needed for ${list[*]})"
+    fi
 fi
 
 exit "$status"

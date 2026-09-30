@@ -22,10 +22,10 @@ _setup_history() {
 _setup_prompt() {
     __set_bash_prompt() {
         local s=$? sym='$'
-        (( EUID == 0 )) && sym='#'
+        ((EUID == 0)) && sym='#'
 
         local p="$sym"
-        (( s )) && p="\[\e[31m\]$sym\[\e[0m\]"
+        ((s)) && p="\[\e[31m\]$sym\[\e[0m\]"
 
         local h=''
         [[ -n $SSH_CONNECTION ]] && h='\h '
@@ -44,7 +44,10 @@ _setup_prompt() {
             c=${PWD:i:1}
             case $c in
             [-/:_.!\'\(\)~[:alnum:]]) out+=$c ;;
-            *) printf -v c '%%%02X' "'$c"; out+=$c ;;
+            *)
+                printf -v c '%%%02X' "'$c"
+                out+=$c
+                ;;
             esac
         done
         # shellcheck disable=SC1003
@@ -65,7 +68,10 @@ _setup_env() {
 
     local _ed _found_ed
     for _ed in vim nvim vi nano; do
-        _has "$_ed" && { _found_ed=$_ed; break; }
+        _has "$_ed" && {
+            _found_ed=$_ed
+            break
+        }
     done
     export EDITOR="${_found_ed:-vi}"
     export VISUAL="$EDITOR"
@@ -102,7 +108,10 @@ _setup_completion() {
 
     local _bc
     for _bc in /etc/bash_completion /usr/share/bash-completion/bash_completion /opt/homebrew/etc/profile.d/bash_completion.sh; do
-        [[ -r $_bc ]] && { source "$_bc"; break; }
+        [[ -r $_bc ]] && {
+            source "$_bc"
+            break
+        }
     done
 }
 
@@ -115,10 +124,16 @@ _setup_fzf() {
         pointer:#9d9d9d marker:#9d9d9d prompt:#9d9d9d query:#ffffff separator:#1a1a1a
         scrollbar:#555555 label:#8a8a8a disabled:#7d7d7d preview-fg:#ffffff preview-bg:#0f0f0f
     )
-    export FZF_DEFAULT_OPTS="--color=$(IFS=,; echo "${_colors[*]}")"
+    export FZF_DEFAULT_OPTS="--color=$(
+        IFS=,
+        echo "${_colors[*]}"
+    )"
 
     local _init
-    _init=$(fzf --bash 2>/dev/null) && [[ -n $_init ]] && { eval "$_init"; return; }
+    _init=$(fzf --bash 2>/dev/null) && [[ -n $_init ]] && {
+        eval "$_init"
+        return
+    }
 
     local _dir
     for _dir in /usr/share/fzf /usr/share/doc/fzf/examples /opt/homebrew/opt/fzf/shell /usr/local/opt/fzf/shell "$HOME/.fzf/shell"; do
@@ -173,18 +188,27 @@ _setup_man() {
 
 # BINARY TOOLS
 _pager() {
-    if _has less; then command less
-    elif _has more; then command more
-    else command cat
+    if _has less; then
+        command less
+    elif _has more; then
+        command more
+    else
+        command cat
     fi
 }
 
 dis() {
     local _od _found_od
     for _od in objdump gobjdump; do
-        _has "$_od" && { _found_od=$_od; break; }
+        _has "$_od" && {
+            _found_od=$_od
+            break
+        }
     done
-    [[ -n $_found_od ]] || { echo "dis: no disassembler found (objdump/gobjdump)" >&2; return 1; }
+    [[ -n $_found_od ]] || {
+        echo "dis: no disassembler found (objdump/gobjdump)" >&2
+        return 1
+    }
 
     if [[ -n $_BAT ]]; then
         "$_found_od" -d -M intel --no-show-raw-insn "$@" | "$_BAT" -l asm -p

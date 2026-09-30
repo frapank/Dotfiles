@@ -18,7 +18,10 @@ for a in "$@"; do
     case $a in
     region) region=1 ;;
     --no-audio) sound= ;;
-    *) echo "usage: record [region] [--no-audio]" >&2; exit 2 ;;
+    *)
+        echo "usage: record [region] [--no-audio]" >&2
+        exit 2
+        ;;
     esac
 done
 

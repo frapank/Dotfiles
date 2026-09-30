@@ -6,14 +6,14 @@ tty=${PWD##*-}
 [ -r conf ] && . ./conf
 
 if [ -x /sbin/getty -o -x /bin/getty ]; then
-      # busybox
-      GETTY=getty
+    # busybox
+    GETTY=getty
 elif [ -x /sbin/agetty -o -x /bin/agetty ]; then
-      # util-linux
-      GETTY=agetty
+    # util-linux
+    GETTY=agetty
 fi
 
 [ "$tty" = tty1 ] && [ -x /usr/bin/plymouth ] && /usr/bin/plymouth quit
 
 exec chpst -P ${GETTY} ${GETTY_ARGS} \
-      "${tty}" "${BAUD_RATE}" "${TERM_NAME}"
+    "${tty}" "${BAUD_RATE}" "${TERM_NAME}"
