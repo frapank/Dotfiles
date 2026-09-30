@@ -240,16 +240,18 @@ verify() {
                 bad=1
             }
         done
-        cmp -s "$REPO/home/bash/.bashrc_dotfile" "$THOME/.bashrc_dotfile" && [[ ! -L $THOME/.bashrc_dotfile ]] ||
-            {
-                warn "~/.bashrc_dotfile is not the repo's copy"
-                bad=1
-            }
-        grep -qxF -- "$BASHRC_LINE" "$THOME/.bashrc" 2>/dev/null ||
-            {
-                warn "~/.bashrc does not source ~/.bashrc_dotfile"
-                bad=1
-            }
+        for c in .bashrc:"$BASHRC_LINE" .bash_profile:"$PROFILE_LINE"; do
+            cmp -s "$REPO/home/bash/${c%%:*}_dotfile" "$THOME/${c%%:*}_dotfile" && [[ ! -L $THOME/${c%%:*}_dotfile ]] ||
+                {
+                    warn "~/${c%%:*}_dotfile is not the repo's copy"
+                    bad=1
+                }
+            [[ $(head -n1 -- "$THOME/${c%%:*}" 2>/dev/null) == "${c#*:}" ]] ||
+                {
+                    warn "~/${c%%:*} does not source ~/${c%%:*}_dotfile in its first line"
+                    bad=1
+                }
+        done
     fi
     if ((SEL[desktop])); then
         g0wm_where >/dev/null || {
