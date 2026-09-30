@@ -139,7 +139,8 @@ x11=
 wl=
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then
     mask /tmp/.X11-unix
-    x11='--unsetenv DISPLAY --unsetenv XAUTHORITY'
+    # AppArmor blocks the librewolf wayland proxy
+    x11='--unsetenv DISPLAY --unsetenv XAUTHORITY --setenv MOZ_DISABLE_WAYLAND_PROXY 1'
     if [ "$own" = 1 ] && /usr/local/libexec/wl-sandbox --probe 2>/dev/null; then
         wl=$sock.wayland
         for f in "$run"/wayland-*; do
