@@ -292,6 +292,12 @@ verify() {
             bad=1
         }
     fi
+    if ((SEL[maint] || SEL[logs])); then
+        [[ $(stat -c '%a %U' /usr/local/libexec/as-session-user) == '755 root' ]] || {
+            warn "/usr/local/libexec/as-session-user permissions"
+            bad=1
+        }
+    fi
     if ((SEL[maint])); then
         [[ -L $SVDIR/maint ]] || {
             warn "maint not enabled"
