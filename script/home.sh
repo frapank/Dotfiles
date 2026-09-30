@@ -1,8 +1,23 @@
 # shellcheck shell=bash
 # home files and folders
 
+# replace @HOME@ for programs that do not expand ~
+home_render() {
+    local esc=$THOME tmp
+    grep -qF '@HOME@' -- "$1" || {
+        echo "$1"
+        return 0
+    }
+    esc=${esc//\\/\\\\}
+    esc=${esc//&/\\&}
+    esc=${esc//|/\\|}
+    tmp=$(mktemp -p "$BAK")
+    sed "s|@HOME@|$esc|g" -- "$1" >"$tmp"
+    echo "$tmp"
+}
+
 do_home() {
-    local pkg src rel dst mode part p parts n=0
+    local pkg src rel dst mode part p parts out n=0
     for pkg in "$@"; do
         while IFS= read -r -d '' src; do
             rel=${src#"$REPO/home/$pkg/"}
@@ -17,8 +32,10 @@ do_home() {
             done
             mode=0600
             [[ -x $src ]] && mode=0700
-            if [[ -f $dst && ! -L $dst ]] && cmp -s -- "$src" "$dst" &&
+            out=$(home_render "$src")
+            if [[ -f $dst && ! -L $dst ]] && cmp -s -- "$out" "$dst" &&
                 [[ $(stat -c '%a %U' -- "$dst") == "${mode#0} $TUSER" ]]; then
+                [[ $out == "$src" ]] || rm -f -- "$out"
                 continue
             fi
             umkdir "${dst%/*}"
@@ -27,7 +44,13 @@ do_home() {
             else
                 jot hremove "$dst"
             fi
-            as_user install -m "$mode" -- "$src" "$dst"
+            if [[ $out == "$src" ]]; then
+                as_user install -m "$mode" -- "$src" "$dst"
+            else
+                # root only file, passed on stdin
+                as_user sh -c 'umask 077 && cat >"$1" && chmod "$2" -- "$1"' _ "$dst" "$mode" <"$out"
+                rm -f -- "$out"
+            fi
             n=$((n + 1))
         done < <(find "$REPO/home/$pkg" -type f -print0 | sort -z)
     done
