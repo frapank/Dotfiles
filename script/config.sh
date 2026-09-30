@@ -58,7 +58,7 @@ PKG_DESKTOP=(
 PKG_MEDIA=(pipewire wireplumber alsa-pipewire xdg-desktop-portal
     xdg-desktop-portal-wlr xdg-desktop-portal-gtk slurp dbus)
 PKG_APPS=(
-    librewolf foot gtklock swaylock swayidle pavucontrol
+    librewolf foot gtklock swayidle pavucontrol
     loupe showtime papers libreoffice qt6-wayland
     # thunar
     Thunar thunar-volman thunar-archive-plugin tumbler ffmpegthumbnailer
