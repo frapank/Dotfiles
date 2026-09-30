@@ -3,15 +3,13 @@
 
 do_apparmor() {
     step "AppArmor"
-    local n f c repo prof=()
+    local n f prof=()
     [[ -f /etc/runit/core-services/09-apparmor.sh ]] || die "runit-void-apparmor did not install 09-apparmor.sh"
     aa_on && jot aaload
     n=$(njot)
     put_tree apparmor
-    repo=$REPO
-    for c in \\ '"' '*' '?' '[' ']' '{' '}' '^'; do repo=${repo//"$c"/\\$c}; done
-    put_text /etc/apparmor.d/local/dotfiles-repo 0644 <<<"  audit deny \"$repo/{,**}\" wl,"
-    for f in /etc/apparmor.d/abstractions/dotfiles/*; do
+    # dotfiles-repo is left by older versions
+    for f in /etc/apparmor.d/local/dotfiles-repo /etc/apparmor.d/abstractions/dotfiles/*; do
         [[ -e $f && ! -e $REPO/root/apparmor$f ]] || continue
         backup "$f"
         rm -f -- "$f"
