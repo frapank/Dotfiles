@@ -1,0 +1,107 @@
+#!/usr/bin/python3 -I
+"""Read the health of the disks with smartctl, say what got worse since the last run.
+
+Prints one line per disk. Lines starting with '! ' are news to notify. The
+values of each disk are kept in the file given as argument.
+"""
+import json
+import os
+import subprocess
+import sys
+
+WEAR_STEPS = (80, 90, 100)
+# ATA attributes that only ever grow on a dying disk
+ATA = {5: 'reallocated sectors', 187: 'uncorrectable errors', 197: 'sectors waiting for reallocation',
+       198: 'offline uncorrectable sectors'}
+NVME_WARNING = {0: 'spare space running out', 1: 'temperature out of range', 2: 'reliability degraded',
+                3: 'read-only mode', 4: 'volatile memory backup failed'}
+
+
+def smartctl(*args):
+    r = subprocess.run(['smartctl', '-j', *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    try:
+        return r.returncode, json.loads(r.stdout)
+    except ValueError:
+        return r.returncode, {}
+
+
+def values(d):
+    v = {'failed': d.get('smart_status', {}).get('passed') is False}
+    nv = d.get('nvme_smart_health_information_log')
+    if nv:
+        v['warning'] = nv.get('critical_warning', 0)
+        v['wear'] = nv.get('percentage_used')
+        v['media errors'] = nv.get('media_errors', 0)
+    for a in d.get('ata_smart_attributes', {}).get('table', []):
+        if a.get('id') in ATA:
+            v[ATA[a['id']]] = a.get('raw', {}).get('value', 0)
+    for page in d.get('ata_device_statistics', {}).get('pages', []):
+        for row in page.get('table', []):
+            if row.get('name') == 'Percentage Used Endurance Indicator':
+                v['wear'] = row.get('value')
+    return v
+
+
+def news(v, old):
+    out = []
+    # every week until it is replaced
+    if v['failed']:
+        out.append('SMART says the disk is failing')
+    bits = v.get('warning', 0) & ~old.get('warning', 0)
+    out += [NVME_WARNING.get(b, f'critical warning bit {b}') for b in range(8) if bits >> b & 1]
+    for k in ('media errors', *ATA.values()):
+        n, was = v.get(k) or 0, old.get(k) or 0
+        if n > was:
+            out.append(f'{n} {k}' + (f', {n - was} new' if was else ''))
+    wear, was = v.get('wear'), old.get('wear') or 0
+    if wear is not None:
+        step = max((s for s in WEAR_STEPS if was < s <= wear), default=None)
+        if step:
+            out.append(f'{wear}% of its rated writes used')
+    return out
+
+
+def main():
+    path = sys.argv[1]
+    try:
+        with open(path) as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        state = {}
+    _, scan = smartctl('--scan-open')
+    seen = 0
+    for dev in scan.get('devices', []):
+        name, kind = dev.get('name'), dev.get('type', 'auto')
+        if not name or dev.get('open_error'):
+            continue
+        extra = [] if kind == 'nvme' else ['-l', 'devstat']
+        # standby: a sleeping hard disk is not spun up for this
+        rc, d = smartctl('-a', *extra, '-n', 'standby', '-d', kind, name)
+        short = name.removeprefix('/dev/')
+        if rc & 2 or not d.get('smart_status'):
+            print(f'{short}: no SMART data' + (' (asleep)' if d.get('power_mode') == 'STANDBY' else ''))
+            continue
+        seen += 1
+        model = d.get('model_name', '?')
+        key = f"{model} {d.get('serial_number', name)}"
+        v = values(d)
+        new = news(v, state.get(key, {}))
+        state[key] = v
+        info = [f"{v['wear']}% worn" if v.get('wear') is not None else None,
+                f"{d['temperature']['current']}°C" if 'current' in d.get('temperature', {}) else None]
+        bad = [k for k in ('media errors', *ATA.values()) if v.get(k)]
+        status = 'FAILING' if v['failed'] else (', '.join(f'{v[k]} {k}' for k in bad) or 'ok')
+        print(f'{short} {model}: ' + ', '.join([status, *filter(None, info)]))
+        for n in new:
+            print(f'! {short} {model}: {n}')
+    if not seen:
+        print('no disk with SMART data')
+    tmp = f'{path}.new'
+    with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), 'w') as f:
+        json.dump(state, f, indent=1)
+    os.replace(tmp, path)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -43,6 +43,7 @@ do_maint() {
     run "maint parses" sh -n /usr/local/sbin/maint
     run "thumbs-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/thumbs-clean
     run "trash-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/trash-clean
+    run "disk-health parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/disk-health
     run "snap parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/bin/snap
     run "snap-ui parses" sh -n /usr/local/libexec/snap-ui
     grub_snaps

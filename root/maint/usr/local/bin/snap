@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""List, restore and forget versions of a file in the daily snapshots of /home."""
+"""List, restore and forget versions of a file in the daily snapshots of /home, show what changed."""
 import fcntl
 import getopt
 import json
@@ -23,6 +23,7 @@ MAINT_LOCK = '/var/lib/maint/lock'
 USAGE = f"""\
 Usage: {PROG} FILE
   or:  {PROG} -r SNAPSHOT FILE [DEST]
+  or:  {PROG} -d SNAPSHOT [-t SNAPSHOT] [FOLDER]
   or:  {PROG} -l
 List the versions of FILE kept in the daily snapshots of /home, or copy the
 one in SNAPSHOT back. FILE can be a file or a folder and may no longer exist.
@@ -33,6 +34,12 @@ your own permissions, so you only get back what was yours to read.
   -l           list the snapshots
   -r SNAPSHOT  copy FILE back from SNAPSHOT, a date (2026-09-25) or a name
                from the list (2026-09-25_2007)
+  -d SNAPSHOT  list what changed in your home since SNAPSHOT, or only in
+               FOLDER: A added, M modified, D deleted, R moved or renamed.
+               A new or deleted folder is one line. Only names are compared,
+               no file is read. Downloads, ~/.cache and the other folders
+               kept out of the snapshots never show up.
+  -t SNAPSHOT  with -d: up to SNAPSHOT instead of now
 
 The snapshots are on the same disk as /home: they are not a backup.
 To delete a file from all of them, see 'forget --help'.
@@ -274,18 +281,23 @@ def interrupted(signum, _frame):
     raise KeyboardInterrupt
 
 
-def forget(snaps, user, paths, dry):
+def maint_lock():
+    # kept open until exit: maint does not create or prune snapshots meanwhile
     try:
         lock = open(MAINT_LOCK, 'a')
     except FileNotFoundError:
-        lock = None
+        return None
     except OSError as e:
         die(f'{MAINT_LOCK}: {e.strerror}')
-    if lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            die('maint is running, try again in a few minutes')
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        die('maint is running, try again in a few minutes')
+    return lock
+
+
+def forget(snaps, user, paths, dry):
+    _lock = maint_lock()
     found = as_user(user, find, snaps, paths)
     failed = sum(1 for f in found if f is None or not f['labels'])
     items = [f for f in found if f and f['labels']]
@@ -375,6 +387,189 @@ def restore(snaps, want, path, dest):
     print(f'{q(real)} ({label}) -> {q(dest)}')
 
 
+DIFF_TMP = '.snap-diff'
+CREATE = {'mkfile', 'mkdir', 'mknod', 'mkfifo', 'mksock', 'symlink', 'link'}
+CHANGE = {'write', 'update_extent', 'truncate', 'clone', 'encoded_write', 'fallocate'}
+ORPHAN = re.compile(r'o\d+-\d+-\d+')
+UNESCAPE = {b'a': b'\a', b'b': b'\b', b'e': b'\x1b', b'f': b'\f', b'n': b'\n',
+            b'r': b'\r', b't': b'\t', b'v': b'\v', b' ': b' ', b'\\': b'\\'}
+
+
+def dump_fields(line):
+    # btrfs receive --dump: fields split by spaces, those in paths are escaped
+    fields, cur, i = [], b'', 0
+    while i < len(line):
+        c = line[i:i + 1]
+        if c == b'\\' and i + 1 < len(line):
+            n = line[i + 1:i + 2]
+            if n.isdigit():
+                cur += bytes([int(line[i + 1:i + 4], 8)])
+                i += 4
+                continue
+            cur += UNESCAPE.get(n, n)
+            i += 2
+            continue
+        if c in b' \t\n':
+            if cur:
+                fields.append(cur)
+            cur = b''
+        else:
+            cur += c
+        i += 1
+    if cur:
+        fields.append(cur)
+    return fields
+
+
+def changes(dump):
+    """What a --no-data send stream does: {path: (kind, old path)}, kind A M D R."""
+    state, gone, dirs, top = {}, {}, set(), None
+
+    def rel(p):
+        p = os.fsdecode(p)
+        return p[len(top) + 1:] if p.startswith(top + '/') else None
+
+    for line in dump:
+        f = dump_fields(line)
+        if len(f) < 2:
+            continue
+        op = f[0].decode()
+        if top is None:
+            if op in ('snapshot', 'subvol'):
+                top = os.fsdecode(f[1])
+            continue
+        path = rel(f[1])
+        if path is None:
+            continue
+        args = {k.decode(): v for k, _, v in (a.partition(b'=') for a in f[2:])}
+        if op in CREATE:
+            state[path] = [None, False]
+            if op == 'mkdir':
+                dirs.add(path)
+        elif op == 'rename':
+            dest = rel(args.get('dest', b''))
+            if dest is None:
+                continue
+            state.setdefault(path, [path, False])
+            # a folder takes along what is known under it
+            for k in [k for k in state if k == path or k.startswith(path + '/')]:
+                state[dest + k[len(path):]] = state.pop(k)
+            if path in dirs:
+                dirs.discard(path)
+                dirs.add(dest)
+        elif op in ('unlink', 'rmdir'):
+            old = state.pop(path, [path, False])[0]
+            if old is not None:
+                gone[old] = op == 'rmdir'
+        elif op in CHANGE:
+            state.setdefault(path, [path, False])[1] = True
+
+    out = {}
+    for path, (old, modified) in state.items():
+        if ORPHAN.fullmatch(path.rsplit('/', 1)[-1]):
+            continue
+        if old is None:
+            # saved by writing a new file over the old one
+            if gone.pop(path, None) is not None:
+                out[path] = ('M', None)
+            else:
+                out[path] = ('A/' if path in dirs else 'A', None)
+        elif old != path:
+            out[path] = ('R', old)
+        elif modified:
+            out[path] = ('M', None)
+    for path, is_dir in gone.items():
+        out[path] = ('D/' if is_dir else 'D', None)
+    return out
+
+
+def fold(out):
+    # a new or deleted folder stands for what is in it
+    inside = {}
+    for kind in ('A/', 'D/'):
+        folders = sorted(p for p, (k, _) in out.items() if k == kind)
+        for p in list(out):
+            parent = next((d for d in folders if p.startswith(d + '/')), None)
+            if parent and out[p][0][0] == kind[0]:
+                del out[p]
+                inside[parent] = inside.get(parent, 0) + 1
+    return inside
+
+
+def send_dump(parent, child):
+    send = subprocess.Popen(['btrfs', 'send', '-q', '--no-data', '-p', parent, child],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    dump = subprocess.Popen(['btrfs', 'receive', '--dump'], stdin=send.stdout,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    send.stdout.close()
+    lines, err = dump.communicate()
+    serr = send.stderr.read().decode(errors='replace').strip()
+    send.wait()
+    if send.returncode or dump.returncode:
+        die(f'btrfs send failed: {serr or err.decode(errors="replace").strip()}')
+    return lines.splitlines()
+
+
+def diff(snaps, user, since, until, folder):
+    home = pwd.getpwnam(user).pw_dir
+    home_rel = scope = os.path.relpath(os.path.realpath(home), HOME)
+    if scope.startswith('..') or scope == '.':
+        die(f'your home {q(home)} is not in {HOME}')
+    if folder is not None:
+        _, rel = rel_path(folder)
+        if rel != scope and not rel.startswith(scope + '/'):
+            die(f'{q(folder)}: not in your home')
+        scope = rel
+    _lock = maint_lock()
+    old, _ = pick(snaps, since)
+    new = 'now'
+    tmp = f'{SNAPDIR}/{DIFF_TMP}'
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, interrupted)
+    try:
+        if until is None:
+            # a killed run leaves it behind
+            if os.path.lexists(tmp):
+                subprocess.run(['btrfs', 'subvolume', 'delete', tmp], stdout=subprocess.DEVNULL)
+            r = subprocess.run(['btrfs', 'subvolume', 'snapshot', '-r', HOME, tmp],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+            if r.returncode:
+                die(f'cannot snapshot {HOME}: {r.stderr.strip()}')
+            child = tmp
+        else:
+            new, _ = pick(snaps, until)
+            if new <= old:
+                die(f'{new} is not newer than {old}')
+            child = f'{SNAPDIR}/home-{new}'
+        lines = send_dump(f'{SNAPDIR}/home-{old}', child)
+    finally:
+        if until is None and os.path.lexists(tmp):
+            subprocess.run(['btrfs', 'subvolume', 'delete', tmp], stdout=subprocess.DEVNULL)
+
+    # only your own files: the snapshots hold every home
+    out = {p: c for p, c in changes(lines).items()
+           if p.startswith(scope + '/') or (c[1] or '').startswith(scope + '/')}
+    inside = fold(out)
+
+    def show(p):
+        p = '~' + p[len(home_rel):] if p == home_rel or p.startswith(home_rel + '/') else f'{HOME}/{p}'
+        return ''.join(c if c.isprintable() else '?' for c in p)
+
+    count = {}
+    for path in sorted(out):
+        kind, was = out[path]
+        count[kind[0]] = count.get(kind[0], 0) + 1
+        line = f'{kind[0]}  {show(path)}' + ('/' if kind.endswith('/') else '')
+        if was:
+            line += f'  (was {show(was)})'
+        if path in inside:
+            line += f'  ({inside[path]} inside)'
+        print(line)
+    words = {'A': 'added', 'M': 'modified', 'D': 'deleted', 'R': 'moved'}
+    total = ', '.join(f'{count[k]} {w}' for k, w in words.items() if k in count) or 'no changes'
+    print(f'{old} -> {new}: {total}', file=sys.stderr)
+
+
 def main():
     global PROG
     argv = sys.argv[1:]
@@ -382,14 +577,14 @@ def main():
     if forgetting:
         PROG, argv = 'forget', argv[1:]
     try:
-        opts, args = getopt.gnu_getopt(argv, 'hn' if forgetting else 'hlr:', ['help'])
+        opts, args = getopt.gnu_getopt(argv, 'hn' if forgetting else 'hlr:d:t:', ['help'])
     except getopt.GetoptError as e:
         if 'requires argument' in e.msg:
             usage_error(f"option requires an argument -- '{e.opt}'")
         if 'must not have an argument' in e.msg:
             usage_error(f"option '--{e.opt}' doesn't allow an argument")
         usage_error(f"invalid option -- '{e.opt}'" if len(e.opt) == 1 else f"unrecognized option '--{e.opt}'")
-    mode, want = ('forget' if forgetting else 'versions'), None
+    mode, want, until = ('forget' if forgetting else 'versions'), None, None
     dry = False
     for o, a in opts:
         if o in ('-h', '--help'):
@@ -401,6 +596,10 @@ def main():
             mode = 'list'
         if o == '-r':
             mode, want = 'restore', a
+        if o == '-d':
+            mode, want = 'diff', a
+        if o == '-t':
+            until = a
     if mode == 'list' and args:
         usage_error(f'extra operand {q(args[0])}')
     if mode == 'versions' and len(args) != 1:
@@ -409,6 +608,10 @@ def main():
         usage_error('missing file operand')
     if mode == 'restore' and not 1 <= len(args) <= 2:
         usage_error('missing file operand' if not args else f'extra operand {q(args[2])}')
+    if mode == 'diff' and len(args) > 1:
+        usage_error(f'extra operand {q(args[1])}')
+    if until is not None and mode != 'diff':
+        usage_error('-t goes with -d')
 
     if os.geteuid() != 0:
         os.execvp('doas', ['doas', '--', os.path.realpath(sys.argv[0]), *sys.argv[1:]])
@@ -418,6 +621,10 @@ def main():
     snaps = open_snapshots()
     if mode == 'forget':
         return forget(snaps, user, args, dry)
+    if mode == 'diff':
+        # btrfs send needs root, only the names under your home are shown
+        diff(snaps, user, want, until, args[0] if args else None)
+        return 0
     drop_to(user)
 
     if mode == 'list':
