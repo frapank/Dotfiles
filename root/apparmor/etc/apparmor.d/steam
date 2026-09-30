@@ -1,0 +1,24 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+# games are untrusted code: all but secrets, shell startup and setuid programs
+profile steam /{usr/bin/steam,home/*/.local/share/Steam/steam.sh} flags=(attach_disconnected) {
+  include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/persist>
+  include <abstractions/dotfiles/setuid>
+
+  file,
+  network,
+  unix,
+  dbus,
+  signal,
+  ptrace,
+  capability,
+  userns,
+  mount,
+  umount,
+  pivot_root,
+
+  include if exists <local/steam>
+}
