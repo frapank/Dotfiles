@@ -315,6 +315,12 @@ verify() {
             warn "~/.cache is not a subvolume"
             bad=1
         }
+        for c in Games .local/share/Steam; do
+            [[ $(stat -c %i "$THOME/$c" 2>/dev/null) == 256 ]] || {
+                warn "~/$c is not a subvolume"
+                bad=1
+            }
+        done
         [[ $(stat -c '%a %U' /usr/local/libexec/thumbs-clean) == '755 root' ]] || {
             warn "/usr/local/libexec/thumbs-clean permissions"
             bad=1
