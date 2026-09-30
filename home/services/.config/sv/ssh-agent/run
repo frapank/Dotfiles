@@ -1,0 +1,7 @@
+#!/bin/sh
+# keys for ssh and git, forgotten when g0wm quits
+exec 2>&1
+sock=${XDG_RUNTIME_DIR:?}/ssh-agent.socket
+pkill -u "$(id -u)" -x ssh-agent
+rm -f -- "$sock"
+exec ssh-agent -D -a "$sock"
