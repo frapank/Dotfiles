@@ -67,7 +67,7 @@ _setup_env() {
     [[ -r $HOME/.config/ripgrep/config ]] && export RIPGREP_CONFIG_PATH=$HOME/.config/ripgrep/config
 
     local _ed _found_ed
-    for _ed in vim nvim vi nano; do
+    for _ed in vim vi nano; do
         _has "$_ed" && {
             _found_ed=$_ed
             break
