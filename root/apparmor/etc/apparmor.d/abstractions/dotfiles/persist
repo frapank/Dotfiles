@@ -1,6 +1,6 @@
   abi <abi/4.0>,
 
-  audit deny @{HOME}/.{bashrc,bashrc_dotfile,bash_profile,bash_login,bash_logout,profile,inputrc,pam_environment} wl,
+  audit deny @{HOME}/.{bashrc,bashrc_dotfile,bash_profile,bash_profile_dotfile,bash_login,bash_logout,profile,inputrc,pam_environment} wl,
   audit deny @{HOME}/.{zshrc,zshenv,zprofile,zlogin,xprofile,xinitrc,xsession} wl,
   audit deny @{HOME}/.{vimrc,exrc,tmux.conf,gitconfig,ctags} wl,
   audit deny @{HOME}/.{vim,terminfo}/{,**} wl,

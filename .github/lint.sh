@@ -17,7 +17,7 @@ for c in bash dash shellcheck shfmt python3 apparmor_parser cc pkg-config waylan
     }
 done
 
-py_files=() sh_files=() bash_files=(home/bash/.bashrc_dotfile home/bash/.bash_profile)
+py_files=() sh_files=() bash_files=(home/bash/.bashrc_dotfile home/bash/.bash_profile_dotfile)
 while IFS= read -r -d '' f; do
     case $(head -n1 -- "$f") in
     '#!/bin/sh'*) sh_files+=("$f") ;;

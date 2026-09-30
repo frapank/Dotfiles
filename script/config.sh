@@ -27,6 +27,7 @@ readonly LOCK=/run/void-postinstall.lock
 readonly SVDIR=/var/service
 readonly STATE=/var/lib/void-postinstall
 readonly BASHRC_LINE='[ -f "$HOME/.bashrc_dotfile" ] && . "$HOME/.bashrc_dotfile"'
+readonly PROFILE_LINE='[ -f "$HOME/.bash_profile_dotfile" ] && . "$HOME/.bash_profile_dotfile"'
 
 PKG_CORE=(git base-devel)
 PKG_CLI=(bash bash-completion vim-huge neovim tmux ctags fzf fd ripgrep bat
