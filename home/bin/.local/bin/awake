@@ -16,7 +16,10 @@ on() {
         [ -t 2 ] || notify-send -a awake "$msg" 2>/dev/null
         exit 1
         ;;
-    *) rm -f -- "$flag"; exit 1 ;;
+    *)
+        rm -f -- "$flag"
+        exit 1
+        ;;
     esac
 }
 
@@ -30,5 +33,8 @@ case ${1:-toggle} in
 on) on ;;
 off) off ;;
 toggle) if [ -e "$flag" ]; then off; else on; fi ;;
-*) echo "usage: awake [on|off|toggle]" >&2; exit 2 ;;
+*)
+    echo "usage: awake [on|off|toggle]" >&2
+    exit 2
+    ;;
 esac

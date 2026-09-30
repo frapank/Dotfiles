@@ -30,10 +30,20 @@ EOF
 }
 
 me=metadata-remover
-die() { echo "$me: $*" >&2; exit 1; }
-try() { echo "Try '$me --help' for more information." >&2; exit 2; }
+die() {
+    echo "$me: $*" >&2
+    exit 1
+}
+try() {
+    echo "Try '$me --help' for more information." >&2
+    exit 2
+}
 
-case ${1:-} in help|--help) usage; exit 0 ;; esac
+case ${1:-} in help | --help)
+    usage
+    exit 0
+    ;;
+esac
 
 copy=0 thorough=0 notify=0 show=0
 while getopts ctnsh o; do
@@ -42,12 +52,18 @@ while getopts ctnsh o; do
     t) thorough=1 ;;
     n) notify=1 ;;
     s) show=1 ;;
-    h) usage; exit 0 ;;
+    h)
+        usage
+        exit 0
+        ;;
     *) try ;;
     esac
 done
 shift $((OPTIND - 1))
-[ $# -ge 1 ] || { echo "$me: missing file operand" >&2; try; }
+[ $# -ge 1 ] || {
+    echo "$me: missing file operand" >&2
+    try
+}
 
 for c in file exiftool ffmpeg ffprobe mat2; do
     command -v "$c" >/dev/null || die "$c not installed"
@@ -126,7 +142,8 @@ kind() {
     # file(1) cannot tell zip-based formats apart without their name
     case $how.$(printf '%s' "${1##*.}" | tr '[:upper:]' '[:lower:]') in
     mat2.odt | mat2.ods | mat2.odp | mat2.odg | mat2.docx | mat2.xlsx | mat2.pptx | mat2.epub)
-        ext=$(printf '%s' "${1##*.}" | tr '[:upper:]' '[:lower:]') ;;
+        ext=$(printf '%s' "${1##*.}" | tr '[:upper:]' '[:lower:]')
+        ;;
     esac
     [ "$thorough" = 0 ] || [ "$how" != exif ] || how=mat2
     [ "$thorough" = 0 ] || [ "$how" != pdf ] || how=mat2
@@ -184,9 +201,15 @@ clean() {
         ?*.*) dst=${f%"$name"}${name%.*}.clean.${name##*.} ;;
         *) dst=$f.clean ;;
         esac
-        [ ! -e "$dst" ] || { fail "$dst exists"; return; }
+        [ ! -e "$dst" ] || {
+            fail "$dst exists"
+            return
+        }
     fi
-    work=$(mktemp -d "$dir/.$me.XXXXXX" 2>/dev/null) || { fail "cannot write in $dir"; return; }
+    work=$(mktemp -d "$dir/.$me.XXXXXX" 2>/dev/null) || {
+        fail "cannot write in $dir"
+        return
+    }
     work=$(cd "$work" && pwd -P)
     if cp -- "$f" "$work/in.$ext" && (cd "$work" && strip) && [ -s "$work/out.$ext" ]; then
         chmod "$(stat -c %a -- "$f")" "$work/out.$ext"
@@ -194,7 +217,10 @@ clean() {
             mv -n -- "$work/out.$ext" "$dst"
         else
             mv -f -- "$work/out.$ext" "$f"
-        fi && { ok=$((ok + 1)); echo "cleaned: ${dst:-$f}"; } || fail "cannot move the result"
+        fi && {
+            ok=$((ok + 1))
+            echo "cleaned: ${dst:-$f}"
+        } || fail "cannot move the result"
     else
         fail "$(tail -n 1 "$work/log" 2>/dev/null || echo "failed")"
     fi
@@ -204,7 +230,11 @@ clean() {
 if [ "$show" = 1 ]; then
     rc=0
     for f; do
-        [ -f "$f" ] || { echo "$me: $f: No such file" >&2; rc=1; continue; }
+        [ -f "$f" ] || {
+            echo "$me: $f: No such file" >&2
+            rc=1
+            continue
+        }
         echo "== $f"
         work=${f%/*}
         [ "$work" != "$f" ] || work=.

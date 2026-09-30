@@ -20,8 +20,14 @@ WHAT:
 EOF
 }
 
-die() { echo "traces: $*" >&2; exit 1; }
-try() { echo "Try 'traces --help' for more information." >&2; exit 2; }
+die() {
+    echo "traces: $*" >&2
+    exit 1
+}
+try() {
+    echo "Try 'traces --help' for more information." >&2
+    exit 2
+}
 
 ALL='recent history thumbnails trash clipboard'
 LO=$HOME/.config/libreoffice/4/user/registrymodifications.xcu
@@ -112,11 +118,18 @@ clean() {
     esac
 }
 
-case ${1:-} in help|--help) usage; exit 0 ;; esac
+case ${1:-} in help | --help)
+    usage
+    exit 0
+    ;;
+esac
 for a; do
     case $a in
     --) break ;;
-    --*) echo "traces: unrecognized option '$a'" >&2; try ;;
+    --*)
+        echo "traces: unrecognized option '$a'" >&2
+        try
+        ;;
     -*) ;;
     *) break ;;
     esac
@@ -125,17 +138,30 @@ done
 c=0 s=0
 while getopts :csh o; do
     case $o in
-    \?) echo "traces: invalid option -- '$OPTARG'" >&2; try ;;
+    \?)
+        echo "traces: invalid option -- '$OPTARG'" >&2
+        try
+        ;;
     c) c=1 ;;
     s) s=1 ;;
-    h) usage; exit 0 ;;
+    h)
+        usage
+        exit 0
+        ;;
     *) try ;;
     esac
 done
 shift $((OPTIND - 1))
-[ "$s" = 0 ] || [ "$c" = 1 ] || { echo "traces: -s works only with -c" >&2; try; }
+[ "$s" = 0 ] || [ "$c" = 1 ] || {
+    echo "traces: -s works only with -c" >&2
+    try
+}
 for w; do
-    case " $ALL " in *" $w "*) ;; *) echo "traces: '$w': unknown, see 'traces --help'" >&2; exit 2 ;; esac
+    case " $ALL " in *" $w "*) ;; *)
+        echo "traces: '$w': unknown, see 'traces --help'" >&2
+        exit 2
+        ;;
+    esac
 done
 # shellcheck disable=SC2086 # word list
 [ $# -gt 0 ] || set -- $ALL

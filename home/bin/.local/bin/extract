@@ -19,14 +19,22 @@ Formats:
 EOF
 }
 
-die() { echo "extract: $*" >&2; exit 1; }
-try() { echo "Try 'extract --help' for more information." >&2; exit 2; }
+die() {
+    echo "extract: $*" >&2
+    exit 1
+}
+try() {
+    echo "Try 'extract --help' for more information." >&2
+    exit 2
+}
 
 askpw() {
     trap 'stty echo </dev/tty' EXIT
     trap 'exit 130' INT TERM
     stty -echo </dev/tty
-    printf 'Enter password for %s: ' "$1" >/dev/tty; IFS= read -r pw </dev/tty; echo >/dev/tty
+    printf 'Enter password for %s: ' "$1" >/dev/tty
+    IFS= read -r pw </dev/tty
+    echo >/dev/tty
     stty echo </dev/tty
 }
 
@@ -44,7 +52,10 @@ single() {
     out=$dir/$1
     [ ! -e "$out" ] || die "$out: File exists"
     shift
-    "$@" >"$out" || { rm -f -- "$out"; exit 1; }
+    "$@" >"$out" || {
+        rm -f -- "$out"
+        exit 1
+    }
 }
 
 gpg() { command gpg -q --no-symkey-cache --pinentry-mode loopback "$@"; }
@@ -60,18 +71,28 @@ jail() {
         --unshare-all --unshare-user --disable-userns --die-with-parent -- "$@"
 }
 
-case ${1:-} in help|--help) usage; exit 0 ;; esac
+case ${1:-} in help | --help)
+    usage
+    exit 0
+    ;;
+esac
 
 dir=
 while getopts d:h o; do
     case $o in
     d) dir=$OPTARG ;;
-    h) usage; exit 0 ;;
+    h)
+        usage
+        exit 0
+        ;;
     *) try ;;
     esac
 done
 shift $((OPTIND - 1))
-[ $# -ge 1 ] || { echo "extract: missing file operand" >&2; try; }
+[ $# -ge 1 ] || {
+    echo "extract: missing file operand" >&2
+    try
+}
 
 if [ -z "$dir" ]; then
     if [ $# -eq 1 ]; then
@@ -79,7 +100,10 @@ if [ -z "$dir" ]; then
     else
         eval "dir=\${$#}"
         n=$# i=0
-        for a; do i=$((i + 1)); [ $i -lt $n ] && set -- "$@" "$a"; done
+        for a; do
+            i=$((i + 1))
+            [ $i -lt $n ] && set -- "$@" "$a"
+        done
         shift $n
     fi
 fi
@@ -98,25 +122,28 @@ for f; do
     case $(printf '%s' "$base" | tr '[:upper:]' '[:lower:]') in
     *.tar.gpg) gpg -d -- "$f" | jail tar -xf - -C "$dir" --skip-old-files ;;
     *.tar.age) age -d -- "$f" | jail tar -xf - -C "$dir" --skip-old-files ;;
-    *.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz|*.tbz2|*.tar.xz|*.txz|*.tar.zst|*.tzst|*.tar.lz|*.tar.lz4)
-        jail tar -xf "$f" -C "$dir" --skip-old-files ;;
-    *.zip|*.jar|*.7z) un7z ;;
+    *.tar | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz | *.tbz2 | *.tar.xz | *.txz | *.tar.zst | *.tzst | *.tar.lz | *.tar.lz4)
+        jail tar -xf "$f" -C "$dir" --skip-old-files
+        ;;
+    *.zip | *.jar | *.7z) un7z ;;
     *.rar) jail unrar x -o- -idq -- "$f" "$dir/" ;;
-    *.iso|*.cpio|*.deb|*.rpm|*.cab|*.xar) jail bsdtar -xkf "$f" -C "$dir" ;;
-    *.gz)  single "${base%.*}" jail gzip -dc -- "$f" ;;
+    *.iso | *.cpio | *.deb | *.rpm | *.cab | *.xar) jail bsdtar -xkf "$f" -C "$dir" ;;
+    *.gz) single "${base%.*}" jail gzip -dc -- "$f" ;;
     *.bz2) single "${base%.*}" jail bzip2 -dc -- "$f" ;;
-    *.xz)  single "${base%.*}" jail xz -dc -- "$f" ;;
+    *.xz) single "${base%.*}" jail xz -dc -- "$f" ;;
     *.zst) single "${base%.*}" jail zstd -qdc -- "$f" ;;
-    *.lz)  single "${base%.*}" jail lzip -qdc -- "$f" ;;
+    *.lz) single "${base%.*}" jail lzip -qdc -- "$f" ;;
     *.lz4) single "${base%.*}" jail lz4 -qdc -- "$f" ;;
-    *.gpg|*.pgp|*.asc)
+    *.gpg | *.pgp | *.asc)
         out=$dir/${base%.*}
         [ ! -e "$out" ] || die "$out: File exists"
-        gpg -o "$out" -d -- "$f" ;;
+        gpg -o "$out" -d -- "$f"
+        ;;
     *.age)
         out=$dir/${base%.*}
         [ ! -e "$out" ] || die "$out: File exists"
-        age -d -o "$out" -- "$f" ;;
+        age -d -o "$out" -- "$f"
+        ;;
     *.*) die "$f: Unknown archive format" ;;
     *) die "$f: Missing archive extension" ;;
     esac

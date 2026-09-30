@@ -1,7 +1,10 @@
 #!/bin/sh
 set -eu
 
-[ $# -ge 1 ] || { echo "usage: open-default MIME [FILE|URL...]" >&2; exit 2; }
+[ $# -ge 1 ] || {
+    echo "usage: open-default MIME [FILE|URL...]" >&2
+    exit 2
+}
 mime=$1
 shift
 
@@ -15,5 +18,8 @@ elif [ $# -gt 1 ]; then
 fi
 
 app=$(xdg-mime query default "$mime")
-[ -n "$app" ] || { echo "open-default: no default app for $mime" >&2; exit 1; }
+[ -n "$app" ] || {
+    echo "open-default: no default app for $mime" >&2
+    exit 1
+}
 exec gtk-launch "${app%.desktop}"

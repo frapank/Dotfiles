@@ -1,36 +1,36 @@
 _logs() {
-	local cur=${COMP_WORDS[COMP_CWORD]} cmd= at=0 i names
-	for ((i = 1; i < COMP_CWORD; i++)); do
-		[[ ${COMP_WORDS[i]} == -* ]] && continue
-		cmd=${COMP_WORDS[i]} at=$i
-		break
-	done
-	names=$(cd /var/log/socklog 2>/dev/null && printf '%s\n' */ | tr -d /)
-	local when='boot today yesterday 30m 1h 6h 1d 7d'
-	case $cmd in
-	'')
-		COMPREPLY=($(compgen -W "$(printf '%s\n' follow show since boot errors grep around service crashes \
-			apparmor firewall usb auth panics session status list help -u -n -p $names | sort -u)" -- "$cur"))
-		;;
-	follow | show | boot) COMPREPLY=($(compgen -W "$names" -- "$cur")) ;;
-	since)
-		if ((COMP_CWORD == at + 1)); then
-			COMPREPLY=($(compgen -W "$when" -- "$cur"))
-		else
-			COMPREPLY=($(compgen -W "$names" -- "$cur"))
-		fi
-		;;
-	grep | around) ((COMP_CWORD == at + 1)) || COMPREPLY=($(compgen -W "$names" -- "$cur")) ;;
-	service)
-		if ((COMP_CWORD == at + 1)); then
-			COMPREPLY=($(compgen -W "$(cd /var/service 2>/dev/null && printf '%s\n' *)" -- "$cur"))
-		elif ((COMP_CWORD == at + 2)); then
-			COMPREPLY=($(compgen -W "$when" -- "$cur"))
-		fi
-		;;
-	errors | crashes | apparmor | firewall | usb | auth)
-		((COMP_CWORD != at + 1)) || COMPREPLY=($(compgen -W "$when" -- "$cur"))
-		;;
-	esac
+    local cur=${COMP_WORDS[COMP_CWORD]} cmd= at=0 i names
+    for ((i = 1; i < COMP_CWORD; i++)); do
+        [[ ${COMP_WORDS[i]} == -* ]] && continue
+        cmd=${COMP_WORDS[i]} at=$i
+        break
+    done
+    names=$(cd /var/log/socklog 2>/dev/null && printf '%s\n' */ | tr -d /)
+    local when='boot today yesterday 30m 1h 6h 1d 7d'
+    case $cmd in
+    '')
+        COMPREPLY=($(compgen -W "$(printf '%s\n' follow show since boot errors grep around service crashes \
+            apparmor firewall usb auth panics session status list help -u -n -p $names | sort -u)" -- "$cur"))
+        ;;
+    follow | show | boot) COMPREPLY=($(compgen -W "$names" -- "$cur")) ;;
+    since)
+        if ((COMP_CWORD == at + 1)); then
+            COMPREPLY=($(compgen -W "$when" -- "$cur"))
+        else
+            COMPREPLY=($(compgen -W "$names" -- "$cur"))
+        fi
+        ;;
+    grep | around) ((COMP_CWORD == at + 1)) || COMPREPLY=($(compgen -W "$names" -- "$cur")) ;;
+    service)
+        if ((COMP_CWORD == at + 1)); then
+            COMPREPLY=($(compgen -W "$(cd /var/service 2>/dev/null && printf '%s\n' *)" -- "$cur"))
+        elif ((COMP_CWORD == at + 2)); then
+            COMPREPLY=($(compgen -W "$when" -- "$cur"))
+        fi
+        ;;
+    errors | crashes | apparmor | firewall | usb | auth)
+        ((COMP_CWORD != at + 1)) || COMPREPLY=($(compgen -W "$when" -- "$cur"))
+        ;;
+    esac
 }
 complete -F _logs logs

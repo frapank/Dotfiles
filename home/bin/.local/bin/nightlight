@@ -16,5 +16,8 @@ toggle)
     *) exit 1 ;;
     esac
     ;;
-*) echo "usage: nightlight [on|off|toggle]" >&2; exit 2 ;;
+*)
+    echo "usage: nightlight [on|off|toggle]" >&2
+    exit 2
+    ;;
 esac
