@@ -64,10 +64,14 @@ do_g0wm() {
 
 do_media() {
     step "Screen sharing and audio"
-    put_link /usr/share/examples/wireplumber/10-wireplumber.conf \
-        /etc/pipewire/pipewire.conf.d/10-wireplumber.conf
-    put_link /usr/share/examples/pipewire/20-pipewire-pulse.conf \
-        /etc/pipewire/pipewire.conf.d/20-pipewire-pulse.conf
+    # services starts them
+    local f
+    for f in /etc/pipewire/pipewire.conf.d/{10-wireplumber,20-pipewire-pulse}.conf; do
+        [[ -e $f || -L $f ]] || continue
+        backup "$f"
+        rm -f -- "$f"
+        ok "removed $f"
+    done
     [[ -f /usr/share/alsa/alsa.conf.d/99-pipewire-default.conf ]] ||
         die "alsa-pipewire did not install its ALSA config"
     [[ -f /usr/share/xdg-desktop-portal/portals/wlr.portal ]] ||
