@@ -595,9 +595,9 @@
             "key": "XF86AudioRaiseVolume",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"
+                "osd",
+                "volume",
+                "up"
             ]
         },
         {
@@ -605,9 +605,9 @@
             "key": "XF86AudioLowerVolume",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+                "osd",
+                "volume",
+                "down"
             ]
         },
         {
@@ -615,9 +615,9 @@
             "key": "XF86AudioMute",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+                "osd",
+                "volume",
+                "mute"
             ]
         },
         {
@@ -625,9 +625,9 @@
             "key": "XF86AudioMicMute",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
+                "osd",
+                "mic",
+                "mute"
             ]
         },
         {
@@ -635,9 +635,9 @@
             "key": "XF86MonBrightnessUp",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "brightnessctl s 10%+"
+                "osd",
+                "brightness",
+                "up"
             ]
         },
         {
@@ -645,9 +645,9 @@
             "key": "XF86MonBrightnessDown",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "brightnessctl s 10%-"
+                "osd",
+                "brightness",
+                "down"
             ]
         },
         {
@@ -655,9 +655,9 @@
             "key": "XF86AudioNext",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "playerctl next"
+                "osd",
+                "media",
+                "next"
             ]
         },
         {
@@ -665,9 +665,9 @@
             "key": "XF86AudioPause",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "playerctl play-pause"
+                "osd",
+                "media",
+                "play"
             ]
         },
         {
@@ -675,9 +675,9 @@
             "key": "XF86AudioPlay",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "playerctl play-pause"
+                "osd",
+                "media",
+                "play"
             ]
         },
         {
@@ -685,9 +685,9 @@
             "key": "XF86AudioPrev",
             "action": "spawn",
             "arg": [
-                "/bin/sh",
-                "-c",
-                "playerctl previous"
+                "osd",
+                "media",
+                "prev"
             ]
         },
         {
