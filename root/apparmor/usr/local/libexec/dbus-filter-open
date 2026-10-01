@@ -81,9 +81,17 @@ def sandbox_of(conn, sender):
     return None
 
 
-def launch(app, args):
-    subprocess.Popen([APPS[app], *args], env=environ(), cwd="/", start_new_session=True,
+def launch(app, args, token=None):
+    env = environ()
+    if token:
+        env["XDG_ACTIVATION_TOKEN"] = token
+    subprocess.Popen([APPS[app], *args], env=env, cwd="/", start_new_session=True,
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def copy(urls):
+    subprocess.run(["wl-copy", "--", "\n".join(urls)], env=environ(), start_new_session=True,
+                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def done():
@@ -96,12 +104,21 @@ def confirm(who, app, args, urls):
     pending += 1
 
     def wait():
-        body = GLib.markup_escape_text("\n".join(urls))
-        r = subprocess.run(["notify-send", "-a", who, "-u", "critical", "-A", "open=Open",
-                            f"{who} wants to open a link", body],
-                           env=environ(), stdin=subprocess.DEVNULL, capture_output=True, text=True)
-        if r.stdout.strip() == "open":
-            GLib.idle_add(launch, app, args)
+        rfd, wfd = os.pipe()
+        r = subprocess.run(["notify-send", "-a", f"\uf132 {who}", "-h", f"string:desktop-entry:{who}",
+                            "-u", "critical", "-A", "default=Open", "-A", "copy=Copy link",
+                            f"--activation-token-fd={wfd}",
+                            f"{who} wants to open a link", GLib.markup_escape_text("\n".join(urls))],
+                           env=environ(), stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                           pass_fds=(wfd,))
+        os.close(wfd)
+        with os.fdopen(rfd, "rb") as p:
+            token = p.read().decode(errors="replace").strip()
+        action = r.stdout.strip()
+        if action == "default":
+            GLib.idle_add(launch, app, args, token)
+        elif action == "copy":
+            copy(urls)
         GLib.idle_add(done)
 
     threading.Thread(target=wait, daemon=True).start()

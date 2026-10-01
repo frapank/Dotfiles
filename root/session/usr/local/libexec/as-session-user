@@ -10,9 +10,11 @@ for pid in $(pgrep -x g0wm) ''; do
 done
 # numeric ids since the group name can differ from the user name
 ids=$(stat -c '%u %g' "/proc/$pid") || exit 1
-for v in HOME DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY XDG_RUNTIME_DIR; do
+# in the C locale notify-send rejects non-ASCII options
+for v in HOME DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY XDG_RUNTIME_DIR \
+    LANG LC_CTYPE LC_ALL; do
     val=$(tr '\0' '\n' <"/proc/$pid/environ" | sed -n "s/^$v=//p" | head -n1)
     [ -z "$val" ] || set -- "$v=$val" "$@"
 done
 exec setpriv --reuid="${ids% *}" --regid="${ids#* }" --init-groups \
-    env -i PATH=/usr/bin:/bin "$@"
+    env -i PATH=/usr/bin:/bin LANG=C.UTF-8 "$@"

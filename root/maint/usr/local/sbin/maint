@@ -24,14 +24,27 @@ log() { printf '%s\n' "$*"; }
 
 as_user() { /usr/local/libexec/as-session-user "$@"; }
 
-notify() { as_user notify-send -a Maintenance -u critical "$1" "$2" >/dev/null 2>&1 || true; }
+notify() { as_user notify-send -a "$2 Maintenance" -u "$1" "$3" "$4" >/dev/null 2>&1 || true; }
 
 notify_log() {
     (
         exec 9>&-
-        [ "$(as_user notify-send -a Maintenance -u critical -A default=Open "$1" "$2" 2>/dev/null)" = default ] &&
+        [ "$(as_user notify-send -a "$1 Maintenance" -u critical -A default=Open "$2" "$3" 2>/dev/null)" = default ] &&
             as_user foot -- /usr/local/bin/logs -p service maint
     ) >/dev/null 2>&1 &
+}
+
+notify_do() {
+    g=$1 sum=$2 body=$3 act=$4
+    shift 4
+    (
+        exec 9>&-
+        case $(as_user notify-send -a "$g Maintenance" -u normal -t 30000 \
+            -A default=Log -A "$act" "$sum" "$body" 2>/dev/null) in
+        default) as_user foot -- /usr/local/bin/logs -p service maint >/dev/null 2>&1 ;;
+        "${act%%=*}") "$@" ;;
+        esac
+    ) &
 }
 
 on_ac() {
@@ -147,7 +160,7 @@ job_disks() {
     }
     printf '%s\n' "$out" | sed 's/^! /worse: /; s/^/disks: /'
     news=$(printf '%s\n' "$out" | sed -n 's/^! //p')
-    [ -z "$news" ] || notify_log "Disk health" "$news
+    [ -z "$news" ] || notify_log  "Disk health" "$news
 Back up what matters. Click to see the log."
 }
 
@@ -182,15 +195,18 @@ for d in json.load(sys.stdin).get("Devices", []):
         return 0
     fi
     printf '%s\n' "$list"
-    notify "Firmware update" "$(printf '%s\n' "$list")
-Install with 'doas fwupdmgr update'."
+    notify_do  "Firmware update" "$(printf '%s\n' "$list")
+Install from the gear, or with 'doas fwupdmgr update'." install=Install \
+        as_user foot --hold -- doas fwupdmgr update
 }
 
 # updates
 
 unotify() {
-    nid=$(as_user notify-send -p -r "${nid:-0}" -a Update -u critical "$1" "$2" 2>/dev/null) || nid=0
+    nid=$(as_user notify-send -p -r "${nid:-0}" -a " Update" "$@" 2>/dev/null) || nid=0
 }
+ustep() { unotify -u critical -e "$@"; }
+ufail() { unotify -u critical "$@"; }
 
 snap_root() {
     if [ "$(stat -f -c %T /)" != btrfs ] || ! btrfs subvolume show / >/dev/null 2>&1; then
@@ -254,7 +270,9 @@ net_postponed() {
     days=$((($(date +%s) - $(stat -c %Y "$STATE/update")) / DAY))
     [ "$days" -ge 3 ] && due netwait "$DAY" || return 0
     touch "$STATE/netwait"
-    notify "Update postponed" "No update for $days days: $1. Retried every hour, or run 'doas maint update' to update anyway."
+    # waits for this run to release the lock
+    notify_do  "Update postponed" "No update for $days days: $1. Retried every hour, or update anyway from the gear or with 'doas maint update'." \
+        now="Update now" sh -c 'flock "$1/lock" true && exec /usr/local/sbin/maint update' sh "$STATE"
 }
 
 # returns 3 when it failed and already notified
@@ -262,52 +280,52 @@ update_now() {
     nid=0 snap=
     list=$(pending) || {
         log "$list"
-        unotify "Update failed" "Could not list the updates, nothing was installed."
+        ufail "Update failed" "Could not list the updates, nothing was installed."
         return 3
     }
     total=$(printf '%s\n' "$list" | grep -c .)
-    unotify "Starting update..." "$total package(s). Sleep is blocked until it is done."
+    ustep "Starting update..." "$total package(s). Sleep is blocked until it is done."
     log "update: $total package(s)"
     printf '%s\n' "$list"
 
     # a new xbps has to go in on its own before the rest can be resolved
     if printf '%s\n' "$list" | grep -q '^xbps-[0-9]'; then
         if ! xbps-install -yuD xbps 2>&1; then
-            unotify "Update failed" "Download of xbps failed, nothing was installed."
+            ufail "Update failed" "Download of xbps failed, nothing was installed."
             return 3
         fi
         snap_root || {
-            unotify "Update failed" "No snapshot of /, nothing was installed."
+            ufail "Update failed" "No snapshot of /, nothing was installed."
             return 3
         }
         if ! xbps-install -yu xbps 2>&1; then
-            unotify "Update failed" "xbps did not update. Snapshot: $ROOTSNAP/$snap"
+            ufail "Update failed" "xbps did not update. Snapshot: $ROOTSNAP/$snap"
             return 3
         fi
         list=$(pending) || {
             log "$list"
-            unotify "Update failed" "Could not list the updates after xbps. Snapshot: $ROOTSNAP/$snap"
+            ufail "Update failed" "Could not list the updates after xbps. Snapshot: $ROOTSNAP/$snap"
             return 3
         }
     fi
 
     if [ -n "$list" ]; then
         if ! xbps-install -yuD 2>&1; then
-            unotify "Update failed" "Download failed, nothing was installed. Retried tomorrow."
+            ufail "Update failed" "Download failed, nothing was installed. Retried tomorrow."
             return 3
         fi
         b=$(battery)
         if [ -n "$b" ] && [ "$b" -le "$BATTERY_MIN" ]; then
-            unotify "Update postponed" "Battery at $b%, nothing was installed. Retried within the hour."
+            unotify -u normal "Update postponed" "Battery at $b%, nothing was installed. Retried within the hour."
             return 2
         fi
         [ -n "$snap" ] || snap_root || {
-            unotify "Update failed" "No snapshot of /, nothing was installed."
+            ufail "Update failed" "No snapshot of /, nothing was installed."
             return 3
         }
-        unotify "Download done. Installing..." "Snapshot of / in $ROOTSNAP/$snap. Do not turn it off."
+        ustep "Download done. Installing..." "Snapshot of / in $ROOTSNAP/$snap. Do not turn it off."
         if ! xbps-install -yu 2>&1; then
-            unotify "Update failed" "Stopped while installing: run 'doas xbps-install -Su'. Snapshot: $ROOTSNAP/$snap, bootable from GRUB > Snapshots before updates"
+            ufail "Update failed" "Stopped while installing: run 'doas xbps-install -Su'. Snapshot: $ROOTSNAP/$snap, bootable from GRUB > Snapshots before updates"
             return 3
         fi
     fi
@@ -315,9 +333,11 @@ update_now() {
     grub_quiet
     grub_snaps
 
-    msg="$total package(s) updated."
-    printf '%s\n' "$list" | grep -qE '^linux[0-9.]*-[0-9]' && msg="$msg Restart to use the new kernel."
-    unotify "Update done!" "$msg"
+    if printf '%s\n' "$list" | grep -qE '^linux[0-9.]*-[0-9]'; then
+        unotify -u critical "Update done!" "$total package(s) updated. Restart to use the new kernel."
+    else
+        unotify -u normal "Update done!" "$total package(s) updated."
+    fi
 }
 
 job_update() {
@@ -391,7 +411,7 @@ grub_quiet() {
     else
         cp -f "$src" "$f.maint" || return 1
         log "grub: $src has a new layout, in place of 10_linux as it is"
-        notify "GRUB" "10_linux changed in the grub update, the Loading messages are back."
+        notify normal  "GRUB" "10_linux changed in the grub update, the Loading messages are back."
     fi
     chmod 0755 "$f.maint" && mv -f "$f.maint" "$f" || {
         rm -f "$f.maint"
@@ -399,7 +419,7 @@ grub_quiet() {
     }
     rm -f "$f".new-*
     update-grub 2>&1 || {
-        notify "GRUB" "update-grub failed, run 'doas update-grub'."
+        notify critical  "GRUB" "update-grub failed, run 'doas update-grub'."
         return 1
     }
 }
@@ -411,7 +431,7 @@ grub_snaps() {
     else
         update-grub 2>&1
     fi || {
-        notify "GRUB" "The snapshots of / are not in the boot menu, run 'doas update-grub'."
+        notify critical  "GRUB" "The snapshots of / are not in the boot menu, run 'doas update-grub'."
         return 1
     }
 }
@@ -506,7 +526,7 @@ job() {
     *)
         log "$1: FAILED ($rc)"
         date >"$STATE/$1.failed"
-        [ "$rc" = 3 ] || notify_log "Maintenance" "$1 failed, click to see the log"
+        [ "$rc" = 3 ] || notify_log  "Maintenance" "$1 failed, click to see the log"
         ;;
     esac
     [ "$rc" = 0 ] && rm -f "$STATE/$1.failed"

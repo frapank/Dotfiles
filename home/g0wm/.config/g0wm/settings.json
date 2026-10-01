@@ -37,7 +37,17 @@
             "notify": {
                 "fg": "#e9e9e9ff",
                 "bg": "#060608ff",
-                "border": "#060608ff"
+                "border": "#e0a86aff"
+            },
+            "notifylow": {
+                "fg": "#e9e9e9ff",
+                "bg": "#060608ff",
+                "border": "#7fa88aff"
+            },
+            "notifycrit": {
+                "fg": "#e9e9e9ff",
+                "bg": "#060608ff",
+                "border": "#d8625eff"
             },
             "runner": {
                 "fg": "#e9e9e9ff",
@@ -116,7 +126,10 @@
         "systraypadding": 2,
         "systrayiconsize": 16,
         "shownotifications": true,
-        "notification_timeout": 5
+        "notification_timeout": 5,
+        "notification_linewidth": 4,
+        "notification_lineradius": 2,
+        "notification_actionsign": ""
     },
     "opacity": {
         "opacity_enabled": false,
@@ -325,6 +338,42 @@
             ],
             "key": "n",
             "action": "notifyopen",
+            "arg": null
+        },
+        {
+            "mod": [
+                "ctrl",
+                "logo"
+            ],
+            "key": "n",
+            "action": "notifynext",
+            "arg": null
+        },
+        {
+            "mod": [
+                "alt",
+                "logo"
+            ],
+            "key": "n",
+            "action": "notifyprev",
+            "arg": null
+        },
+        {
+            "mod": [
+                "ctrl",
+                "shift",
+                "logo"
+            ],
+            "key": "n",
+            "action": "notifydismissall",
+            "arg": null
+        },
+        {
+            "mod": [
+                "logo"
+            ],
+            "key": "a",
+            "action": "notifyactions",
             "arg": null
         },
         {
