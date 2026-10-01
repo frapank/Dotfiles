@@ -1,0 +1,18 @@
+# shellcheck shell=sh disable=SC2034
+# Sourced by /etc/sv/earlyoom/run. Closes the program using the most memory
+# before zram fills up and the desktop freezes, the kernel OOM killer acts
+# much later. The watchdog notifies through earlyoom-closed.
+#   -m 10 -s 10   SIGTERM under 10% available RAM and 10% free swap, both,
+#                 SIGKILL under half of them
+#   -r 0          no memory reports in the log
+#   -p            niceness -20 and oom_score_adj -100: it runs while all waits
+# Regexes match /proc/PID/comm, 15 bytes at most. OPTS is split unquoted:
+# no spaces (. instead) and no * ? [ in it.
+#   --ignore      never closed: the lock screen and what restarts the services
+#   --avoid       closed last: the session would go with them
+#   --prefer      closed first: browser tabs, Steam's web views, Windows games
+OPTS="-m 10 -s 10 -r 0 -p
+ -N /usr/local/libexec/earlyoom-closed
+ --ignore ^(gtklock|runit|runsvdir|runsv|svlogd|vlogger|socklog|nanoklogd|earlyoom)$
+ --avoid ^(g0wm|Xwayland|foot|pipewire|pipewire-pulse|wireplumber|dbus-daemon|elogind-daemon|NetworkManager|wpa_supplicant|dnscrypt-proxy|swayidle|polkitd)$
+ --prefer ^(Web.Content|Isolated.Web.Co|steamwebhelper)$|\.exe$"
