@@ -402,6 +402,12 @@ status() {
     else
         bad "pstore is off: efi_pstore.pstore_disable=0 is missing from the kernel command line"
     fi
+    p=$(cat /proc/sys/kernel/panic)
+    if [ "$p" -gt 0 ] && [ "$(cat /proc/sys/kernel/panic_on_oops)" = 1 ]; then
+        ok "reboots ${p}s after a kernel panic or oops"
+    else
+        bad "a kernel panic or oops leaves the system frozen (kernel.panic $p)"
+    fi
     n=0
     for d in "$PSTORE"/*/; do [ -d "$d" ] && n=$((n + 1)); done
     if [ "$n" -gt 0 ]; then bad "$n kernel crash(es) saved: logs panics"; else ok "no kernel crash saved"; fi
