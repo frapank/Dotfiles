@@ -38,6 +38,8 @@ profile NetworkManager /usr/bin/NetworkManager {
   @{run}/NetworkManager/{,**} rwk,
   @{run}/dbus/system_bus_socket rw,
   @{run}/udev/{,**} r,
+  # no /etc/machine-id here: the stable DHCP and IPv6 ids come from the dbus one
+  /var/lib/dbus/machine-id r,
   @{PROC}/** r,
   @{PROC}/sys/net/** rw,
   @{sys}/** r,

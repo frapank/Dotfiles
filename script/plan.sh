@@ -94,7 +94,7 @@ plan() {
 		logs service X   one service    logs firewall  drops per source
 		logs grep RE     search all     logs auth      logins, doas
 		logs status      disk, history  logs panics    kernel crashes
-		Kernel panics are kept by UEFI pstore and saved at the next boot.
+		Kernel panics are kept by UEFI pstore and saved at the next boot. After a panic or an oops it reboots in 10 seconds.
 		Notifications for crashes, kernel bugs and lockups, GPU hangs, CPU and RAM errors, disks not answering, filesystem errors, overheating, USB events, looping services, battery at 20% and 10%, disks over 90%, mic and webcam in use, AppArmor blocks, a kernel crash last boot.
 		No core dumps from setuid programs.
 	EOF

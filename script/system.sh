@@ -362,6 +362,10 @@ verify() {
             warn "watchdog not enabled"
             bad=1
         }
+        [[ $(</proc/sys/kernel/panic) == 10 && $(</proc/sys/kernel/panic_on_oops) == 1 ]] || {
+            warn "the kernel does not reboot after a panic"
+            bad=1
+        }
         [[ -x /usr/local/bin/logs ]] || {
             warn "/usr/local/bin/logs missing"
             bad=1
