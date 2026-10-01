@@ -9,7 +9,12 @@ mods=$run/record.modules
 if pgrep -u "$(id -u)" -x wf-recorder >/dev/null; then
     pkill -INT -u "$(id -u)" -x wf-recorder
     rm -f "$pid"
-    notify-send -i video-x-generic -t 3000 "Recording saved" "$(cat "$last" 2>/dev/null)" || true
+    file=$(cat "$last" 2>/dev/null) || file=
+    (
+        [ "$(notify-send -a " record" -u low -A default=Open \
+            "Recording saved" "$file" 2>/dev/null)" = default ] && [ -n "$file" ] &&
+            open -- "$file"
+    ) </dev/null >/dev/null 2>&1 &
     exit 0
 fi
 
@@ -78,7 +83,7 @@ mkdir -p "$dir"
 file=$dir/rec-$(date +%Y%m%d-%H%M%S).mp4
 printf '%s\n' "$file" >"$last"
 
-notify-send -i video-x-generic -t 2000 "Recording $what · $label" \
+notify-send -a " record" -u low -e -t 2000 "Recording $what · $label" \
     "Super+Print again to stop" || true
 
 trap 'kill -INT "$rec" 2>/dev/null' INT TERM

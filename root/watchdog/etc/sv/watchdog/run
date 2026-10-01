@@ -13,13 +13,27 @@ mkdir -p "$st"
 as_user() { /usr/local/libexec/as-session-user "$@"; }
 
 notify() {
-    app=$1 text=$2
-    shift 2
+    u=$1 g=$2 app=$3 text=$4
+    shift 4
     if [ $# -eq 0 ]; then
-        as_user notify-send -a "$app" "$text"
-    elif [ "$(as_user notify-send -a "$app" -A default=Open "$text")" = default ]; then
+        as_user notify-send -u "$u" -a "$g $app" -h "string:desktop-entry:$app" "$text"
+    elif [ "$(as_user notify-send -u "$u" -a "$g $app" -h "string:desktop-entry:$app" \
+        -A default=Open "$text")" = default ]; then
         as_user foot -- /usr/local/bin/logs -p "$@"
     fi
+}
+
+notify_level() {
+    as_user notify-send -u "$3" -a "$4 $5" -h "string:desktop-entry:$5" \
+        -h "string:x-dunst-stack-tag:$1" -h "int:value:$2" "$6"
+}
+
+svloop() {
+    case $(as_user notify-send -u critical -a " $1" -h "string:desktop-entry:$1" \
+        -A default=Log -A stop=Stop "restarting in a loop") in
+    default) as_user foot -- /usr/local/bin/logs -p service "$1" ;;
+    stop) sv down "/var/service/$1" ;;
+    esac
 }
 
 once() { [ ! -e "$st/$1" ] && : >"$st/$1"; }
@@ -32,7 +46,7 @@ every() {
 
 kernel() {
     stdbuf -oL dmesg -W -k --color=never 2>/dev/null | while IFS= read -r line; do
-        msg=${line#*] } raw=$msg
+        msg=${line#*] } raw=$msg u=normal icon=
         case $msg in
         *"segfault at"*) prog=${msg%%\[*} why="segmentation fault" last=$prog ;;
         traps:*)
@@ -55,33 +69,33 @@ kernel() {
         *"I/O error"*)
             every disk 60 || continue
             dev=${msg#*dev } dev=${dev%%,*}
-            prog=Disk why="I/O error on $dev"
+            prog=Disk why="I/O error on $dev" u=critical icon=
             ;;
         "BTRFS error"* | "BTRFS critical"* | *"csum failed"* | "EXT4-fs error"*)
             every disk 60 || continue
             dev=${msg#*(device } dev=${dev%%)*}
-            prog=Disk why="filesystem error on $dev"
+            prog=Disk why="filesystem error on $dev" u=critical icon=
             ;;
         *"temperature above threshold"* | *"critical temperature reached"*)
             every thermal 60 || continue
-            prog=CPU why="overheating, throttled"
-            case $msg in *critical*) why="critical temperature" ;; esac
+            prog=CPU why="overheating, throttled" icon=
+            case $msg in *critical*) why="critical temperature" u=critical ;; esac
             ;;
         "usb "*": Product: "*)
             port=${msg#usb } port=${port%%:*}
             echo "${msg#*Product: }" >"$st/usb.$port"
-            prog=USB why="$(cat "$st/usb.$port") connected"
+            prog=USB why="$(cat "$st/usb.$port") connected" u=low icon=
             ;;
         "usb "*": USB disconnect"*)
             port=${msg#usb } port=${port%%:*}
             name=$(cat "$st/usb.$port" 2>/dev/null) || name="device on $port"
             rm -f "$st/usb.$port"
-            prog=USB why="$name disconnected"
+            prog=USB why="$name disconnected" u=low icon=
             ;;
         *'apparmor="DENIED"'*)
             prog=${msg#*profile=\"} prog=${prog%%\"*}
             every "aa.$(printf %s "$prog" | tr -c 'A-Za-z0-9._-' _)" 30 || continue
-            why=${msg#*operation=\"} why="AppArmor blocked ${why%%\"*}"
+            why=${msg#*operation=\"} why="AppArmor blocked ${why%%\"*}" icon=
             case $msg in
             *' name="'*) name=${msg#* name=\"} why="$why ${name%%\"*}" ;;
             *' capname="'*) name=${msg#* capname=\"} why="$why ${name%%\"*}" ;;
@@ -90,11 +104,11 @@ kernel() {
         "usb "*"error -"* | "usb "*"unable to enumerate"*)
             every usberr 60 || continue
             port=${msg#usb } port=${port%%:*}
-            prog=USB why="errors on $port"
+            prog=USB why="errors on $port" icon=
             ;;
         *) continue ;;
         esac
-        notify "$prog" "$why" around "$raw" kernel &
+        notify "$u" "$icon" "$prog" "$why" around "$raw" kernel &
     done
 }
 
@@ -107,7 +121,7 @@ services() {
             [ "$up" -ge 60 ] && n=0
             echo "$pid $n" >"$st/sv.$s"
             if [ "$n" -ge 3 ]; then
-                if once "svloop.$s"; then notify "$s" "restarting in a loop" service "$s" & fi
+                if once "svloop.$s"; then svloop "$s" & fi
             elif [ "$n" -eq 0 ]; then
                 reset "svloop.$s"
             fi
@@ -132,9 +146,9 @@ batteries() {
         [ "$(cat "$b/scope" 2>/dev/null)" = Device ] && name=$(cat "$b/model_name")
         if [ "$cap" -le 10 ]; then
             once "$k.20"
-            once "$k.10" && notify "$name" "battery at $cap%"
+            once "$k.10" && notify_level "$k" "$cap" critical  "$name" "battery at $cap%"
         elif [ "$cap" -le 20 ]; then
-            once "$k.20" && notify "$name" "battery at $cap%"
+            once "$k.20" && notify_level "$k" "$cap" normal  "$name" "battery at $cap%"
         fi
     done
 }
@@ -144,7 +158,7 @@ disks() {
         while read -r pct mnt; do
             k=df.$(echo "$mnt" | tr / _)
             if [ "$pct" -ge 90 ]; then
-                once "$k" && notify Disk "$mnt $pct% full"
+                once "$k" && notify_level "$k" "$pct" normal  Disk "$mnt $pct% full"
             else
                 reset "$k"
             fi
@@ -156,7 +170,7 @@ mic() {
         once mic || return 0
         apps=$(as_user pactl list source-outputs |
             sed -n 's/^[[:space:]]*application.name = "\(.*\)"$/\1/p' | sort -u | paste -sd, -)
-        notify Microphone "in use${apps:+ by $apps}"
+        notify normal  Microphone "in use${apps:+ by $apps}"
     else
         reset mic
     fi
@@ -168,7 +182,7 @@ webcam() {
         once cam || return 0
         # shellcheck disable=SC2086
         apps=$(ps -o comm= -p "$(echo $pids | tr ' ' ,)" | sort -u | paste -sd, -)
-        notify Webcam "in use by $apps"
+        notify normal  Webcam "in use by $apps"
     else
         reset cam
     fi
@@ -177,7 +191,7 @@ webcam() {
 pstore() {
     [ -e /run/pstore-new ] || return 0
     as_user true || return 0
-    notify Kernel "crashed during the last boot, click to see why" panics &
+    notify critical  Kernel "crashed during the last boot, click to see why" panics &
     rm -f /run/pstore-new
 }
 
