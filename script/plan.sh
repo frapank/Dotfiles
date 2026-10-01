@@ -80,6 +80,7 @@ plan() {
 		Installs $(printf '%s\n' "${HW_PKGS[@]}" | sort -u | tr '\n' ' ')fwupd
 		$( ((NONFREE)) && echo "Adds the Void nonfree repo for intel-ucode.")
 		Microcode goes into the initramfs. Firmware: 'fwupdmgr get-updates'.
+		The airplane mode key does nothing (udev rule).
 	EOF
     section power "Power profiles (as in GNOME)" <<-EOF
 		power-profiles-daemon on balanced, replaces tlp.

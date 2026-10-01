@@ -1,0 +1,52 @@
+#!/bin/sh
+set -u
+
+show() {
+    notify-send -a "$2" -u low -e -t 1500 -h "string:x-dunst-stack-tag:osd-$1" \
+        ${4:+-h "int:value:$4"} "$3" 2>/dev/null
+}
+
+volume() {
+    v=$(wpctl get-volume "$1") || exit 1
+    case $v in
+    *MUTED*) show "$2" "$3" "Muted" 0 ;;
+    *)
+        p=$(echo "$v" | awk '{ printf "%d", $2 * 100 + 0.5 }')
+        show "$2" "$3" "$p%" "$p"
+        ;;
+    esac
+}
+
+brightness() {
+    p=$(brightnessctl -m 2>/dev/null | cut -d, -f4) || exit 1
+    p=${p%\%}
+    show brightness " Brightness" "$p%" "$p"
+}
+
+player() {
+    sleep "$1"
+    st=$(playerctl status 2>/dev/null) || {
+        show player " Media" "No player"
+        exit 0
+    }
+    a=$(playerctl metadata artist 2>/dev/null)
+    t=$(playerctl metadata title 2>/dev/null)
+    [ -n "$a" ] && [ -n "$t" ] && t="$a - $t"
+    show player " Media" "$st${t:+ · $t}"
+}
+
+case ${1:-}/${2:-} in
+volume/up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
+volume/down) wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
+volume/mute) wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
+mic/mute) wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
+brightness/up) brightnessctl -q s 10%+ 2>/dev/null && brightness ;;
+brightness/down) brightnessctl -q s 10%- 2>/dev/null && brightness ;;
+media/play) playerctl play-pause 2>/dev/null; player 0.2 ;;
+media/next) playerctl next 2>/dev/null; player 0.4 ;;
+media/prev) playerctl previous 2>/dev/null; player 0.4 ;;
+*)
+    echo "usage: osd volume up|down|mute | mic mute | brightness up|down | media play|next|prev" >&2
+    exit 2
+    ;;
+esac

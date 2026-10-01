@@ -1,0 +1,2 @@
+# the airplane key does nothing, the kernel would turn off every radio
+ACTION=="add|change", SUBSYSTEM=="input", KERNEL=="input[0-9]*", ATTR{name}=="*Wireless Radio Control", ATTR{inhibited}="1"

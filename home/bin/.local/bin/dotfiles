@@ -33,6 +33,7 @@ HELPERS='screenshot|Print, Shift: screen, Ctrl: edit
 record|Super+Print, Shift: region, Ctrl: no audio
 nightlight|Super+=
 awake|Super+-
+osd|the volume, brightness and media keys
 photo video pdf office browser files audio|the default app
 wifi bluetooth|their manager, or on/off
 open-default|what photo, video, pdf... run
