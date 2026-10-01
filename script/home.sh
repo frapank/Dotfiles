@@ -1,10 +1,11 @@
 # shellcheck shell=bash
 # home files and folders
 
-# replace @HOME@ for programs that do not expand ~
+# replace @HOME@ for programs that do not expand ~, and "@MONITOR@" with
+# the monitors of the installed copy $2 or the connected ones
 home_render() {
     local esc=$THOME tmp
-    grep -qF '@HOME@' -- "$1" || {
+    grep -qE '@HOME@|"@MONITOR@"' -- "$1" || {
         echo "$1"
         return 0
     }
@@ -13,6 +14,9 @@ home_render() {
     esc=${esc//|/\\|}
     tmp=$(mktemp -p "$BAK")
     sed "s|@HOME@|$esc|g" -- "$1" >"$tmp"
+    if grep -qF '"@MONITOR@"' -- "$tmp"; then
+        python3 "$REPO/script/monitors.py" "$tmp" "$2" >>"$LOG" 2>&1 || die "monitors for ${2/#$THOME/\~} failed"
+    fi
     echo "$tmp"
 }
 
@@ -32,7 +36,7 @@ do_home() {
             done
             mode=0600
             [[ -x $src ]] && mode=0700
-            out=$(home_render "$src")
+            out=$(home_render "$src" "$dst")
             if [[ -f $dst && ! -L $dst ]] && cmp -s -- "$out" "$dst" &&
                 [[ $(stat -c '%a %U' -- "$dst") == "${mode#0} $TUSER" ]]; then
                 [[ $out == "$src" ]] || rm -f -- "$out"

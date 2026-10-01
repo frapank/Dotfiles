@@ -150,21 +150,7 @@
         "blur_saturation": 1.6,
         "blur_brightness": 1
     },
-    "monitors": [
-        {
-            "name": null,
-            "mfact": 0.55,
-            "nmaster": 1,
-            "scale": 2,
-            "layout": "[ ]",
-            "transform": "normal",
-            "x": -1,
-            "y": -1,
-            "width": 0,
-            "height": 0,
-            "refresh": 0
-        }
-    ],
+    "monitors": "@MONITOR@",
     "input": {
         "sloppyfocus": true,
         "xkb_rules": {

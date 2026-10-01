@@ -52,6 +52,8 @@ PKG_DESKTOP=(
     # session
     dbus elogind polkit mesa-dri xorg-server-xwayland pipewire wireplumber
     xdg-utils xdg-user-dirs fontconfig
+    # settings.json monitors
+    python3
     # apps
     foot Thunar grim slurp swappy swayidle gtklock
     brightnessctl playerctl dejavu-fonts-ttf adwaita-icon-theme
