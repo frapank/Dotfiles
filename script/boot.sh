@@ -263,5 +263,8 @@ do_hw() {
     done
     ((REGEN)) && ok "new microcode: the initramfs gets rebuilt" || skip "microcode in the initramfs"
     [[ -e /dev/dri/renderD128 ]] && ok "GPU render node present" || warn "no /dev/dri/renderD128 yet, check after the reboot"
+    put_tree udev
+    try "udev rules reload" udevadm control --reload
+    try "airplane key off" udevadm trigger --action=change --subsystem-match=input
     return 0
 }
