@@ -1,7 +1,8 @@
 #!/bin/sh
-# Desktop notifications, sent to whoever runs g0wm, for: crashes, disk and
-# filesystem errors, overheating, USB devices, runit services restarting in a
-# loop, low batteries, full disks, microphone and webcam
+# Desktop notifications, sent to whoever runs g0wm, for: crashes, programs
+# closed by earlyoom, kernel bugs and lockups, GPU hangs, hardware errors, disk
+# and filesystem errors, overheating, USB devices, runit services restarting in
+# a loop, low batteries, full disks, microphone and webcam
 
 [ "$1" = pgrp ] || exec chpst -P "$0" pgrp
 exec 2>&1
@@ -106,6 +107,36 @@ kernel() {
             port=${msg#usb } port=${port%%:*}
             prog=USB why="errors on $port" icon=
             ;;
+        *"soft lockup"* | *"hard LOCKUP"* | *"self-detected stall"* | *"detected stalls on CPU"*)
+            every lockup 60 || continue
+            prog=Kernel why="a CPU is stuck, the system may freeze" u=critical
+            ;;
+        "INFO: task "*" blocked for more than "*)
+            every hung 60 || continue
+            prog=${msg#INFO: task } prog=${prog% blocked for*} prog=${prog%:*}
+            why=${msg#*more than } why="stuck for over ${why%% *}s, waiting on a disk or a driver"
+            ;;
+        "BUG: "* | "Oops"* | *"kernel BUG at"* | "general protection fault"* | *"Unable to handle kernel"*)
+            every bug 60 || continue
+            prog=Kernel why=$(printf %s "$msg" | cut -c1-80) u=critical
+            ;;
+        "WARNING: CPU: "*)
+            every warning 300 || continue
+            prog=Kernel why="warning in $(printf %s "$msg" | sed -n 's/.* at \([^ ]*\).*/\1/p')"
+            ;;
+        *"GPU HANG"* | *"Resetting chip for"* | *"ring "*" timeout"* | *"GPU reset begin"* | *"Timedout job"* | "nouveau "*" fault"* | "nouveau "*"fifo: "* | "nouveau "*" killed"*)
+            every gpu 60 || continue
+            prog=GPU why="hung, the driver is resetting it" u=critical icon=
+            ;;
+        *"Hardware Error"* | *"Machine check events logged"* | "EDAC "*" error"*)
+            every hwerr 60 || continue
+            prog=Hardware why="the CPU or the RAM reported an error, it may be failing" u=critical icon=
+            ;;
+        "nvme "*" timeout"* | *"controller is down"* | "ata"*"failed command"* | "ata"*"hard resetting link"*)
+            every disk 60 || continue
+            dev=${msg%%: *} dev=${dev##* }
+            prog=Disk why="$dev not answering, the kernel is resetting it" u=critical icon=
+            ;;
         *) continue ;;
         esac
         notify "$u" "$icon" "$prog" "$why" around "$raw" kernel &
@@ -188,6 +219,17 @@ webcam() {
     fi
 }
 
+# earlyoom-closed leaves oom.PID files with the program name
+earlyoom() {
+    for f in "$st"/oom.*; do
+        case $f in *.tmp) continue ;; esac
+        [ -f "$f" ] || continue
+        name=$(cat "$f")
+        rm -f "$f"
+        notify critical  "${name:-a program}" "out of memory, closed by earlyoom" service earlyoom &
+    done
+}
+
 pstore() {
     [ -e /run/pstore-new ] || return 0
     as_user true || return 0
@@ -198,6 +240,7 @@ pstore() {
 poll() {
     while :; do
         pstore
+        earlyoom
         services
         batteries
         disks
@@ -208,6 +251,10 @@ poll() {
 }
 
 trap 'trap - TERM; kill 0' TERM
-kernel &
+# dmesg -W can end: read the kernel again rather than go silent
+while :; do
+    kernel
+    sleep 5
+done &
 poll &
 wait

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Run by earlyoom (-N) as root after it closed a program: leaves its name to
+# the watchdog, which notifies. Must be quick, memory is short.
+# EARLYOOM_NAME comes from the closed program: any bytes, or none.
+d=/run/watchdog
+[ -d "$d" ] && [ ! -L "$d" ] || exit 0
+case ${EARLYOOM_PID:-} in '' | *[!0-9]*) exit 0 ;; esac
+f=$d/oom.$EARLYOOM_PID
+printf '%s' "${EARLYOOM_NAME:-}" | LC_ALL=C tr -c 'A-Za-z0-9 ._+-' _ >"$f.tmp" &&
+    mv -f "$f.tmp" "$f"
