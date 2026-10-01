@@ -118,6 +118,7 @@
         "showbar": true,
         "topbar": true,
         "barwintitle": false,
+        "barboxradius": 2,
         "barpadding": 4,
         "barheight": 1.5,
         "barsinglemon": false,
