@@ -1,59 +1,84 @@
 window {
-    background-color: #0a0a0a;
-    background-size: cover;
-    background-position: center;
+    background-color: #070707;
+    font-family: "Geist Mono";
 }
 
-#clock {
+/* lift everything a bit above the middle */
+#window-box {
+    margin-bottom: 160px;
+}
+
+#time-box {
+    margin-bottom: 40px;
+}
+
+#clock-label {
     color: #e9e9e9;
     font-size: 80px;
     font-weight: 600;
 }
 
-label {
+#date-label {
+    color: #8a8a8a;
+    font-size: 16px;
+}
+
+#input-label {
+    color: #8a8a8a;
+}
+
+#input-field {
+    min-height: 44px;
+    padding: 0 16px;
+
+    background-color: #0d0d0f;
+    background-image: none;
     color: #e9e9e9;
+    caret-color: #e0a86a;
+
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    box-shadow: none;
+
+    /* spread the password dots */
+    font-size: 18px;
+    letter-spacing: 6px;
 }
 
-#input {
-    min-width: 300px;
-    min-height: 50px;
-
-    background-color: #e9e9e9;
-    color: #0a0a0a;
-
-    border: 1px solid #e9e9e9;
-    border-radius: 4px;
-
-    padding: 10px 20px;
-}
-
-#input text {
-    color: #0a0a0a;
-}
-
-#input placeholder {
-    color: #555555;
-}
-
-#input:focus {
-    background-color: #e9e9e9;
-    color: #0a0a0a;
+#input-field:focus {
     border-color: #e9e9e9;
 }
 
-button {
-    background-color: #0a0a0a;
-    color: #e9e9e9;
-
-    border: 1px solid #333333;
-    border-radius: 4px;
-
-    padding: 8px 16px;
+/* the show password icon */
+#input-field image {
+    color: #8a8a8a;
 }
 
-button:hover {
+#unlock-button {
+    padding: 6px 16px;
+
+    background-color: #0d0d0f;
+    background-image: none;
+    color: #e9e9e9;
+    text-shadow: none;
+
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+#unlock-button:hover {
+    border-color: #e9e9e9;
+}
+
+#unlock-button:active {
     background-color: #151515;
-    color: #e9e9e9;
-    border-color: #e9e9e9;
 }
 
+#error-label {
+    color: #d8625e;
+}
+
+#warning-label {
+    color: #e0a86a;
+}
