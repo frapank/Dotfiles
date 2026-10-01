@@ -69,10 +69,7 @@
             "3",
             "4",
             "5",
-            "6",
-            "7",
-            "8",
-            "9"
+            "6"
         ]
     },
     "windows": {
@@ -373,7 +370,6 @@
         },
         {
             "mod": [
-                "shift",
                 "logo"
             ],
             "key": "v",
@@ -387,15 +383,6 @@
             ],
             "key": "g",
             "action": "togglegaps",
-            "arg": null
-        },
-        {
-            "mod": [
-                "shift",
-                "logo"
-            ],
-            "key": "b",
-            "action": "togglebar",
             "arg": null
         },
         {
@@ -546,49 +533,12 @@
             "arg": 50
         },
         {
-            "mod": [
-                "logo"
-            ],
-            "key": "o",
-            "action": "setopacityfocus",
-            "arg": 0.05
-        },
-        {
-            "mod": [
-                "alt",
-                "logo"
-            ],
-            "key": "o",
-            "action": "setopacityfocus",
-            "arg": -0.05
-        },
-        {
-            "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "o",
-            "action": "setopacityunfocus",
-            "arg": 0.05
-        },
-        {
-            "mod": [
-                "ctrl",
-                "alt",
-                "logo"
-            ],
-            "key": "o",
-            "action": "setopacityunfocus",
-            "arg": -0.05
-        },
-        {
-            "mod": [
-                "shift",
-                "logo"
-            ],
-            "key": "o",
-            "action": "toggleopacity",
-            "arg": null
+            "mod": [],
+            "key": "XF86PowerOff",
+            "action": "spawn",
+            "arg": [
+                "power"
+            ]
         },
         {
             "mod": [],
@@ -694,22 +644,6 @@
             "mod": [
                 "logo"
             ],
-            "key": "i",
-            "action": "incnmaster",
-            "arg": 1
-        },
-        {
-            "mod": [
-                "logo"
-            ],
-            "key": "d",
-            "action": "incnmaster",
-            "arg": -1
-        },
-        {
-            "mod": [
-                "logo"
-            ],
             "key": "Return",
             "action": "zoom",
             "arg": null
@@ -718,42 +652,9 @@
             "mod": [
                 "logo"
             ],
-            "key": "Tab",
-            "action": "view",
-            "arg": 0
-        },
-        {
-            "mod": [
-                "logo"
-            ],
-            "key": "m",
-            "action": "setlayout",
-            "arg": "[M]"
-        },
-        {
-            "mod": [
-                "logo"
-            ],
             "key": "space",
             "action": "setlayout",
             "arg": null
-        },
-        {
-            "mod": [
-                "logo"
-            ],
-            "key": "0",
-            "action": "view",
-            "arg": 4294967295
-        },
-        {
-            "mod": [
-                "shift",
-                "logo"
-            ],
-            "key": "parenright",
-            "action": "tag",
-            "arg": 4294967295
         },
         {
             "mod": [
@@ -799,15 +700,6 @@
         },
         {
             "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "1",
-            "action": "toggleview",
-            "arg": 1
-        },
-        {
-            "mod": [
                 "shift",
                 "logo"
             ],
@@ -817,29 +709,10 @@
         },
         {
             "mod": [
-                "shift",
-                "ctrl",
-                "logo"
-            ],
-            "key": "exclam",
-            "action": "toggletag",
-            "arg": 1
-        },
-        {
-            "mod": [
                 "logo"
             ],
             "key": "2",
             "action": "view",
-            "arg": 2
-        },
-        {
-            "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "2",
-            "action": "toggleview",
             "arg": 2
         },
         {
@@ -853,29 +726,10 @@
         },
         {
             "mod": [
-                "shift",
-                "ctrl",
-                "logo"
-            ],
-            "key": "at",
-            "action": "toggletag",
-            "arg": 2
-        },
-        {
-            "mod": [
                 "logo"
             ],
             "key": "3",
             "action": "view",
-            "arg": 4
-        },
-        {
-            "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "3",
-            "action": "toggleview",
             "arg": 4
         },
         {
@@ -889,29 +743,10 @@
         },
         {
             "mod": [
-                "shift",
-                "ctrl",
-                "logo"
-            ],
-            "key": "numbersign",
-            "action": "toggletag",
-            "arg": 4
-        },
-        {
-            "mod": [
                 "logo"
             ],
             "key": "4",
             "action": "view",
-            "arg": 8
-        },
-        {
-            "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "4",
-            "action": "toggleview",
             "arg": 8
         },
         {
@@ -925,29 +760,10 @@
         },
         {
             "mod": [
-                "shift",
-                "ctrl",
-                "logo"
-            ],
-            "key": "dollar",
-            "action": "toggletag",
-            "arg": 8
-        },
-        {
-            "mod": [
                 "logo"
             ],
             "key": "5",
             "action": "view",
-            "arg": 16
-        },
-        {
-            "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "5",
-            "action": "toggleview",
             "arg": 16
         },
         {
@@ -961,29 +777,10 @@
         },
         {
             "mod": [
-                "shift",
-                "ctrl",
-                "logo"
-            ],
-            "key": "percent",
-            "action": "toggletag",
-            "arg": 16
-        },
-        {
-            "mod": [
                 "logo"
             ],
             "key": "6",
             "action": "view",
-            "arg": 32
-        },
-        {
-            "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "6",
-            "action": "toggleview",
             "arg": 32
         },
         {
@@ -994,124 +791,6 @@
             "key": "asciicircum",
             "action": "tag",
             "arg": 32
-        },
-        {
-            "mod": [
-                "shift",
-                "ctrl",
-                "logo"
-            ],
-            "key": "asciicircum",
-            "action": "toggletag",
-            "arg": 32
-        },
-        {
-            "mod": [
-                "logo"
-            ],
-            "key": "7",
-            "action": "view",
-            "arg": 64
-        },
-        {
-            "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "7",
-            "action": "toggleview",
-            "arg": 64
-        },
-        {
-            "mod": [
-                "shift",
-                "logo"
-            ],
-            "key": "ampersand",
-            "action": "tag",
-            "arg": 64
-        },
-        {
-            "mod": [
-                "shift",
-                "ctrl",
-                "logo"
-            ],
-            "key": "ampersand",
-            "action": "toggletag",
-            "arg": 64
-        },
-        {
-            "mod": [
-                "logo"
-            ],
-            "key": "8",
-            "action": "view",
-            "arg": 128
-        },
-        {
-            "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "8",
-            "action": "toggleview",
-            "arg": 128
-        },
-        {
-            "mod": [
-                "shift",
-                "logo"
-            ],
-            "key": "asterisk",
-            "action": "tag",
-            "arg": 128
-        },
-        {
-            "mod": [
-                "shift",
-                "ctrl",
-                "logo"
-            ],
-            "key": "asterisk",
-            "action": "toggletag",
-            "arg": 128
-        },
-        {
-            "mod": [
-                "logo"
-            ],
-            "key": "9",
-            "action": "view",
-            "arg": 256
-        },
-        {
-            "mod": [
-                "ctrl",
-                "logo"
-            ],
-            "key": "9",
-            "action": "toggleview",
-            "arg": 256
-        },
-        {
-            "mod": [
-                "shift",
-                "logo"
-            ],
-            "key": "parenleft",
-            "action": "tag",
-            "arg": 256
-        },
-        {
-            "mod": [
-                "shift",
-                "ctrl",
-                "logo"
-            ],
-            "key": "parenleft",
-            "action": "toggletag",
-            "arg": 256
         },
         {
             "mod": [
@@ -1247,13 +926,6 @@
             "button": "left",
             "action": "setlayout",
             "arg": "[ ]"
-        },
-        {
-            "click": "ltsymbol",
-            "mod": [],
-            "button": "right",
-            "action": "setlayout",
-            "arg": "[M]"
         },
         {
             "click": "title",
