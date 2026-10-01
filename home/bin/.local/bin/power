@@ -1,0 +1,18 @@
+#!/bin/sh
+set -u
+
+# the power key opens this menu, elogind no longer turns off the PC
+run=${XDG_RUNTIME_DIR:-/tmp}
+exec 9>"$run/power.lock"
+flock -n 9 || exit 0
+
+act=$(notify-send -a " power" -t 15000 \
+    -A suspend=" Sleep" -A reboot=" Reboot" -A poweroff=" Shut down" \
+    "Power" "Sleep, reboot or shut down" 2>/dev/null) || exit 0
+case $act in
+suspend | reboot | poweroff) ;;
+*) exit 0 ;;
+esac
+exec 9>&-
+err=$(loginctl "$act" 2>&1) ||
+    notify-send -a " power" -u critical "Cannot $act" "$err" 2>/dev/null

@@ -130,6 +130,7 @@ plan() {
 	EOF
     section desktop "Desktop: g0wm" <<-EOF
 		Session: dbus elogind polkit pipewire xwayland (elogind replaces acpid).
+		The power key opens a menu (sleep, reboot, shut down) instead of turning off the PC, the lid suspends. No hibernation.
 		Apps: foot Thunar grim slurp swappy swayidle gtklock brightnessctl playerctl.
 		Adds $TUSER to ${USER_GROUPS[*]}. Copies home/{$(join , "${HOME_DESKTOP[@]}")} with the default wallpaper.
 		Builds, tests and installs g0wm into ~/.local/bin, again only on new commits. A g0wm built elsewhere is left alone.
