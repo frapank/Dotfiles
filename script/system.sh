@@ -144,6 +144,7 @@ do_services() {
         sv_enable power-profiles-daemon
     fi
     ((SEL[swap])) && sv_enable zramen
+    ((SEL[swap])) && sv_enable earlyoom
     ((SEL[maint])) && sv_enable maint
     if ((SEL[logs])); then
         sv_enable socklog-unix
@@ -289,6 +290,14 @@ verify() {
     if ((SEL[swap])); then
         [[ -L $SVDIR/zramen ]] || {
             warn "zramen not enabled"
+            bad=1
+        }
+        [[ -L $SVDIR/earlyoom ]] || {
+            warn "earlyoom not enabled"
+            bad=1
+        }
+        [[ $(stat -c '%a %U' /usr/local/libexec/earlyoom-closed) == '755 root' ]] || {
+            warn "/usr/local/libexec/earlyoom-closed permissions"
             bad=1
         }
     fi

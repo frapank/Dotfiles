@@ -24,7 +24,8 @@ Long output opens in less at the end: q quits, / searches.
                             after it (default: everything)
   service NAME [WHEN]       what a service logged: chronyd, maint, watchdog,
                             or one of 'services': pipewire, idle...
-  crashes [WHEN]            segfaults, fatal signals, out of memory, kernel bugs
+  crashes [WHEN]            segfaults, fatal signals, out of memory, kernel bugs,
+                            lockups, GPU hangs, hardware and disk errors
   apparmor [WHEN]           what AppArmor blocked, counted per app
   firewall [WHEN]           what the firewall dropped, counted per source
   usb [WHEN]                USB devices plugged in and out
@@ -364,6 +365,7 @@ status() {
     run "nanoklogd: the kernel log" -x nanoklogd
     run "svlogd: writes $D" -x svlogd
     run "watchdog: notifications" -f 'dmesg -W -k'
+    run "earlyoom: closes a program before memory runs out" -x earlyoom
     if id -Gn | tr ' ' '\n' | grep -qx socklog; then ok "$(id -un) reads the logs (socklog group)"; else bad "$(id -un) is not in the socklog group"; fi
 
     sec "Logs (local time)"
@@ -483,7 +485,7 @@ around)
 service) service "$@" ;;
 crashes)
     since "${1:-}"
-    pick 'segfault at |traps: |potentially unexpected fatal signal|Out of memory|oom-kill:|Killed process|Oops|BUG: |kernel BUG|general protection fault|Kernel panic|blocked for more than|WARNING: CPU: ' kernel
+    pick 'segfault at |traps: |potentially unexpected fatal signal|Out of memory|oom-kill:|Killed process|Oops|BUG: |kernel BUG|general protection fault|Kernel panic|blocked for more than|WARNING: CPU: |soft lockup|hard LOCKUP|self-detected stall|GPU HANG|ring [^ ]+ timeout|GPU reset|Hardware Error|Machine check|EDAC .* error|controller is down|failed command' kernel
     ;;
 apparmor)
     since "${1:-}"

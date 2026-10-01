@@ -15,6 +15,11 @@ do_swap() {
     save_sysctl "$REPO"/root/zram/etc/sysctl.d/*.conf
     put_tree zram
     try "sysctl -p 50-zram.conf" sysctl -p /etc/sysctl.d/50-zram.conf
+    [[ -d /etc/sv/earlyoom ]] || die "earlyoom did not install /etc/sv/earlyoom"
+    grep -q '\. \./conf' /etc/sv/earlyoom/run || die "/etc/sv/earlyoom/run does not read conf"
+    sv_refresh earlyoom put_tree earlyoom
+    run "earlyoom conf parses" sh -n /etc/sv/earlyoom/conf
+    run "earlyoom-closed parses" sh -n /usr/local/libexec/earlyoom-closed
 }
 
 do_logs() {
