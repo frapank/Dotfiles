@@ -270,9 +270,9 @@ summary="$ok cleaned"
 echo "$summary"
 if [ "$notify" = 1 ] && command -v notify-send >/dev/null; then
     if [ "$bad" = 0 ]; then
-        notify-send -i edit-clear "Metadata removed" "$summary"
+        notify-send -a " metadata-remover" -u low "Metadata removed" "$summary"
     else
-        notify-send -u critical -i dialog-error "Metadata removal failed" "$summary
+        notify-send -a " metadata-remover" -u critical "Metadata removal failed" "$summary
 $failed"
     fi
 fi

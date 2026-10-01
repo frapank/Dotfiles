@@ -27,7 +27,7 @@ EOF
 
 die() {
     printf 'services: %s\n' "$*" >&2
-    [ -t 2 ] || notify-send -a services "$*" 2>/dev/null
+    [ -t 2 ] || notify-send -a " services" "$*" 2>/dev/null
     exit 1
 }
 
@@ -227,9 +227,12 @@ loops() {
             : >"$f.told"
             (
                 exec 9>&-
-                [ "$(notify-send -a services -u critical -A default=Open "$n restarts in a loop" \
-                    "It keeps exiting right after it starts: click to see what it printed" 2>/dev/null)" = default ] &&
-                    foot -- "$self" log "$n"
+                case $(notify-send -a " services" -u critical -A default=Open -A stop=Stop \
+                    "$n restarts in a loop" \
+                    "It keeps exiting right after it starts: click to see what it printed" 2>/dev/null) in
+                default) foot -- "$self" log "$n" ;;
+                stop) "$self" stop "$n" ;;
+                esac
             ) </dev/null >/dev/null 2>&1 &
         elif [ "$cnt" = 0 ]; then
             rm -f -- "$f.told"

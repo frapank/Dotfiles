@@ -37,4 +37,10 @@ file=$dir/shot-$(date +%Y%m%d-%H%M%S).png
 grim ${geo:+-g "$geo"} ${out:+-o "$out"} "$file"
 [ "$mode" = edit ] && swappy -f "$file" -o "$file"
 wl-copy --type image/png <"$file" || :
-notify-send -i image-x-generic -t 3000 "Screenshot saved" "$file" || true
+(
+    case $(notify-send -a " screenshot" -u low -A default=Open -A edit=Edit \
+        "Screenshot saved" "$file" 2>/dev/null) in
+    default) open -- "$file" ;;
+    edit) swappy -f "$file" -o "$file" && wl-copy --type image/png <"$file" ;;
+    esac
+) </dev/null >/dev/null 2>&1 &
