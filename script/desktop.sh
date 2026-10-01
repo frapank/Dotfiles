@@ -19,6 +19,7 @@ g0wm_clone() {
 do_g0wm() {
     step "Desktop: g0wm"
     do_home "${HOME_DESKTOP[@]}"
+    put_tree elogind
 
     local wp
     wp=$(grep -o '"wallpaper": *"[^"]*"' "$THOME/.config/g0wm/settings.json" | cut -d'"' -f4 || true)
