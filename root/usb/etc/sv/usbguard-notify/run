@@ -1,0 +1,6 @@
+#!/bin/sh
+# Asks whoever runs g0wm about the USB devices usbguard blocked: usb watch
+
+[ "$1" = pgrp ] || exec chpst -P "$0" pgrp
+exec 2>&1
+exec /usr/local/bin/usb watch

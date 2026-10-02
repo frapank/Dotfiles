@@ -69,6 +69,7 @@ main() {
     ((SEL[hw])) && do_hw
     ((SEL[locale])) && do_locale
     ((SEL[harden])) && do_harden
+    ((SEL[usb])) && do_usb
     ((SEL[apparmor])) && do_apparmor
     ((SEL[net])) && do_net_files
     do_groups
