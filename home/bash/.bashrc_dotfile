@@ -183,7 +183,14 @@ _setup_man() {
         fi
     done
 
-    [[ -n $_BAT ]] && _has col && export MANPAGER="sh -c 'col -bx | $_BAT -l man -p'"
+    man() {
+        if [[ -z $_BAT ]] || ! _has col; then
+            command man "$@"
+            return
+        fi
+        command man "$@" | col -bx | "$_BAT" -l man -p
+        return "${PIPESTATUS[0]}"
+    }
 }
 
 # BINARY TOOLS
