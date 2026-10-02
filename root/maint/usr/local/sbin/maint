@@ -331,6 +331,7 @@ update_now() {
     fi
     prune "$ROOTSNAP" root "$ROOT_KEEP"
     grub_quiet
+    [ ! -x /usr/local/sbin/nosuid ] || /usr/local/sbin/nosuid | sed 's/^/nosuid: /'
     grub_snaps
 
     if printf '%s\n' "$list" | grep -qE '^linux[0-9.]*-[0-9]'; then
