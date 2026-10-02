@@ -1,0 +1,15 @@
+_usb() {
+    local cur=${COMP_WORDS[COMP_CWORD]} cmd= i ports
+    for ((i = 1; i < COMP_CWORD; i++)); do
+        [[ ${COMP_WORDS[i]} == -* ]] && continue
+        cmd=${COMP_WORDS[i]}
+        break
+    done
+    ports=$(cd /sys/bus/usb/devices 2>/dev/null && printf '%s\n' [0-9]*-* | grep -v :)
+    case $cmd in
+    '') COMPREPLY=($(compgen -W 'list allow block rules forget help --help' -- "$cur")) ;;
+    allow) COMPREPLY=($(compgen -W "$ports" -- "$cur")) ;;
+    block) COMPREPLY=($(compgen -W "$ports -a --always -f --force" -- "$cur")) ;;
+    esac
+}
+complete -F _usb usb

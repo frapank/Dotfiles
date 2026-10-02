@@ -60,7 +60,7 @@ fix_perm() {
 
 mode_for() {
     case $1 in
-    /etc/nftables/* | /etc/sysctl.d/*) echo 0600 ;;
+    /etc/nftables/* | /etc/sysctl.d/* | /etc/usbguard/*) echo 0600 ;;
     /etc/sv/*/run | /etc/sv/*/finish | /usr/local/sbin/* | /usr/local/bin/* | /usr/local/libexec/*) echo 0755 ;;
     *) echo 0644 ;;
     esac

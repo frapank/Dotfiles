@@ -202,3 +202,27 @@ aa_check() {
     grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qE "[\"[:space:]]${lsm}[\"[:space:]]" ||
         die "apparmor: $lsm is in GRUB_CMDLINE_LINUX, add ',apparmor' to it yourself"
 }
+
+usb_check() {
+    [[ ! -L $SVDIR/usbguard ]] || return 0
+    local kbd ptr miss
+    read -r kbd ptr < <(awk '
+		/^H: Handlers=/ {
+			h = " " substr($0, 13) " "
+			if (h ~ / kbd / && h ~ / leds /) k++
+			if (h ~ / mouse[0-9]+ /) m++
+		}
+		END { print k + 0, m + 0 }' /proc/bus/input/devices)
+    ((kbd && ptr)) && return 0
+    if ((kbd == 0 && ptr == 0)); then
+        miss="no keyboard and no mouse"
+    elif ((kbd == 0)); then
+        miss="no keyboard"
+    else
+        miss="no mouse or touchpad"
+    fi
+    warn "usb: $miss found. Once usbguard is on, one plugged in later stays blocked until allowed from the notification (with the mouse) or with 'doas usb allow' (with the keyboard)"
+    ask_always "   turn usbguard on anyway?" && return 0
+    SEL[usb]=0
+    note "usb skipped"
+}

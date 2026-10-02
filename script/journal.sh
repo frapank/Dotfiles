@@ -6,7 +6,7 @@ jot() {
     printf '%s\n' "$*" >>"$BAK/journal"
 }
 
-njot() { grep -vcE '^(sysctl|nft|svr|aaload)' -- "$BAK/journal" || true; }
+njot() { grep -vcE '^(sysctl|nft|svr|aaload|usbopen)' -- "$BAK/journal" || true; }
 
 rollback() {
     trap '' INT TERM HUP
@@ -58,6 +58,13 @@ rollback() {
             ;;
         nft) nft -f /etc/nftables.conf ;;
         svr) sv restart "$a" ;;
+        usbopen)
+            # usbguard left the kernel blocking new devices
+            sv -w 5 force-stop /etc/sv/usbguard /etc/sv/usbguard-notify || true
+            for p in /sys/bus/usb/devices/usb*/authorized_default /sys/bus/usb/devices/*/authorized; do
+                [[ $(<"$p") == 1 ]] || echo 1 >"$p"
+            done
+            ;;
         initramfs) cp -a -- "$BAK/boot/." /boot/ ;;
         aaload) aa-remove-unknown && apparmor_parser -r -- /etc/apparmor.d ;;
         subvol-rm) [[ ! -e $a ]] || btrfs subvolume delete -- "$a" ;;

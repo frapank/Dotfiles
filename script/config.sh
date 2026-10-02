@@ -35,6 +35,7 @@ PKG_CLI=(bash bash-completion vim-huge neovim tmux ctags fzf fd ripgrep bat
 PKG_LSP=(clang-tools-extra rust-analyzer taplo zls bash-language-server
     yaml-language-server)
 PKG_HARDEN=(nftables openssh)
+PKG_USB=(usbguard libnotify)
 HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
     randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
     efi=disable_early_pci_dma lockdown=integrity module.sig_enforce=1)
@@ -101,7 +102,7 @@ HOME_FONTS=(fontconfig)
 HOME_MEDIA=(portal)
 HOME_DIRS=(xdg)
 USER_GROUPS=(wheel video network)
-SECTIONS=(update locale cli lsp harden apparmor net boot hw power logs swap maint dirs desktop media apps games session theme fonts doas)
+SECTIONS=(update locale cli lsp harden usb apparmor net boot hw power logs swap maint dirs desktop media apps games session theme fonts doas)
 GEIST_DIR=/usr/local/share/fonts/Geist
 GEIST_MONO_DIR=/usr/local/share/fonts/GeistMono
 OLD_FONT_DIRS=(/usr/local/share/fonts/SF-Mono /usr/local/share/fonts/SF-Pro)
@@ -244,5 +245,5 @@ MIME_DEFAULTS=(
 
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
-HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0 GRUB_STALE=0
+HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0 GRUB_STALE=0 USB_NEW=0
 declare -A SEL=() BACKED=()

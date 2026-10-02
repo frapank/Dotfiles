@@ -85,6 +85,8 @@ kernel() {
         "usb "*": Product: "*)
             port=${msg#usb } port=${port%%:*}
             echo "${msg#*Product: }" >"$st/usb.$port"
+            # usbguard-notify tells it
+            [ ! -L /var/service/usbguard-notify ] || continue
             prog=USB why="$(cat "$st/usb.$port") connected" u=low icon=
             ;;
         "usb "*": USB disconnect"*)
