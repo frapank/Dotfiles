@@ -89,6 +89,8 @@ for f in script/install.sh install.sh home/*/.local/bin/* root/*/etc/sv/*/run ro
 done
 l=$(find script home root src -type l)
 [[ -z $l ]] || fail "symlinks, install.sh refuses them: $l"
+c=$(find script home root src \( -name __pycache__ -o -name '*.pyc' \))
+[[ -z $c ]] || fail "python cache, install.sh refuses it: $c"
 [[ $(readlink install.sh) == script/install.sh ]] || fail "install.sh is not a link to script/install.sh"
 ((bad)) || pass "json, modes, no symlinks"
 
