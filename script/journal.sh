@@ -32,6 +32,7 @@ rollback() {
             [[ $a == wheel ]] && ((keepdoas)) && continue
             gpasswd -d "$b" "$a"
             ;;
+        grpdel) groupdel "$a" ;;
         shell) usermod -s "$b" "$a" ;;
         pkgs)
             pk=()
