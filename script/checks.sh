@@ -94,6 +94,8 @@ check_repo() {
     [[ -z $bad ]] || die "unsafe owner or permissions: $bad (fix: chmod -R go-w '$REPO')"
     bad=$(find "$REPO/home" "$REPO/root" "$REPO/src" "$REPO/script" -type l -print -quit)
     [[ -z $bad ]] || die "symlink in the repo, refusing: $bad"
+    bad=$(find "$REPO/home" "$REPO/root" "$REPO/src" "$REPO/script" \( -name __pycache__ -o -name '*.pyc' \) -print -quit)
+    [[ -z $bad ]] || die "python cache in the repo, it would be installed: $bad"
 }
 
 detect_hw() {
