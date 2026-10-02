@@ -158,11 +158,20 @@ try() {
 as_user() { "${AS_USER[@]}" "$@"; }
 
 ask() {
-    local a
     if ((YES)); then
         printf '%s [y/n] y\n' "$1"
         return 0
     fi
+    ask_always "$1"
+}
+
+# asks also with -y
+ask_always() {
+    local a
+    { : </dev/tty; } 2>/dev/null || {
+        log "ask: $1 -> n (no terminal)"
+        return 1
+    }
     while :; do
         printf '%s%s%s [y/n] ' "$C_B" "$1" "$C_0"
         read -r a </dev/tty || {

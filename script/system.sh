@@ -44,6 +44,7 @@ do_packages() {
     ((SEL[cli])) && want+=("${PKG_CLI[@]}")
     ((SEL[lsp])) && want+=("${PKG_LSP[@]}")
     ((SEL[harden])) && want+=("${PKG_HARDEN[@]}")
+    ((SEL[usb])) && want+=("${PKG_USB[@]}")
     ((SEL[apparmor])) && want+=("${PKG_APPARMOR[@]}")
     ((SEL[net])) && want+=("${PKG_NET[@]}")
     ((SEL[boot])) && want+=("${PKG_BOOT[@]}")
@@ -138,6 +139,14 @@ do_services() {
         [[ -L $SVDIR/seatd ]] && warn "seatd and elogind are both enabled, consider: rm $SVDIR/seatd"
     fi
     ((SEL[harden])) && sv_enable nftables
+    if ((SEL[usb])); then
+        [[ -L $SVDIR/usbguard ]] || {
+            USB_NEW=1
+            jot usbopen
+        }
+        sv_enable usbguard
+        sv_enable usbguard-notify
+    fi
     ((SEL[session])) && sv_enable bluetoothd
     if ((SEL[power])); then
         sv_disable tlp
@@ -177,6 +186,7 @@ do_post() {
         done
         if grep -q '^/dev/zram' /proc/swaps; then ok "zram swap active"; else warn "zram swap not up yet, check 'sv status zramen'"; fi
     fi
+    ((SEL[usb] == 0)) || usb_up
     if ((REGEN == 1)); then
         regen_initramfs
     fi
@@ -347,6 +357,22 @@ verify() {
             bad=1
         }
     fi
+    if ((SEL[usb])); then
+        [[ -L $SVDIR/usbguard && -L $SVDIR/usbguard-notify ]] || {
+            warn "usbguard or usbguard-notify not enabled"
+            bad=1
+        }
+        [[ $(stat -c '%a %U' /usr/local/bin/usb) == '755 root' ]] || {
+            warn "/usr/local/bin/usb permissions"
+            bad=1
+        }
+        for c in /etc/usbguard/rules.conf /etc/usbguard/usbguard-daemon.conf; do
+            [[ $(stat -c '%a %U' "$c") == '600 root' ]] || {
+                warn "$c permissions, usbguard refuses it"
+                bad=1
+            }
+        done
+    fi
     if ((SEL[games])); then
         [[ $(</proc/sys/vm/max_map_count) == 1048576 ]] || {
             warn "vm.max_map_count is not 1048576"
@@ -454,4 +480,20 @@ verify() {
     fi
     ((bad == 0)) || die "final check failed"
     ok "all good"
+}
+
+usb_up() {
+    local i bad
+    for ((i = 0; i < 15; i++)); do
+        usbguard list-rules >/dev/null 2>&1 && [[ $(sv status usbguard-notify 2>/dev/null) == run:* ]] && break
+        sleep 1
+    done
+    usbguard list-rules >/dev/null 2>&1 || die "usbguard did not start, see 'logs service usbguard'"
+    ok "usbguard running"
+    [[ $(sv status usbguard-notify 2>/dev/null) == run:* ]] ||
+        warn "usbguard-notify is not running, nothing asks about new devices: 'logs service usbguard-notify'"
+    ((USB_NEW)) || return 0
+    bad=$(usbguard list-devices -b | grep -E ' with-interface .*03:01:0[12]' |
+        sed -n 's/.* name "\([^"]*\)".*/\1/p' | paste -sd, -) || true
+    [[ -z $bad ]] || die "usbguard blocked $bad, a keyboard or mouse plugged in after the rules were made: run this again with it plugged in"
 }

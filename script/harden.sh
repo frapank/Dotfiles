@@ -75,8 +75,8 @@ hide_pids() {
         groupadd -r proc >>"$LOG" 2>&1 || die "cannot create the group proc"
         ok "group proc created"
     fi
-    # need to see other users' processes
-    for u in polkitd rtkit; do
+    # need to see other users' processes; $TUSER for the polkit agent (elogind)
+    for u in polkitd rtkit "$TUSER"; do
         getent passwd "$u" >/dev/null || continue
         if [[ " $(id -nG -- "$u") " == *" proc "* ]]; then
             skip "$u in proc"
@@ -180,4 +180,29 @@ ssh_dir() {
     jot hchmod "$d" "$m"
     as_user chmod 0700 -- "$d"
     ok "~/.ssh $m -> 700"
+}
+
+do_usb() {
+    step "USB devices: usbguard"
+    local rules=/etc/usbguard/rules.conf tmp
+    [[ -d /etc/sv/usbguard ]] || die "usbguard did not install /etc/sv/usbguard"
+    # allow what is plugged in only the first time
+    if [[ -L $SVDIR/usbguard ]]; then
+        skip "usbguard rules kept"
+    elif grep -q '^[^#[:space:]]' "$rules" 2>/dev/null; then
+        note "$rules already has rules, kept"
+    else
+        tmp=$(mktemp -p "$BAK")
+        usbguard generate-policy >"$tmp" 2>>"$LOG" || die "usbguard generate-policy failed"
+        sed -i 's/ parent-hash "[^"]*"//; s/ via-port "[^"]*"//; s/ with-connect-type "[^"]*"//' "$tmp"
+        run "the USB rules parse" usbguard-rule-parser -f "$tmp"
+        put "$tmp" "$rules" 0600
+        rm -f -- "$tmp"
+        ok "$(grep -c '^allow ' "$rules") USB devices plugged in now allowed"
+    fi
+    mkdirs /var/log/usbguard
+    put_tree session
+    sv_refresh usbguard put_tree usbguard
+    sv_refresh usbguard-notify put_tree usb
+    run "usb parses" sh -n /usr/local/bin/usb
 }

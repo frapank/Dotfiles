@@ -1,0 +1,404 @@
+#!/bin/sh
+set -u
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
+
+SYS=/sys/bus/usb/devices
+ST=/run/usb
+# the rule id usbguard reports when no rule matched a device
+IMPLICIT=4294967294
+ASK_SECS=120
+G_USB='' G_OK='' G_NO='' G_WARN='' G_LOCK=''
+
+usage() {
+    cat <<EOF
+Usage: usb [COMMAND [ARGS]]
+USB devices are blocked by usbguard until you allow them: a notification
+asks about each new one. An allowed device is remembered in any port and
+after a reboot, a blocked one is asked about again the next time.
+
+  list               the devices plugged in now and their state (default)
+  allow PORT...      allow it now and every time it is plugged in
+  block PORT...      block it now and forget it was allowed
+    -a, --always     block it every time too, without asking
+    -f, --force      block it even if it is the last keyboard
+  rules              the remembered devices, numbered
+  forget N...        forget rule N of 'usb rules': asked about again
+  watch              ask about new devices: the usbguard-notify service runs it
+
+PORT: where 'usb list' shows the device, like 1-2 or 3-1.4.
+allow, block, rules and forget ask for doas. A device with no serial number
+is remembered by model: another one of the same model is allowed too.
+EOF
+}
+
+die() {
+    printf 'usb: %s\n' "$*" >&2
+    exit 1
+}
+
+as_user() { /usr/local/libexec/as-session-user "$@"; }
+
+attr() { printf '%s\n' "$1" | sed -n 's/.* '"$2"' "\(\([^"\\]\|\\.\)*\)".*/\1/p'; }
+usbid() { printf '%s\n' "$1" | sed -n 's/^[a-z]* id \([0-9a-f*]*:[0-9a-f*]*\) .*/\1/p'; }
+ifaces() { printf '%s\n' "$1" | sed -n 's/.* with-interface \({[^}]*}\|[0-9a-f:]*\).*/\1/p' | tr -d '{}'; }
+# device strings: no markup or control characters
+clean() {
+    printf '%s' "$1" | sed 's/\\x[0-9a-fA-F][0-9a-fA-F]/?/g; s/\\\(.\)/\1/g' |
+        tr -cd 'A-Za-z0-9 ._,:;()+/#?-' | cut -c1-48 | sed 's/^[ -]*//; s/ *$//'
+}
+
+# exit 3: storage or network that can also type (BadUSB)
+kinds() {
+    printf '%s\n' "$@" | awk -F: '
+		function add(k) { if (!(k in seen)) { seen[k]; out = out (out == "" ? "" : ", ") k } }
+		{ c = tolower($1); s = tolower($2); p = tolower($3) }
+		c == "03" && s == "01" && p == "01" { add("keyboard"); hid = 1; next }
+		c == "03" && s == "01" && p == "02" { add("mouse"); hid = 1; next }
+		c == "03" { hid = 2; next }
+		c == "01" { add("audio"); next }
+		c == "02" && s == "02" { add("serial"); next }
+		c == "02" || (c == "e0" && s == "01" && p == "03") || (c == "ef" && s == "04") { add("network"); net = 1; next }
+		c == "0a" || c == "11" { next }
+		c == "06" { add("camera or phone"); next }
+		c == "07" { add("printer"); next }
+		c == "08" { add("storage"); disk = 1; next }
+		c == "09" { add("hub"); next }
+		c == "0b" { add("smart card"); next }
+		c == "0e" { add("webcam"); next }
+		c == "10" { add("video"); next }
+		c == "e0" && s == "01" && p == "01" { add("bluetooth"); next }
+		c == "fe" { add("firmware update"); next }
+		c == "ff" { add("vendor specific"); next }
+		NF == 3 { add("other") }
+		END {
+			if (hid == 2 && !("keyboard" in seen) && !("mouse" in seen)) add("input")
+			print out
+			if (hid && (disk || net)) exit 3
+		}'
+}
+
+# the interfaces of a device in sysfs, also when it is blocked and has none
+sys_ifaces() {
+    od -An -v -tu1 "$1/descriptors" 2>/dev/null | awk '
+		{ for (i = 1; i <= NF; i++) b[++n] = $i }
+		END {
+			i = 19
+			while (i + 7 <= n) {
+				if (b[i + 1] == 4) printf "%02x:%02x:%02x\n", b[i + 5], b[i + 6], b[i + 7]
+				if (b[i] < 2) break
+				i += b[i]
+			}
+		}'
+}
+
+# keyboards left without the device in port $1 and those behind it
+keyboards() {
+    awk -v p="/${1:-}/" '
+		function done() { if (h ~ / kbd / && h ~ / leds / && (p == "//" || index(s, p) == 0)) n++; s = h = "" }
+		/^S: Sysfs=/ { s = substr($0, 10) "/" }
+		/^H: Handlers=/ { h = " " substr($0, 13) " " }
+		/^$/ { done() }
+		END { done(); print n + 0 }' /proc/bus/input/devices
+}
+
+need_root() {
+    [ "$(id -u)" = 0 ] && return 0
+    command -v doas >/dev/null || die "needs root"
+    exec doas -- "$(readlink -f -- "$0")" "$@"
+}
+
+need_daemon() {
+    usbguard list-rules >/dev/null 2>&1 ||
+        die "usbguard is not running: 'doas sv status usbguard', 'logs service usbguard'"
+}
+
+check_port() {
+    case $1 in
+    [0-9]*-[0-9]*) case $1 in *[!0-9.-]*) die "'$1' is not a port: see 'usb list'" ;; esac ;;
+    *) die "'$1' is not a port: see 'usb list'" ;;
+    esac
+    [ -d "$SYS/$1" ] || die "nothing plugged in $1: see 'usb list'"
+}
+
+by_port() { usbguard list-devices | grep -F " via-port \"$1\"" | head -n1; }
+
+blocked() { usbguard list-devices -b 2>/dev/null | grep "^$1: " | grep -qF " hash \"$2\""; }
+
+forget_hash() {
+    [ -n "$1" ] || return 1
+    for n in $(usbguard list-rules | grep -F " hash \"$1\"" | cut -d: -f1); do
+        usbguard remove-rule "$n" || return 1
+    done
+}
+
+# without port and parent hash, so it matches in any port
+remember() {
+    line=$(usbguard list-devices | grep "^$1: ") || return 1
+    rule=${line#*: }
+    h=$(attr "$rule" hash)
+    [ -z "${3:-}" ] || [ "$h" = "$3" ] || return 1
+    forget_hash "$h" || return 1
+    [ "$2" != forget ] || return 0
+    usbguard append-rule "$2 $(printf '%s\n' "${rule#* }" |
+        sed 's/ parent-hash "[^"]*"//; s/ via-port "[^"]*"//; s/ with-connect-type "[^"]*"//')" >/dev/null
+}
+
+allow_id() {
+    remember "$1" allow "${2:-}" || return 1
+    usbguard allow-device "$1"
+}
+
+list() {
+    printf '%-9s %-8s %-10s %-28s %s\n' PORT STATE ID NAME KIND
+    for d in "$SYS"/*; do
+        p=${d##*/}
+        case $p in *:* | usb*) continue ;; esac
+        [ -r "$d/descriptors" ] || continue
+        st=allowed
+        [ "$(cat "$d/authorized" 2>/dev/null)" = 1 ] || st=blocked
+        name=$(clean "$(cat "$d/product" 2>/dev/null)")
+        case $name in '' | n/a*) name=$(clean "$(cat "$d/manufacturer" 2>/dev/null)") ;; esac
+        # shellcheck disable=SC2046
+        printf '%-9s %-8s %-10s %-28.28s %s\n' "$p" "$st" \
+            "$(cat "$d/idVendor"):$(cat "$d/idProduct")" "${name:--}" "$(kinds $(sys_ifaces "$d"))"
+    done
+}
+
+allow() {
+    [ $# -gt 0 ] || die "allow which one? see 'usb list'"
+    for p; do check_port "$p"; done
+    need_daemon
+    for p; do
+        line=$(by_port "$p")
+        [ -n "$line" ] || die "usbguard does not know the device in $p"
+        allow_id "${line%%:*}" >/dev/null || die "could not allow $p"
+        echo "$p allowed: $(clean "$(attr "$line" name)")"
+    done
+}
+
+block() {
+    force=0 always=0 ports=
+    for a; do
+        case $a in
+        -f | --force) force=1 ;;
+        -a | --always) always=1 ;;
+        -*) die "unknown option '$a'" ;;
+        *)
+            check_port "$a"
+            ports="$ports $a"
+            ;;
+        esac
+    done
+    [ -n "$ports" ] || die "block which one? see 'usb list'"
+    need_daemon
+    for p in $ports; do
+        line=$(by_port "$p")
+        [ -n "$line" ] || die "usbguard does not know the device in $p"
+        if [ "$force" = 0 ] && [ "$(keyboards "$p")" = 0 ] && [ "$(keyboards)" != 0 ]; then
+            die "$p is the last keyboard, you could not type any more: -f blocks it anyway"
+        fi
+        id=${line%%:*}
+        if [ "$always" = 1 ]; then
+            remember "$id" block || die "could not block $p"
+        else
+            remember "$id" forget || die "could not block $p"
+        fi
+        case ${line#*: } in block\ *) ;; *) usbguard block-device "$id" || die "could not block $p" ;; esac
+        if [ "$always" = 1 ]; then
+            echo "$p blocked, also next time: $(clean "$(attr "$line" name)")"
+        else
+            echo "$p blocked, asked about next time: $(clean "$(attr "$line" name)")"
+        fi
+    done
+}
+
+rules() {
+    need_daemon
+    printf '%4s  %-8s %-10s %-28s %s\n' N STATE ID NAME KIND
+    usbguard list-rules | while IFS= read -r line; do
+        rule=${line#*: } t=
+        case $rule in
+        allow\ *) t=allowed ;;
+        block\ *) t=blocked ;;
+        reject\ *) t=rejected ;;
+        esac
+        id=$(usbid "$rule")
+        if [ -z "$t" ] || [ -z "$id" ]; then
+            printf '%4s  %s\n' "${line%%:*}" "$rule"
+            continue
+        fi
+        name=$(clean "$(attr "$rule" name)")
+        # shellcheck disable=SC2046
+        printf '%4s  %-8s %-10s %-28.28s %s\n' "${line%%:*}" "$t" "$id" "${name:--}" "$(kinds $(ifaces "$rule"))"
+    done
+}
+
+forget() {
+    [ $# -gt 0 ] || die "forget which one? see 'usb rules'"
+    for n; do
+        case $n in '' | *[!0-9]*) die "'$n' is not a number of 'usb rules'" ;; esac
+    done
+    need_daemon
+    for n in $(printf '%s\n' "$@" | sort -nu); do
+        line=$(usbguard list-rules | grep "^$n: ") || die "no rule $n: see 'usb rules'"
+        usbguard remove-rule "$n" || die "could not forget $n"
+        name=$(clean "$(attr "$line" name)")
+        echo "forgot $n${name:+: $name}"
+    done
+}
+
+notify() { as_user notify-send -a "$G_USB USB" "$@" >/dev/null 2>&1; }
+
+ask() {
+    id=$1 rule=$2 why=$3
+    [ ! -e "$ST/ask.$id" ] || return 0
+    : >"$ST/ask.$id"
+    h=$(attr "$rule" hash) port=$(attr "$rule" via-port)
+    # shellcheck disable=SC2046
+    k=$(kinds $(ifaces "$rule"))
+    bad=$?
+    if [ "$k" = hub ]; then
+        allow_id "$id" "$h" >/dev/null 2>&1
+        return 0
+    fi
+    name=$(clean "$(attr "$rule" name)")
+    [ -n "$name" ] || name=$(usbid "$rule")
+    while :; do
+        blocked "$id" "$h" || return 0
+        if as_user true 2>/dev/null; then
+            pgrep -x gtklock >/dev/null || break
+            [ "$why" != new ] || why=locked
+        fi
+        sleep 3
+    done
+    body="${k:-USB device} · $(usbid "$rule")"
+    [ "$bad" != 3 ] || body="$body
+$G_WARN it can also type and click"
+    case $why in
+    locked) body="$body
+$G_LOCK plugged in while the screen was locked" ;;
+    boot) body="$body
+plugged in before, never allowed" ;;
+    esac
+    # notification id, then the action
+    as_user notify-send -p -u critical -t $((ASK_SECS * 1000)) -a "$G_USB USB" \
+        -A allow="$G_OK Allow" -A block="$G_NO Block" -- "$name" "$body" 2>/dev/null | {
+        read -r n && echo "$n" >"$ST/nid.$id"
+        read -r a || a=
+        echo "$a" >"$ST/act.$id"
+    }
+    a=$(cat "$ST/act.$id" 2>/dev/null)
+    rm -f "$ST/nid.$id" "$ST/act.$id"
+    case $a in
+    allow)
+        if allow_id "$id" "$h" >/dev/null 2>&1; then
+            notify -u low -e -- "$name" "allowed, also next time"
+        elif blocked "$id" "$h"; then
+            notify -u critical -- "$name" "could not allow it: 'usb allow $port'"
+        fi
+        ;;
+    block) ;;
+    *) ! blocked "$id" "$h" || notify -u low -- "$name" "left blocked: 'usb allow $port' allows it" ;;
+    esac
+}
+
+gone() {
+    n=$(cat "$ST/nid.$1" 2>/dev/null) || return 0
+    name=$(clean "$(attr "$2" name)")
+    notify -r "$n" -u low -e -t 3000 -- "${name:-$(usbid "$2")}" "unplugged"
+}
+
+# watchdog leaves this to us
+connected() {
+    # shellcheck disable=SC2046
+    [ "$(kinds $(ifaces "$1"))" != hub ] || return 0
+    name=$(clean "$(attr "$1" name)")
+    as_user notify-send -u low -a "$G_USB USB" -h string:desktop-entry:USB \
+        -- "${name:-$(usbid "$1")} connected" >/dev/null 2>&1
+}
+
+# blocked when usbguard started
+scan() {
+    sleep 1
+    usbguard list-devices -b 2>/dev/null | while IFS= read -r line; do
+        rule=${line#*: }
+        h=$(attr "$rule" hash)
+        usbguard list-rules | grep -F " hash \"$h\"" | grep -q '^[0-9]*: block ' && continue
+        ask "${line%%:*}" "$rule" boot &
+    done
+}
+
+events() {
+    sig='' id='' ev='' tn='' rule=''
+    while IFS= read -r line; do
+        case $line in
+        '[IPC] Connected')
+            # ids start again with a new daemon
+            rm -f "$ST"/*
+            scan &
+            ;;
+        '[device] '*': id='*)
+            sig=${line#\[device\] } sig=${sig%%:*} id=${line##*=} ev='' tn='' rule=''
+            case $id in '' | *[!0-9]*) sig= ;; esac
+            ;;
+        ' event='*) ev=${line#*=} ;;
+        ' target_new='*) tn=${line#*=} ;;
+        ' device_rule='*)
+            rule=${line#*=}
+            [ "$sig" = PresenceChanged ] || continue
+            case $ev in
+            Insert) : >"$ST/new.$id" ;;
+            Remove)
+                rm -f "$ST/new.$id"
+                gone "$id" "$rule" &
+                ;;
+            esac
+            ;;
+        ' rule_id='*)
+            # only on insertion
+            [ "$sig" = PolicyApplied ] && [ -e "$ST/new.$id" ] || continue
+            rm -f "$ST/new.$id"
+            if [ "$tn" = block ] && [ "${line#*=}" = "$IMPLICIT" ]; then
+                ask "$id" "$rule" new &
+            elif [ "$tn" = allow ]; then
+                connected "$rule" &
+            fi
+            ;;
+        esac
+    done
+}
+
+watch() {
+    [ "$(id -u)" = 0 ] || die "watch runs as root, from the usbguard-notify service"
+    rm -rf "$ST"
+    mkdir -m 0700 "$ST" || die "cannot create $ST"
+    trap 'trap - TERM; kill 0' TERM
+    while :; do
+        usbguard watch -w -o | events
+        sleep 1
+    done &
+    wait
+}
+
+case ${1:-list} in
+-h | --help | help)
+    usage
+    exit 0
+    ;;
+allow | block | rules | forget) need_root "$@" ;;
+esac
+cmd=${1:-list}
+[ $# -eq 0 ] || shift
+case $cmd in
+list) list ;;
+allow) allow "$@" ;;
+block) block "$@" ;;
+rules) rules ;;
+forget) forget "$@" ;;
+watch) watch ;;
+*)
+    echo "usb: unknown command '$cmd'" >&2
+    echo "Try 'usb --help' for more information." >&2
+    exit 2
+    ;;
+esac
