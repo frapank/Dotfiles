@@ -39,8 +39,15 @@ plan() {
 		  ${HARDEN_CMDLINE[*]}
 		New machine ID at every boot, so apps cannot track this machine by it.
 		fstab: /boot root only, /tmp a nosuid,nodev tmpfs unless a partition.
-		/proc, after reboot: you see only your own processes ('doas htop' for all). Group proc sees all: polkitd, rtkit.
+		/proc, after reboot: the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, $TUSER (the polkit agent needs it).
 		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap ssh-keysign wall write: doas does it ('doas passwd $TUSER'). Updates put it back, maint and every boot take it off again (nosuid).
+	EOF
+    section usb "USB devices: usbguard" <<-EOF
+		The devices plugged in now are allowed. Later a new one stays blocked, and a notification asks: Allow or Block, what the device says it is and a warning when a storage or network device can also type.
+		With the screen locked it waits for the unlock, then asks. Hubs are allowed by themselves, what is plugged into them is asked about.
+		Allowed devices are remembered in any port and after reboots, blocked ones are asked about again.
+		'usb' lists the devices, 'usb allow|block PORT', 'usb rules', 'usb forget N'.
+		Without a keyboard and a mouse here now it asks before going on, also with -y.
 	EOF
     section apparmor "AppArmor: confine the apps that parse untrusted input" <<-EOF
 		Apps keep working, but an exploit cannot read secrets (~/.ssh ~/.gnupg keyrings history), write files that run code later (shell startup, autostart, PATH, configs, git hooks, this repo) or use setuid programs.
@@ -194,6 +201,7 @@ plan() {
             die "harden: su loses setuid, install doas or sudo first or select doas"
     fi
     ((SEL[apparmor] == 0)) || aa_check
+    ((SEL[usb] == 0)) || usb_check
 
     local k on=() off=()
     for k in "${SECTIONS[@]}"; do

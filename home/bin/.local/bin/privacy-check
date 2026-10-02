@@ -278,7 +278,7 @@ else
     warn "AppArmor is not enabled"
 fi
 if awk '$2 == "/proc" && $4 ~ /hidepid=/ { f = 1 } END { exit !f }' /proc/self/mounts; then
-    ok "/proc shows only your own processes (hidepid)"
+    ok "/proc hides processes from the daemons' users (hidepid)"
 elif [ -r /etc/runit/core-services/01-hidepid.sh ]; then
     warn "/proc shows every process: hidepid is on after a reboot"
 else
