@@ -6,7 +6,8 @@ usage() {
 Usage: privacy-check [-i]
 Check that the privacy and hardening setup is working right now: random MAC,
 DHCP, IPv6, DNS through dnscrypt-proxy, blocklist, DNS lock, time, kernel
-lockdown, AppArmor, open ports, bluetooth, camera and microphone.
+lockdown, AppArmor, hidepid, setuid programs, open ports, bluetooth, camera
+and microphone.
 Nothing leaves this machine except a DNS query through dnscrypt-proxy.
 Exits 1 if something needs attention.
 
@@ -53,6 +54,18 @@ warn() {
 }
 info() { printf '  %s· %s%s\n' "$D" "$*" "$N"; }
 section() { printf '\n%s%s%s\n' "$B" "$1" "$N"; }
+
+hidden() {
+    [ "$(id -u)" != 0 ] && ! id -Gn | tr ' ' '\n' | grep -qx proc &&
+        awk '$2 == "/proc" && $4 ~ /hidepid=/ { f = 1 } END { exit !f }' /proc/self/mounts
+}
+
+# 2: hidden by hidepid
+running() {
+    pgrep "$@" >/dev/null && return 0
+    hidden && return 2
+    return 1
+}
 
 nm_conf() { cat /etc/NetworkManager/NetworkManager.conf /etc/NetworkManager/conf.d/*.conf 2>/dev/null; }
 
@@ -110,11 +123,12 @@ if [ "$(grep -E '^[[:space:]]*nameserver' /etc/resolv.conf | awk '{print $2}' | 
 else
     warn "/etc/resolv.conf has other nameservers: $(grep -E '^[[:space:]]*nameserver' /etc/resolv.conf | awk '{print $2}' | tr '\n' ' ')"
 fi
-if pgrep -xu dnscrypt_proxy dnscrypt-proxy >/dev/null; then
-    ok "dnscrypt-proxy running as dnscrypt_proxy"
-else
-    warn "dnscrypt-proxy is not running"
-fi
+running -xu dnscrypt_proxy dnscrypt-proxy
+case $? in
+0) ok "dnscrypt-proxy running as dnscrypt_proxy" ;;
+2) info "dnscrypt-proxy hidden by hidepid, the queries below test it" ;;
+*) warn "dnscrypt-proxy is not running" ;;
+esac
 if awk '/^\[/ { s = $0 } s == "[anonymized_dns]" && !/^[[:space:]]*#/ && /via *= *\[/' \
     /etc/dnscrypt-proxy/dnscrypt-proxy.toml 2>/dev/null | grep -q .; then
     ok "Anonymized DNS: queries go through relays"
@@ -224,8 +238,10 @@ $dns
 EOF
 
 section Time
-if pgrep -x chronyd >/dev/null; then
-    ok "chronyd running"
+running -x chronyd
+r=$?
+if [ "$r" != 1 ]; then
+    [ "$r" = 2 ] || ok "chronyd running"
     if grep -E '^[[:space:]]*(server|pool)' /etc/chrony.conf | grep -qvw nts; then
         warn "some time servers are not authenticated with NTS"
     else
@@ -257,8 +273,25 @@ if aa-enabled -q 2>/dev/null; then
             break
         done
     done
+    ! hidden || info "services of other users are hidden by hidepid: 'doas aa-status' lists them"
 else
     warn "AppArmor is not enabled"
+fi
+if awk '$2 == "/proc" && $4 ~ /hidepid=/ { f = 1 } END { exit !f }' /proc/self/mounts; then
+    ok "/proc shows only your own processes (hidepid)"
+elif [ -r /etc/runit/core-services/01-hidepid.sh ]; then
+    warn "/proc shows every process: hidepid is on after a reboot"
+else
+    info "/proc shows the processes of every user"
+fi
+if [ -x /usr/local/sbin/nosuid ]; then
+    s=$(/usr/local/sbin/nosuid -n | sed 's,.*/,,' | tr '\n' ' ')
+    s=${s% }
+    if [ -n "$s" ]; then
+        warn "setuid back after an update: $s ('doas nosuid' or the next boot removes it)"
+    else
+        ok "no setuid on su, pkexec, passwd and the others"
+    fi
 fi
 open=$(ss -tulnH 2>/dev/null | awk '$5 !~ /^(127\.|\[::1\]|\[::ffff:127\.)|%lo:/ { print $1 " " $5 }' | sort -u)
 if [ -z "$open" ]; then

@@ -1,0 +1,33 @@
+#!/bin/sh
+# Drops setuid/setgid from programs not needed with doas. -n only lists them.
+# Updates put the bits back: maint and the boot run this again.
+set -u
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
+
+LIST='/usr/bin/su /usr/bin/pkexec
+/usr/bin/passwd /usr/bin/chsh /usr/bin/chfn /usr/bin/chage /usr/bin/expiry
+/usr/bin/gpasswd /usr/bin/newgrp /usr/bin/sg
+/usr/bin/mount /usr/bin/umount
+/usr/bin/newuidmap /usr/bin/newgidmap
+/usr/libexec/ssh-keysign
+/usr/bin/wall /usr/bin/write
+/usr/libexec/Xorg.wrap'
+
+check=0
+case ${1:-} in
+-n) check=1 ;;
+'') ;;
+*)
+    echo "usage: nosuid [-n]" >&2
+    exit 2
+    ;;
+esac
+
+rc=0
+for f in $LIST; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    [ -u "$f" ] || [ -g "$f" ] || continue
+    echo "$f"
+    [ "$check" = 1 ] || chmod ug-s -- "$f" || rc=1
+done
+exit "$rc"

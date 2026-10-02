@@ -7,6 +7,11 @@ PSTORE=/var/log/pstore
 SESSION=${XDG_STATE_HOME:-$HOME/.local/state}/g0wm
 USERSV=${XDG_STATE_HOME:-$HOME/.local/state}/services/log
 
+hidden() {
+    [ "$(id -u)" != 0 ] && ! id -Gn | tr ' ' '\n' | grep -qx proc &&
+        awk '$2 == "/proc" && $4 ~ /hidepid=/ { f = 1 } END { exit !f }' /proc/self/mounts
+}
+
 usage() {
     cat <<EOF
 Usage: logs [-u] [-n|-p] [COMMAND [ARGS]]
@@ -357,7 +362,13 @@ status() {
     run() {
         m=$1
         shift
-        if pgrep "$@" >/dev/null; then ok "$m"; else bad "$m: not running"; fi
+        if pgrep "$@" >/dev/null; then
+            ok "$m"
+        elif hidden; then
+            info "$m: hidden by hidepid, 'doas logs status' sees it"
+        else
+            bad "$m: not running"
+        fi
     }
 
     sec Services
@@ -366,7 +377,7 @@ status() {
     run "svlogd: writes $D" -x svlogd
     run "watchdog: notifications" -f 'dmesg -W -k'
     run "earlyoom: closes a program before memory runs out" -x earlyoom
-    if id -Gn | tr ' ' '\n' | grep -qx socklog; then ok "$(id -un) reads the logs (socklog group)"; else bad "$(id -un) is not in the socklog group"; fi
+    if [ "$(id -u)" = 0 ] || id -Gn | tr ' ' '\n' | grep -qx socklog; then ok "$(id -un) reads the logs (socklog group)"; else bad "$(id -un) is not in the socklog group"; fi
 
     sec "Logs (local time)"
     if [ -x "$D" ]; then

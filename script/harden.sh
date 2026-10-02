@@ -60,6 +60,47 @@ do_harden() {
     grub_words "${HARDEN_CMDLINE[@]}"
     boot_mask
     tmp_mount
+    hide_pids
+    no_suid
+}
+
+hide_pids() {
+    local u
+    put_tree hidepid
+    run "hidepid script parses" sh -n /etc/runit/core-services/01-hidepid.sh
+    if getent group proc >/dev/null; then
+        skip "group proc"
+    else
+        jot grpdel proc
+        groupadd -r proc >>"$LOG" 2>&1 || die "cannot create the group proc"
+        ok "group proc created"
+    fi
+    # need to see other users' processes
+    for u in polkitd rtkit; do
+        getent passwd "$u" >/dev/null || continue
+        if [[ " $(id -nG -- "$u") " == *" proc "* ]]; then
+            skip "$u in proc"
+            continue
+        fi
+        jot group proc "$u"
+        gpasswd -a "$u" proc >>"$LOG" 2>&1 || die "cannot add $u to proc"
+        ok "$u added to proc"
+    done
+}
+
+no_suid() {
+    local f m n=0
+    put_tree nosuid
+    run "nosuid parses" sh -n /usr/local/sbin/nosuid
+    run "nosuid boot script parses" sh -n /etc/runit/core-services/05-nosuid.sh
+    while IFS= read -r f; do
+        m=$(stat -c '%a %u:%g' -- "$f")
+        jot perm "$f" "${m% *}" "${m#* }"
+        chmod ug-s -- "$f"
+        ok "$f ${m% *} -> $(stat -c %a -- "$f")"
+        n=$((n + 1))
+    done < <(/usr/local/sbin/nosuid -n)
+    ((n)) || skip "no setuid on su pkexec passwd and the others"
 }
 
 boot_mask() {

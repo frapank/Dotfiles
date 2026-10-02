@@ -39,6 +39,8 @@ plan() {
 		  ${HARDEN_CMDLINE[*]}
 		New machine ID at every boot, so apps cannot track this machine by it.
 		fstab: /boot root only, /tmp a nosuid,nodev tmpfs unless a partition.
+		/proc, after reboot: you see only your own processes ('doas htop' for all). Group proc sees all: polkitd, rtkit.
+		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap ssh-keysign wall write: doas does it ('doas passwd $TUSER'). Updates put it back, maint and every boot take it off again (nosuid).
 	EOF
     section apparmor "AppArmor: confine the apps that parse untrusted input" <<-EOF
 		Apps keep working, but an exploit cannot read secrets (~/.ssh ~/.gnupg keyrings history), write files that run code later (shell startup, autostart, PATH, configs, git hooks, this repo) or use setuid programs.
@@ -186,7 +188,11 @@ plan() {
         st=$(passwd -S -- "$TUSER" | awk '{print $2}')
         [[ $st == P ]] || die "$TUSER has no usable password (passwd -S: $st), run 'passwd $TUSER' first"
     fi
-    ((SEL[harden] == 0)) || sig_check
+    if ((SEL[harden])); then
+        sig_check
+        command -v doas >/dev/null || command -v sudo >/dev/null || ((SEL[doas])) ||
+            die "harden: su loses setuid, install doas or sudo first or select doas"
+    fi
     ((SEL[apparmor] == 0)) || aa_check
 
     local k on=() off=()
