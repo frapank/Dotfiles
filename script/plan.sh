@@ -75,7 +75,7 @@ plan() {
 		DNS: dnscrypt-proxy on 127.0.0.1, DNSSEC, no-log servers, always via an Anonymized DNS relay: no server sees both your IP and your queries.
 		  Bootstrap through Quad9. HaGeZi Multi PRO blocklist, updated daily with maint.
 		  With harden, any other DNS (ports 53 and 853) is blocked. Captive portal: 'doas nft delete table inet dns' until the next boot.
-		Time: chrony with NTS. Replaces dhcpcd, wpa_supplicant and ntpd.
+		Time: chrony with NTS, no UDP command port. Replaces dhcpcd, wpa_supplicant and ntpd.
 		Runs near the end, the network may drop for a moment.
 	EOF
     section boot "Boot: initramfs, splash, login screen" <<-EOF
