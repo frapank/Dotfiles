@@ -26,6 +26,7 @@ plan() {
 		Copies home/{$(join , "${HOME_CLI[@]}")}, login shell bash.
 		~/.bashrc and ~/.bash_profile get one line on top that sources ~/.bashrc_dotfile and ~/.bash_profile_dotfile, what programs add under it stays.
 		Files in the way, ~/.vimrc and ~/.tmux.conf go to ~/_backup/$TS.
+		No phoning home: DO_NOT_TRACK, Go downloads straight from the source instead of Google's proxy and never fetches a toolchain, no pip and npm update checks, no npm audit. wget and curl send no version and wget keeps no list of sites (HSTS) and no download URL on files.
 	EOF
     section lsp "Language servers for nvim" <<-EOF
 		Installs ${PKG_LSP[*]}
