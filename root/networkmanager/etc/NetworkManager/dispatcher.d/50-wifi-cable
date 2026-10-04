@@ -1,0 +1,24 @@
+#!/bin/sh
+# Wi-Fi off while a cable is connected: an idle Wi-Fi card keeps scanning
+mark=/var/lib/NetworkManager/wifi-off-by-cable
+
+wired() {
+    [ -e "/sys/class/net/$1/device" ] && [ ! -e "/sys/class/net/$1/wireless" ] &&
+        [ ! -e "/sys/class/net/$1/phy80211" ] && [ "$(cat "/sys/class/net/$1/type")" = 1 ]
+}
+
+case $2 in
+up)
+    wired "$1" || exit 0
+    [ "$(nmcli radio wifi)" = enabled ] || exit 0
+    touch "$mark" && nmcli radio wifi off
+    ;;
+down)
+    wired "$1" && [ -e "$mark" ] || exit 0
+    for d in /sys/class/net/*; do
+        i=${d##*/}
+        [ "$i" != "$1" ] && wired "$i" && [ "$(cat "$d/operstate")" = up ] && exit 0
+    done
+    rm -f "$mark" && nmcli radio wifi on
+    ;;
+esac
