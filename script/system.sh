@@ -421,6 +421,10 @@ verify() {
             warn "bluetooth still turns on at boot"
             bad=1
         }
+        grep -qx Privacy=device /etc/bluetooth/main.conf || {
+            warn "bluetooth uses the fixed address of the card"
+            bad=1
+        }
     fi
     if ((SEL[media])); then
         [[ -f $THOME/.config/xdg-desktop-portal/g0wm-portals.conf ]] || {

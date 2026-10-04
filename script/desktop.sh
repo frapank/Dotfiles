@@ -157,26 +157,70 @@ do_session() {
     pam_keyring /etc/pam.d/passwd \
         'password   optional     pam_gnome_keyring.so'
     gset plugin-list "['!StatusNotifierItem', '!StatusIcon']" org.blueman.general
-    bt_off
+    bt_conf
 }
 
-bt_off() {
+bt_conf() {
     local f=/etc/bluetooth/main.conf
     [[ -f $f ]] || die "$f missing (bluez)"
-    put_text "$f" 0644 < <(awk '
+    # Name: shown to every device that scans, instead of the hostname
+    # Privacy: a random address that changes, instead of the fixed one of the card
+    put_text "$f" 0644 < <(ini_set "$f" \
+        General/Name=Computer \
+        General/Privacy=device \
+        General/DiscoverableTimeout=30 \
+        Policy/AutoEnable=false)
+}
+
+# print the ini FILE with each SECTION/KEY=VALUE set: the first line with KEY in
+# [SECTION], even commented out, becomes KEY=VALUE and the others are dropped;
+# a missing KEY goes at the end of its section, a missing section at the end
+ini_set() {
+    local f=$1
+    shift
+    awk -v sets="$(printf '%s\n' "$@")" '
+		BEGIN {
+			n = split(sets, l, "\n")
+			for (i = 1; i <= n; i++) {
+				if (l[i] == "") continue
+				j = index(l[i], "/")
+				e = index(l[i], "=")
+				sec = "[" substr(l[i], 1, j - 1) "]"
+				key = substr(l[i], j + 1, e - j - 1)
+				line[sec, key] = key "=" substr(l[i], e + 1)
+				order[++m] = sec SUBSEP key
+			}
+		}
+		function flush(sec, all,   i, k, hdr) {
+			for (i = 1; i <= m; i++) {
+				if (order[i] in done) continue
+				split(order[i], k, SUBSEP)
+				if (!all && k[1] != sec) continue
+				if (all && !(k[1] in hdr)) {
+					print "\n" k[1]
+					hdr[k[1]] = 1
+				}
+				print line[order[i]]
+				done[order[i]] = 1
+			}
+		}
 		/^\[/ {
-			if (s == "[Policy]" && !done) { print "AutoEnable=false"; done = 1 }
+			flush(s, 0)
 			s = $0
 		}
-		s == "[Policy]" && /^#?[[:space:]]*AutoEnable[[:space:]]*=/ {
-			if (!done) print "AutoEnable=false"
-			done = 1
-			next
+		/^#?[[:space:]]*[A-Za-z0-9]+[[:space:]]*=/ {
+			k = $0
+			sub(/^#?[[:space:]]*/, "", k)
+			sub(/[[:space:]]*=.*/, "", k)
+			if ((s, k) in line) {
+				if (!((s, k) in done)) print line[s, k]
+				done[s, k] = 1
+				next
+			}
 		}
 		{ print }
 		END {
-			if (done) exit
-			if (s != "[Policy]") print "\n[Policy]"
-			print "AutoEnable=false"
-		}' "$f")
+			flush(s, 0)
+			flush("", 1)
+		}' "$f"
 }
