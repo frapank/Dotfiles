@@ -161,6 +161,7 @@ plan() {
 		Super+Print: record, Shift: region, Ctrl: no audio.
 		Super+= nightlight. Super+- always on: no lock or blank until off.
 		Default apps: images Loupe, video Showtime, PDF Papers, web librewolf, folders Thunar, archives xarchiver, documents LibreOffice, text vim (nvim in Open With).
+		LibreWolf: letterboxing on, so the window size the tiling layout gives it does not identify it (~/.config/librewolf/librewolf/librewolf.overrides.cfg).
 	EOF
     section games "Games: Steam and Lutris work once you install them" <<-EOF
 		vm.max_map_count 1048576 as on SteamOS: many Proton games crash with the default 65530.
