@@ -84,7 +84,19 @@ done
 vpn=$(ip -d -j link | jq -r '.[] | select(.linkinfo.info_kind == "wireguard" or .linkinfo.info_kind == "tun") | .ifname')
 # shellcheck disable=SC2086,SC2116 # echo joins the lines
 if [ -n "$vpn" ]; then ok "VPN interface up: $(echo $vpn)"; else info "no VPN: sites see your public IP"; fi
-
+hidden_ssid=$(nmcli -t -f NAME,TYPE connection show 2>/dev/null | while IFS=: read -r name type; do
+    [ "$type" = 802-11-wireless ] || continue
+    [ "$(nmcli -g 802-11-wireless.hidden connection show "$name" 2>/dev/null)" = yes ] && printf '%s ' "$name"
+done)
+if [ -n "$hidden_ssid" ]; then
+    warn "saved as hidden, the laptop calls these networks by name everywhere: ${hidden_ssid% }"
+else
+    ok "no saved hidden network: scans do not say which networks you know"
+fi
+if [ "$(nmcli radio wifi 2>/dev/null)" = enabled ] &&
+    nmcli -t -f TYPE,STATE device 2>/dev/null | grep -q '^ethernet:connected$'; then
+    warn "Wi-Fi on while the cable is connected: it keeps scanning for nothing"
+fi
 if nm_conf | grep -q '^ipv4.dhcp-send-hostname=0' && nm_conf | grep -q '^ipv6.dhcp-send-hostname=0'; then
     ok "hostname not sent over DHCP"
 else
