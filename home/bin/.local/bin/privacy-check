@@ -102,6 +102,11 @@ if nm_conf | grep -q '^ipv4.dhcp-send-hostname=0' && nm_conf | grep -q '^ipv6.dh
 else
     warn "NetworkManager may send the hostname over DHCP"
 fi
+if nm_conf | awk '/^\[/ { s = $0 } s == "[connectivity]" && /^enabled=false$/ { f = 1 } END { exit !f }'; then
+    ok "no connectivity check: NetworkManager calls no fixed URL"
+else
+    warn "NetworkManager may call a fixed URL to check the connection"
+fi
 if nm_conf | grep -q '^ipv4.dhcp-client-id=mac' && nm_conf | grep -q '^ipv6.dhcp-duid=ll'; then
     ok "DHCP identifiers follow the random MAC"
 else
