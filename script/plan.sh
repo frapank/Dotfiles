@@ -69,6 +69,7 @@ plan() {
     section net "Network, DNS and time" <<-EOF
 		Installs ${PKG_NET[*]}
 		NetworkManager: random MAC on wifi and ethernet, no hostname over DHCP, IPv6 temporary addresses, no DHCP identifier fixed across networks.
+		  Wi-Fi turns off while a cable is connected and back on when it goes: an idle card keeps scanning, and its scans can be recognized even with a random MAC.
 		DNS: dnscrypt-proxy on 127.0.0.1, DNSSEC, no-log servers, always via an Anonymized DNS relay: no server sees both your IP and your queries.
 		  Bootstrap through Quad9. HaGeZi Multi PRO blocklist, updated daily with maint.
 		  With harden, any other DNS (ports 53 and 853) is blocked. Captive portal: 'doas nft delete table inet dns' until the next boot.
