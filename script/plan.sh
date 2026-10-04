@@ -131,6 +131,7 @@ plan() {
 		Daily: deletes thumbnails of deleted files and what has been in the trash for 30 days, updates the DNS blocklist.
 		Weekly: old kernels (never the running one or one of a snapshot of /), orphans, package cache. Packages installed here are never orphans.
 		Weekly: checks for firmware updates (fwupd) and notifies, installing is 'doas fwupdmgr update'.
+		  fwupd never sends reports on failed or successful updates (the report address is emptied).
 		Weekly: disk health with smartmontools (SMART, NVMe wear and media errors), notifies what got worse since last week. Errors as they happen come from the logs notifications.
 		Monthly: btrfs scrub, on AC power only.
 		'snap FILE' lists the versions of a file in the snapshots of /home, 'snap -r DATE FILE' copies one back, 'snap -d DATE' lists what changed in your home since then.

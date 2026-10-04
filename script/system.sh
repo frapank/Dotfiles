@@ -432,6 +432,12 @@ verify() {
             bad=1
         }
     fi
+    if ((SEL[hw])); then
+        ! grep -qs '^ReportURI=.' /etc/fwupd/remotes.d/*.conf || {
+            warn "fwupd can still send reports"
+            bad=1
+        }
+    fi
     if ((SEL[harden])); then
         [[ $(stat -c '%a %U' /etc/nftables.conf) == '600 root' ]] || {
             warn "/etc/nftables.conf permissions"
