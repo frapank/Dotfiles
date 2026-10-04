@@ -76,6 +76,7 @@ plan() {
 		  Bootstrap through Quad9. HaGeZi Multi PRO blocklist, updated daily with maint.
 		  With harden, any other DNS (ports 53 and 853) is blocked. Captive portal: 'doas nft delete table inet dns' until the next boot.
 		Time: chrony with NTS, no UDP command port. Replaces dhcpcd, wpa_supplicant and ntpd.
+		No connectivity check: NetworkManager never calls a fixed URL that tells which system this is.
 		Runs near the end, the network may drop for a moment.
 	EOF
     section boot "Boot: initramfs, splash, login screen" <<-EOF
