@@ -84,6 +84,7 @@ done
 vpn=$(ip -d -j link | jq -r '.[] | select(.linkinfo.info_kind == "wireguard" or .linkinfo.info_kind == "tun") | .ifname')
 # shellcheck disable=SC2086,SC2116 # echo joins the lines
 if [ -n "$vpn" ]; then ok "VPN interface up: $(echo $vpn)"; else info "no VPN: sites see your public IP"; fi
+
 if nm_conf | grep -q '^ipv4.dhcp-send-hostname=0' && nm_conf | grep -q '^ipv6.dhcp-send-hostname=0'; then
     ok "hostname not sent over DHCP"
 else
@@ -336,9 +337,18 @@ fi
 
 section Devices
 if command -v bluetoothctl >/dev/null && [ "$(bluetoothctl show 2>/dev/null | awk '/Powered:/ { print $2 }')" = yes ]; then
-    info "bluetooth on ('bluetooth off' to turn it off)"
+    info "bluetooth on as '$(bluetoothctl show | sed -n 's/^[[:space:]]*Alias: //p')' ('bluetooth off' to turn it off)"
 else
     ok "bluetooth off"
+fi
+bt=/etc/bluetooth/main.conf
+if [ -r "$bt" ]; then
+    if grep -qE '^Privacy=(device|network|on|limited-device|limited-network)$' "$bt"; then
+        ok "bluetooth uses a random address"
+    else
+        warn "bluetooth uses the fixed address of the card"
+    fi
+    grep -qE '^Name=' "$bt" || warn "bluetooth may show the hostname to whoever scans"
 fi
 cam=
 for fd in /proc/[0-9]*/fd/*; do

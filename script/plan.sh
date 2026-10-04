@@ -167,6 +167,7 @@ plan() {
 		The keyring unlocks with your login password. Polkit agent in g0wm.
 		No tray icons: 'wifi' and 'bluetooth' open their managers.
 		Bluetooth is off at every boot: 'bluetooth on' or 'bluetooth off'.
+		Bluetooth shows itself as 'Computer' instead of the hostname, uses a random address that changes (Privacy=device) and stays discoverable 30 seconds.
 	EOF
     section theme "Theme: Adwaita dark" <<-EOF
 		GTK 2, 3, 4 and Qt 5, 6 in Adwaita dark, Geist 11 as UI font, Geist Mono 11 for code.
