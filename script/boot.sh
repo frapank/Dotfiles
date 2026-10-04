@@ -266,5 +266,15 @@ do_hw() {
     put_tree udev
     try "udev rules reload" udevadm control --reload
     try "airplane key off" udevadm trigger --action=change --subsystem-match=input
+    fwupd_noreport
     return 0
+}
+
+# no report address: even a click on "send report" sends nothing about the hardware
+fwupd_noreport() {
+    local f
+    for f in /etc/fwupd/remotes.d/*.conf; do
+        grep -q '^ReportURI=.' "$f" || continue
+        put_text "$f" 0644 < <(ini_set "$f" 'fwupd Remote/ReportURI=')
+    done
 }
