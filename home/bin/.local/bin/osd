@@ -71,6 +71,8 @@ volume/up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && volume @DEFAULT_AUD
 volume/down) wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
 volume/mute) wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
 mic/mute) wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
+mic/up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SOURCE@ 5%+ && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
+mic/down) wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%- && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
 brightness/up) brightnessctl -q s 10%+ 2>/dev/null && brightness ;;
 brightness/down) brightnessctl -q s 10%- 2>/dev/null && brightness ;;
 media/play) playerctl play-pause 2>/dev/null; player 0.2 ;;
@@ -79,7 +81,7 @@ media/prev) playerctl previous 2>/dev/null; player 0.4 ;;
 battery/) battery ;;
 clock/) show clock " Date" "$(date '+%-d/%-m/%Y %H:%M:%S')" '' 3000 ;;
 *)
-    echo "usage: osd volume up|down|mute | mic mute | brightness up|down | media play|next|prev | battery | clock" >&2
+    echo "usage: osd volume up|down|mute | mic up|down|mute | brightness up|down | media play|next|prev | battery | clock" >&2
     exit 2
     ;;
 esac

@@ -5,16 +5,44 @@ run=${XDG_RUNTIME_DIR:-/tmp}
 last=$run/record.last
 pid=$run/record.pid
 mods=$run/record.modules
+info=$run/record.info
 
-if pgrep -u "$(id -u)" -x wf-recorder >/dev/null; then
+recording() { pgrep -u "$(id -u)" -x wf-recorder >/dev/null; }
+
+stop() {
     pkill -INT -u "$(id -u)" -x wf-recorder
-    rm -f "$pid"
+    rm -f "$pid" "$info"
     file=$(cat "$last" 2>/dev/null) || file=
     (
         [ "$(notify-send -a " record" -u low -A default=Open \
             "Recording saved" "$file" 2>/dev/null)" = default ] && [ -n "$file" ] &&
             open -- "$file"
     ) </dev/null >/dev/null 2>&1 &
+}
+
+# for the rec icon in the bar: how long and what, stop, the videos
+case ${1:-} in
+info)
+    if recording && [ -r "$pid" ]; then
+        s=$(($(date +%s) - $(stat -c %Y "$pid")))
+        t=$(printf '%02d:%02d' $((s / 60 % 60)) $((s % 60)))
+        [ "$s" -lt 3600 ] || t=$((s / 3600)):$t
+        notify-send -a " record" -u low -e -t 3000 -h string:x-dunst-stack-tag:record \
+            "Recording $t" "$(cat "$info" 2>/dev/null)" || true
+    else
+        notify-send -a " record" -u low -e -t 2000 "Not recording" || true
+    fi
+    exit 0
+    ;;
+stop)
+    recording && stop
+    exit 0
+    ;;
+folder) exec files "$(xdg-user-dir VIDEOS 2>/dev/null || echo "$HOME")" ;;
+esac
+
+if recording; then
+    stop
     exit 0
 fi
 
@@ -24,7 +52,7 @@ for a in "$@"; do
     region) region=1 ;;
     --no-audio) sound= ;;
     *)
-        echo "usage: record [region] [--no-audio]" >&2
+        echo "usage: record [region] [--no-audio] | info | stop | folder" >&2
         exit 2
         ;;
     esac
@@ -82,6 +110,7 @@ dir=$(xdg-user-dir VIDEOS 2>/dev/null || echo "$HOME")
 mkdir -p "$dir"
 file=$dir/rec-$(date +%Y%m%d-%H%M%S).mp4
 printf '%s\n' "$file" >"$last"
+printf '%s\n' "$what · $label" >"$info"
 
 notify-send -a " record" -u low -e -t 2000 "Recording $what · $label" \
     "Super+Print again to stop" || true
@@ -93,5 +122,5 @@ rec=$!
 # wf-recorder's own pid: g0wm-status.sh shows the rec icon while it runs
 printf '%s\n' "$rec" >"$pid"
 wait "$rec" || wait "$rec" || :
-rm -f "$pid"
+rm -f "$pid" "$info"
 unload
