@@ -34,7 +34,6 @@ plan() {
     section harden "Kernel and firewall hardening" <<-EOF
 		sysctl: /etc/sysctl.d/{10,20,30,40}-*.conf, TCP timestamps off.
 		Firewall (nftables): drops input and forward, allows output. ICMP only errors, rate limited ping from the LAN only (the internet cannot see the machine is up, IPv6 included), neighbor discovery, router adverts, MLD.
-		  Outgoing TTL 65 instead of 64: through a phone hotspot the carrier sees the phone's own TTL, not a tethered computer.
 		SSH client: offers only configured keys, hashed known_hosts, no agent forwarding. ~/.ssh gets mode 0700, no keys are generated.
 		Blocks rarely used kernel modules with a history of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25 netrom rose x25 can ieee802154 firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2 vivid. hfsplus udf exfat ntfs3 still work.
 		Kernel command line, active after reboot: freed memory is zeroed (a few % slower), no DMA attacks over PCI and Thunderbolt, only signed modules, no /dev/mem, kexec or hibernation. The recovery entry boots without them.
