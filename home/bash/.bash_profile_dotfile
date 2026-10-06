@@ -1,7 +1,9 @@
 [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
-export QT_STYLE_OVERRIDE=Adwaita-Dark
+# not gtk3: its widget palettes override Kvantum's
+export QT_QPA_PLATFORMTHEME=qt6ct
+export QT_STYLE_OVERRIDE=kvantum
 
 if [ -n "${XDG_RUNTIME_DIR:-}" ] && command -v ssh-agent >/dev/null 2>&1; then
     export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"

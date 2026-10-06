@@ -82,7 +82,7 @@ PKG_APPS=(
 PKG_SESSION=(gnome-keyring libsecret polkit-gnome network-manager-applet
     bluez blueman libspa-bluetooth)
 PKG_THEME=(gnome-themes-extra gnome-themes-extra-gtk adwaita-icon-theme gsettings-desktop-schemas
-    dconf glib adwaita-qt adwaita-qt6 git gtk+3 librsvg curl tar xz python3)
+    dconf glib kvantum qt6ct git gtk+3 librsvg curl tar xz python3)
 PKG_FONTS=(fontconfig curl unzip nerd-fonts-symbols-ttf noto-fonts-ttf noto-fonts-emoji noto-fonts-cjk)
 NERD_FULL=(nerd-fonts nerd-fonts-ttf nerd-fonts-otf)
 PKG_LOCALE=(glibc-locales)
@@ -97,7 +97,7 @@ XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Vi
 HOME_CLI=(bash ctags nvim vim tmux ripgrep fetch)
 HOME_DESKTOP=(foot g0wm gtklock services)
 HOME_APPS=(thunar mime bin fastfetch librewolf)
-HOME_THEME=(gtk)
+HOME_THEME=(gtk qt)
 HOME_FONTS=(fontconfig)
 HOME_MEDIA=(portal)
 HOME_DIRS=(xdg)
