@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=G0wm
+Comment=Dark, flat and rounded like g0wm
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=G0wm
+IconTheme=Adwaita
+CursorTheme=Bibata-Modern-Classic
