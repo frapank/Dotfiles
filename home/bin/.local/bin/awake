@@ -2,9 +2,14 @@
 set -u
 
 # the screen does not lock by itself, it still locks before sleep
-flag=${XDG_RUNTIME_DIR:-/tmp}/awake
+run=${XDG_RUNTIME_DIR:-/tmp}
+flag=$run/awake
+# when it turns itself off, in seconds since 1970; none means never
+until=$run/awake.until
+step=1800 most=28800
 
 on() {
+    rm -f -- "$until"
     : >"$flag"
     services status idle >/dev/null
     case $? in
@@ -24,17 +29,107 @@ on() {
 }
 
 off() {
-    rm -f -- "$flag"
+    rm -f -- "$flag" "$until"
     services status idle >/dev/null 2>&1 || exit 0
     exec services restart idle
+}
+
+show() {
+    notify-send -a " awake" -u low -e -t "${2:-1500}" -h string:x-dunst-stack-tag:osd-awake \
+        "$1" ${3:+"$3"} 2>/dev/null
+}
+
+span() { # seconds -> t, as 1h 05m or 25m
+    t=$((($1 + 59) / 60))
+    if [ "$t" -ge 60 ]; then
+        t=$((t / 60))h\ $(printf '%02d' $((t % 60)))m
+    else
+        t=${t}m
+    fi
+}
+
+left() { # -> end, the time it turns off, empty for never; rem, seconds to it
+    end=$(cat "$until" 2>/dev/null) || end=
+    case $end in *[!0-9]*) end= ;; esac
+    rem=$((${end:-0} - $(date +%s)))
+}
+
+# the wheel: half an hour more or less; down from never starts at 2h, up past
+# 8h is never again, and down to nothing turns it off
+change() {
+    [ -e "$flag" ] || exit 0
+    exec 9>"$run/awake.lock"
+    flock 9
+    left
+    now=$(date +%s)
+    if [ -z "$end" ]; then
+        [ "$1" -lt 0 ] || {
+            show "Until turned off"
+            exit 0
+        }
+        rem=$((4 * step))
+    else
+        # on the half hour, so the steps read 1h 30m and not 1h 27m
+        rem=$(((rem + step - 1) / step * step + $1))
+    fi
+    if [ "$rem" -le 0 ]; then
+        show "Off"
+        off
+    elif [ "$rem" -gt "$most" ]; then
+        rm -f -- "$until"
+        show "Until turned off"
+    else
+        echo $((now + rem)) >"$until"
+        span "$rem"
+        show "For $t"
+        # the timer, one at a time; it lives on after this script
+        "$0" wait </dev/null >/dev/null 2>&1 9>&- &
+    fi
+}
+
+# turns it off when the time is up; checks often, the wheel moves the time
+wait_end() {
+    exec 8>"$run/awake.wait"
+    flock -n 8 || exit 0
+    while [ -e "$flag" ]; do
+        left
+        [ -n "$end" ] || exit 0
+        if [ "$rem" -le 0 ]; then
+            exec 8>&-
+            show "Off" 3000 "the screen locks by itself again"
+            off
+        fi
+        [ "$rem" -le 30 ] || rem=30
+        sleep "$rem"
+    done
+}
+
+info() {
+    [ -e "$flag" ] || {
+        show "Off"
+        exit 0
+    }
+    span $(($(date +%s) - $(stat -c %Y "$flag")))
+    since="On for $t"
+    left
+    if [ -n "$end" ]; then
+        span "$rem"
+        show "$since" 3000 "$t left"
+    else
+        show "$since" 3000 "until turned off"
+    fi
 }
 
 case ${1:-toggle} in
 on) on ;;
 off) off ;;
 toggle) if [ -e "$flag" ]; then off; else on; fi ;;
+longer) change "$step" ;;
+shorter) change "-$step" ;;
+info) info ;;
+wait) wait_end ;;
 *)
-    echo "usage: awake [on|off|toggle]" >&2
+    echo "usage: awake [on|off|toggle|longer|shorter|info]" >&2
     exit 2
     ;;
 esac

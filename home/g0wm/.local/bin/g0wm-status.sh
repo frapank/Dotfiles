@@ -32,7 +32,8 @@ write it.
 
 <module>_click_left, _click_middle, _click_right, _scroll_up and _scroll_down
 run a command when the module is clicked or scrolled in the bar. SIGUSR1
-reads the volume again at once: osd sends it after every change.
+reads the volume and the microphone again at once: osd sends it after every
+change.
 EOF
             exit 0
             ;;
@@ -94,6 +95,7 @@ defaults() {
     icon_netup=
     icon_rec=
     icon_mic=
+    icon_mic_muted=
     icon_cam=
     icon_dns=
     icon_nightlight=
@@ -175,7 +177,8 @@ read_config() { # reads $conf if present, then finalizes the timing settings
                 rec_format | mic_format | cam_format | dns_format | nightlight_format | awake_format | \
                 icon_rec | icon_mic | icon_cam | icon_dns | icon_nightlight | icon_awake | \
                 color_rec | color_mic | color_cam | color_dns | color_nightlight | color_awake | \
-                volume_interval | volume_format | icon_volume | icon_volume_muted | color_volume)
+                volume_interval | volume_format | icon_volume | icon_volume_muted | color_volume | \
+                icon_mic_muted)
                 # the name is one of the above, and the value is never re-parsed
                 eval "$key=\$val"
                 ;;
@@ -711,6 +714,14 @@ mic_on() {
     return 1
 }
 
+mic_muted() { # one wpctl a tick, and only while something records
+    [ "$have_wpctl" = 1 ] || return 1
+    case $(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null) in
+    *MUTED*) return 0 ;;
+    esac
+    return 1
+}
+
 dns_up() {
     while read -r du_n du_l du_r du_s du_rest; do
         [ "$du_l" = "$dns_sock" ] && [ "$du_s" = 07 ] && return 0
@@ -834,7 +845,12 @@ render() {
     netup) fmt "$netup_format" "$net_up" "$icon_netup" ;;
     rec) runs "$run_dir/record.pid" wf-recorder &&
         fmt "$rec_format" '' "$icon_rec" ;;
-    mic) mic_on && fmt "$mic_format" '' "$icon_mic" ;;
+    mic)
+        mic_on || return 0
+        bi=$icon_mic
+        [ -n "$icon_mic_muted" ] && mic_muted && bi=$icon_mic_muted
+        fmt "$mic_format" '' "$bi"
+        ;;
     cam) [ -e /run/watchdog/cam ] && fmt "$cam_format" '' "$icon_cam" ;;
     dns) dns_up || fmt "$dns_format" '' "$icon_dns" ;;
     nightlight) runs "$run_dir/nightlight.pid" wlsunset &&
@@ -863,7 +879,8 @@ main() {
     once=0
     arg_battery_interval=
 
-    # osd asks for the volume after changing it; set first, USR1 kills by default
+    # osd asks for the volume and the microphone after changing them; set
+    # first, USR1 kills by default
     kick=0
     trap 'kick=1' USR1
     options "$@"
@@ -894,6 +911,7 @@ main() {
         if [ "$kick" = 1 ]; then
             kick=0
             case " $groups " in *" volume "*) due_volume=$now ;; esac
+            case " $groups " in *" mic "*) due_mic=$now ;; esac
         fi
         for g in $groups; do
             # read groups due soon now so they share a wake

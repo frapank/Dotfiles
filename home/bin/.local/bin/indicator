@@ -1,0 +1,90 @@
+#!/bin/sh
+set -u
+
+# what the mic, cam and dns icons of the bar do when clicked
+usage() {
+    cat <<USAGE
+usage: indicator mic | cam [close] | dns [restart|logs]
+  mic          who is recording from the microphone
+  cam          who has the webcam open
+  cam close    close them, after a notification asks
+  dns          the last thing the DNS resolver logged
+  dns restart  restart it, in a terminal for doas
+  dns logs     what it logged since boot, in a terminal
+USAGE
+}
+
+show() { # app summary [body] [ms]
+    notify-send -a "$1" -u low -e -t "${4:-4000}" "$2" ${3:+"$3"} 2>/dev/null
+}
+
+# the programs on PipeWire's recording streams: the sound card itself is
+# open by PipeWire only
+mic() {
+    who=$(pactl list source-outputs 2>/dev/null | awk -F' = ' '
+		/^Source Output #/ { if (app != "") print app; app = ""; bin = 0; next }
+		/application\.process\.binary = / { gsub(/"/, "", $2); app = $2; bin = 1; next }
+		/application\.name = / && !bin { gsub(/"/, "", $2); app = $2 }
+		END { if (app != "") print app }' | sort -u | paste -sd , - | sed 's/,/, /g')
+    if [ -n "$who" ]; then
+        show " Microphone" "In use by $who"
+    else
+        show " Microphone" "Not in use"
+    fi
+}
+
+# hidepid shows only this user's programs, the only ones it could close too
+campids() { fuser /dev/video* 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+$' | sort -u; }
+
+camnames() { # pids -> names
+    [ -n "$1" ] || return 0
+    ps -o comm= -p "$(echo "$1" | paste -sd, -)" | sort -u | paste -sd , - | sed 's/,/, /g'
+}
+
+cam() {
+    pids=$(campids)
+    if [ -n "$pids" ]; then
+        show " Webcam" "In use by $(camnames "$pids")"
+    else
+        show " Webcam" "Not in use"
+    fi
+}
+
+cam_close() {
+    pids=$(campids)
+    [ -n "$pids" ] || {
+        show " Webcam" "Not in use"
+        exit 0
+    }
+    a=$(notify-send -a " Webcam" -u normal -t 10000 -A close=Close -A keep=Cancel \
+        "Close $(camnames "$pids")?" "They lose what they have not saved" 2>/dev/null)
+    [ "$a" = close ] || exit 0
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null
+}
+
+dns() {
+    l=$(logs -n service dnscrypt-proxy boot 2>/dev/null | tail -n 1)
+    if [ -z "$l" ]; then
+        show " DNS" "Not answering" "dnscrypt-proxy logged nothing since boot"
+        return
+    fi
+    # 2026-10-06 15:31:20 daemon.notice: dnscrypt-proxy: [...] [NOTICE] message
+    t=${l#* } t=${t%%:[0-9][0-9] *}
+    m=${l##*] }
+    show " DNS" "Not answering" "last message at $t: $m"
+}
+
+case ${1:-}/${2:-} in
+mic/) mic ;;
+cam/) cam ;;
+cam/close) cam_close ;;
+dns/) dns ;;
+dns/restart) exec foot -H doas sv restart dnscrypt-proxy ;;
+dns/logs) exec foot logs -p service dnscrypt-proxy boot ;;
+-h/ | --help/) usage ;;
+*)
+    usage >&2
+    exit 2
+    ;;
+esac
