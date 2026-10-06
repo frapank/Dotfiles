@@ -168,14 +168,18 @@ do_theme() {
     legacy_icons
     cursor_theme
     do_home "${HOME_THEME[@]}"
-    [[ -d /usr/share/themes/Adwaita-dark/gtk-2.0 && -d /usr/share/themes/Adwaita-dark/gtk-3.0 ]] ||
-        die "Adwaita-dark for GTK 2/3 missing (gnome-themes-extra, -gtk)"
-    [[ -f /usr/lib/qt6/plugins/styles/adwaita.so && -f /usr/lib/qt5/plugins/styles/adwaita.so ]] ||
-        die "adwaita-qt style plugins missing"
+    [[ -d /usr/share/themes/Adwaita-dark/gtk-2.0 ]] ||
+        die "Adwaita-dark for GTK 2 missing (gnome-themes-extra, -gtk)"
+    [[ -f $THOME/.local/share/themes/G0wm/gtk-3.0/gtk.css && -f $THOME/.local/share/themes/G0wm/gtk-4.0/gtk.css ]] ||
+        die "G0wm GTK theme missing in ~/.local/share/themes"
+    [[ -f /usr/lib/qt6/plugins/styles/libkvantum.so && -f /usr/lib/qt5/plugins/styles/libkvantum.so ]] ||
+        die "Kvantum style plugins missing (kvantum)"
+    [[ -f $THOME/.config/Kvantum/G0wm/G0wm.svg ]] || die "G0wm Kvantum theme missing in ~/.config/Kvantum"
+    [[ -f /usr/lib/qt6/plugins/platformthemes/libqt6ct.so ]] || die "qt6ct platform theme missing (qt6ct)"
     as_user dbus-run-session gsettings get org.gnome.desktop.interface color-scheme >/dev/null 2>&1 ||
         die "gsettings cannot read org.gnome.desktop.interface"
     gset color-scheme "'prefer-dark'"
-    gset gtk-theme "'Adwaita-dark'"
+    gset gtk-theme "'G0wm'"
     gset icon-theme "'Adwaita'"
     gset cursor-theme "'Bibata-Modern-Classic'"
     gset cursor-size "$CURSOR_SIZE"

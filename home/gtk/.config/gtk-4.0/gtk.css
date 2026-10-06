@@ -1,0 +1,919 @@
+/* G0wm for GTK 4 and libadwaita */
+
+@import url("../../.local/share/themes/G0wm/colors.css");
+
+:root {
+    --window-radius: 12px;
+    --accent-bg-color: @g0_accent;
+    --accent-fg-color: @g0_on_accent;
+    --accent-color: @g0_accent;
+    --destructive-bg-color: @g0_red;
+    --destructive-fg-color: @g0_on_accent;
+    --destructive-color: @g0_red;
+    --success-bg-color: @g0_green;
+    --success-fg-color: @g0_on_accent;
+    --success-color: @g0_green;
+    --warning-bg-color: @g0_accent;
+    --warning-fg-color: @g0_on_accent;
+    --warning-color: @g0_accent;
+    --error-bg-color: @g0_red;
+    --error-fg-color: @g0_on_accent;
+    --error-color: @g0_red;
+    --border-color: @g0_sep;
+}
+
+* {
+    text-shadow: none;
+    -gtk-icon-shadow: none;
+}
+
+*:focus-visible {
+    outline-color: color-mix(in srgb, @g0_fg 30%, transparent);
+}
+
+text selection,
+label selection,
+textview text selection {
+    background-color: @g0_accent;
+    color: @g0_on_accent;
+}
+
+text,
+textview {
+    caret-color: @g0_accent;
+}
+
+text > placeholder {
+    color: @g0_dim;
+    opacity: 1;
+}
+
+.dim-label,
+.dimmed {
+    color: @g0_dim;
+    opacity: 1;
+}
+
+.error {
+    color: @g0_red;
+}
+
+.warning {
+    color: @g0_accent;
+}
+
+.success {
+    color: @g0_green;
+}
+
+/* windows */
+
+window.csd {
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 0 1px @g0_line;
+}
+
+window.maximized,
+window.fullscreen,
+window.tiled,
+window.tiled-top,
+window.tiled-left,
+window.tiled-right,
+window.tiled-bottom,
+window.solid-csd {
+    border-radius: 0;
+    box-shadow: none;
+}
+
+headerbar,
+.top-bar,
+.bottom-bar,
+actionbar > revealer > box,
+searchbar > revealer > box {
+    background-color: @g0_bg;
+    background-image: none;
+    box-shadow: inset 0 -1px @g0_sep;
+}
+
+.bottom-bar,
+actionbar > revealer > box {
+    box-shadow: inset 0 1px @g0_sep;
+}
+
+toolbarview > .top-bar headerbar,
+toolbarview > .bottom-bar headerbar {
+    box-shadow: none;
+}
+
+headerbar .title,
+windowtitle .title {
+    font-weight: 600;
+}
+
+headerbar .subtitle,
+windowtitle .subtitle {
+    color: @g0_dim;
+}
+
+separator {
+    background-color: @g0_sep;
+}
+
+/* buttons */
+
+button,
+dropdown > button,
+menubutton > button,
+splitbutton > button,
+splitbutton > menubutton > button {
+    min-height: 24px;
+    border: 1px solid @g0_line;
+    border-radius: 8px;
+    background-color: transparent;
+    background-image: none;
+    color: @g0_fg;
+    font-weight: normal;
+    box-shadow: none;
+}
+
+button:hover,
+dropdown > button:hover,
+menubutton > button:hover,
+splitbutton > button:hover,
+splitbutton > menubutton > button:hover {
+    border-color: @g0_fg;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+button:active,
+button:checked,
+menubutton > button:checked,
+splitbutton > menubutton > button:checked {
+    border-color: @g0_line;
+    background-color: @g0_press;
+    background-image: none;
+    box-shadow: none;
+}
+
+button:checked:hover,
+button:active:hover {
+    border-color: @g0_fg;
+}
+
+button:disabled {
+    border-color: @g0_sep;
+    background-color: transparent;
+    color: @g0_mute;
+}
+
+button.circular,
+button.pill {
+    border-radius: 9999px;
+}
+
+button.suggested-action {
+    border-color: @g0_accent;
+    background-color: transparent;
+    color: @g0_accent;
+}
+
+button.suggested-action:hover {
+    border-color: @g0_accent;
+    background-color: color-mix(in srgb, @g0_accent 12%, transparent);
+}
+
+button.suggested-action:active,
+button.suggested-action:checked {
+    border-color: @g0_accent;
+    background-color: color-mix(in srgb, @g0_accent 20%, transparent);
+}
+
+button.destructive-action {
+    border-color: @g0_red;
+    background-color: transparent;
+    color: @g0_red;
+}
+
+button.destructive-action:hover {
+    border-color: @g0_red;
+    background-color: color-mix(in srgb, @g0_red 12%, transparent);
+}
+
+button.destructive-action:active,
+button.destructive-action:checked {
+    border-color: @g0_red;
+    background-color: color-mix(in srgb, @g0_red 20%, transparent);
+}
+
+button.suggested-action:disabled,
+button.destructive-action:disabled {
+    border-color: @g0_sep;
+    background-color: transparent;
+    color: @g0_mute;
+}
+
+/* flat buttons */
+
+button.flat,
+headerbar button,
+headerbar menubutton > button,
+headerbar splitbutton > button,
+headerbar splitbutton > menubutton > button,
+.toolbar button,
+actionbar button,
+searchbar button,
+menubutton.flat > button,
+splitbutton.flat > button,
+splitbutton.flat > menubutton > button,
+windowcontrols > button,
+notebook > header tab button,
+tabbar tab button,
+list row button.flat,
+.navigation-sidebar button,
+entry > button,
+popover modelbutton {
+    border-color: transparent;
+    background-color: transparent;
+    color: @g0_dim;
+}
+
+button.flat:hover,
+headerbar button:hover,
+headerbar menubutton > button:hover,
+headerbar splitbutton > button:hover,
+headerbar splitbutton > menubutton > button:hover,
+.toolbar button:hover,
+actionbar button:hover,
+searchbar button:hover,
+menubutton.flat > button:hover,
+splitbutton.flat > button:hover,
+splitbutton.flat > menubutton > button:hover,
+windowcontrols > button:hover,
+notebook > header tab button:hover,
+tabbar tab button:hover,
+list row button.flat:hover,
+.navigation-sidebar button:hover,
+entry > button:hover {
+    border-color: transparent;
+    background-color: transparent;
+    color: @g0_fg;
+}
+
+button.flat:active,
+button.flat:checked,
+headerbar button:active,
+headerbar button:checked,
+headerbar menubutton > button:checked,
+.toolbar button:active,
+.toolbar button:checked,
+actionbar button:active,
+actionbar button:checked,
+menubutton.flat > button:checked {
+    border-color: transparent;
+    background-color: @g0_press;
+    color: @g0_fg;
+}
+
+button.flat:disabled,
+headerbar button:disabled,
+.toolbar button:disabled,
+actionbar button:disabled {
+    border-color: transparent;
+    background-color: transparent;
+    color: @g0_mute;
+}
+
+headerbar button.suggested-action,
+headerbar button.suggested-action:hover,
+button.suggested-action.flat {
+    color: @g0_accent;
+}
+
+headerbar button.suggested-action {
+    border-color: @g0_accent;
+}
+
+headerbar button.destructive-action,
+headerbar button.destructive-action:hover,
+button.destructive-action.flat {
+    color: @g0_red;
+}
+
+headerbar button.destructive-action {
+    border-color: @g0_red;
+}
+
+windowcontrols > button {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0;
+    border-radius: 9999px;
+}
+
+windowcontrols > button > image {
+    background-color: transparent;
+    box-shadow: none;
+}
+
+windowcontrols > button.close:hover {
+    color: @g0_red;
+}
+
+/* buttons over pictures */
+
+button.osd,
+.osd button {
+    border-color: transparent;
+    background-color: rgba(10, 10, 10, 0.75);
+    color: @g0_fg;
+}
+
+button.osd:hover,
+.osd button:hover {
+    border-color: transparent;
+    background-color: rgba(28, 28, 28, 0.85);
+}
+
+/* linked */
+
+.linked > button,
+.linked > menubutton > button,
+.linked > dropdown > button,
+.linked > entry,
+splitbutton > button,
+splitbutton > menubutton > button {
+    border-radius: 0;
+}
+
+.linked:not(.vertical) > button:first-child,
+.linked:not(.vertical) > menubutton:first-child > button,
+.linked:not(.vertical) > dropdown:first-child > button,
+.linked:not(.vertical) > entry:first-child,
+splitbutton > button {
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+.linked:not(.vertical) > button:last-child,
+.linked:not(.vertical) > menubutton:last-child > button,
+.linked:not(.vertical) > dropdown:last-child > button,
+.linked:not(.vertical) > entry:last-child,
+splitbutton > menubutton > button {
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.linked.vertical > button:first-child,
+.linked.vertical > entry:first-child {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.linked.vertical > button:last-child,
+.linked.vertical > entry:last-child {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.linked:not(.vertical) > button:not(:last-child),
+.linked:not(.vertical) > menubutton:not(:last-child) > button,
+.linked:not(.vertical) > dropdown:not(:last-child) > button,
+.linked:not(.vertical) > entry:not(:last-child),
+splitbutton > button {
+    border-right-style: none;
+}
+
+.linked.vertical > button:not(:last-child),
+.linked.vertical > entry:not(:last-child) {
+    border-bottom-style: none;
+}
+
+/* entries */
+
+entry,
+spinbutton,
+passwordentry,
+searchbar entry {
+    min-height: 30px;
+    border: 1px solid @g0_line;
+    border-radius: 8px;
+    outline: none;
+    background-color: transparent;
+    background-image: none;
+    color: @g0_fg;
+    box-shadow: none;
+}
+
+entry:focus-within,
+spinbutton:focus-within {
+    border-color: @g0_fg;
+    outline: none;
+    box-shadow: none;
+}
+
+entry:disabled,
+spinbutton:disabled {
+    border-color: @g0_sep;
+    color: @g0_mute;
+}
+
+entry.error {
+    border-color: @g0_red;
+    color: @g0_red;
+}
+
+entry.warning {
+    border-color: @g0_accent;
+    color: @g0_accent;
+}
+
+entry > image {
+    color: @g0_dim;
+}
+
+entry > image:hover {
+    color: @g0_fg;
+}
+
+spinbutton > button,
+spinbutton > button:hover,
+spinbutton > button:active,
+spinbutton > button:disabled {
+    border-color: transparent;
+    border-radius: 0;
+    background-color: transparent;
+    color: @g0_dim;
+}
+
+spinbutton > button:hover {
+    color: @g0_fg;
+}
+
+spinbutton > button:disabled {
+    color: @g0_mute;
+}
+
+/* checks */
+
+check,
+radio {
+    min-width: 14px;
+    min-height: 14px;
+    border: 1px solid @g0_line;
+    background-color: transparent;
+    background-image: none;
+    color: @g0_on_accent;
+    box-shadow: none;
+}
+
+check {
+    border-radius: 4px;
+}
+
+radio {
+    border-radius: 9999px;
+}
+
+check:hover,
+radio:hover {
+    border-color: @g0_fg;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+check:checked,
+check:indeterminate,
+radio:checked,
+radio:indeterminate,
+check:checked:hover,
+check:indeterminate:hover,
+radio:checked:hover,
+radio:indeterminate:hover,
+check:checked:active,
+radio:checked:active {
+    border-color: @g0_accent;
+    background-color: @g0_accent;
+    background-image: none;
+    color: @g0_on_accent;
+    box-shadow: none;
+}
+
+check:disabled,
+radio:disabled {
+    border-color: @g0_sep;
+    background-color: transparent;
+    color: @g0_bg;
+}
+
+check:checked:disabled,
+check:indeterminate:disabled,
+radio:checked:disabled,
+radio:indeterminate:disabled {
+    border-color: @g0_mute;
+    background-color: @g0_mute;
+}
+
+popover.menu check,
+popover.menu radio,
+popover.menu check:checked,
+popover.menu radio:checked {
+    border-color: transparent;
+    background-color: transparent;
+    color: @g0_fg;
+}
+
+/* switches */
+
+switch {
+    border: 1px solid @g0_line;
+    border-radius: 9999px;
+    background-color: transparent;
+    background-image: none;
+    color: transparent;
+    box-shadow: none;
+}
+
+switch:hover {
+    border-color: @g0_fg;
+    background-color: transparent;
+}
+
+switch:checked,
+switch:checked:hover {
+    border-color: @g0_accent;
+    background-color: @g0_accent;
+}
+
+switch:disabled {
+    border-color: @g0_sep;
+    background-color: transparent;
+}
+
+switch > slider {
+    min-width: 18px;
+    min-height: 18px;
+    margin: 2px;
+    border: none;
+    border-radius: 9999px;
+    background-color: @g0_dim;
+    background-image: none;
+    box-shadow: none;
+}
+
+switch:hover > slider {
+    background-color: @g0_fg;
+}
+
+switch:checked > slider,
+switch:checked:hover > slider {
+    background-color: @g0_on_accent;
+}
+
+switch:disabled > slider {
+    background-color: @g0_mute;
+}
+
+switch > image {
+    color: transparent;
+}
+
+/* scales */
+
+scale.horizontal > trough,
+progressbar.horizontal > trough,
+progressbar.horizontal > trough > progress {
+    min-height: 4px;
+}
+
+scale.vertical > trough,
+progressbar.vertical > trough,
+progressbar.vertical > trough > progress {
+    min-width: 4px;
+}
+
+scale > trough,
+progressbar > trough {
+    border: none;
+    border-radius: 9999px;
+    background-color: @g0_line;
+    background-image: none;
+    box-shadow: none;
+}
+
+scale > trough > highlight,
+progressbar > trough > progress {
+    margin: 0;
+    border: none;
+    border-radius: 9999px;
+    background-color: @g0_accent;
+    background-image: none;
+}
+
+scale > trough > fill {
+    margin: 0;
+    border: none;
+    border-radius: 9999px;
+    background-color: @g0_mute;
+}
+
+scale > trough > slider {
+    min-width: 14px;
+    min-height: 14px;
+    margin: -6px;
+    border: none;
+    outline: none;
+    border-radius: 9999px;
+    background-color: @g0_fg;
+    background-image: none;
+    box-shadow: none;
+}
+
+scale > trough > slider:hover,
+scale > trough > slider:active {
+    background-color: #ffffff;
+}
+
+scale:disabled > trough > highlight,
+progressbar:disabled > trough > progress,
+scale:disabled > trough > slider {
+    background-color: @g0_mute;
+}
+
+levelbar > trough > block {
+    border: none;
+    border-radius: 4px;
+}
+
+levelbar > trough > block.filled,
+levelbar > trough > block.high {
+    background-color: @g0_green;
+}
+
+levelbar > trough > block.low {
+    background-color: @g0_accent;
+}
+
+levelbar > trough > block.empty {
+    background-color: @g0_line;
+}
+
+/* scroll bars */
+
+scrollbar,
+scrollbar > range > trough {
+    border: none;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+scrollbar > range > trough > slider {
+    min-width: 6px;
+    min-height: 6px;
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: padding-box;
+    background-color: color-mix(in srgb, @g0_dim 45%, transparent);
+}
+
+scrollbar > range > trough > slider:hover {
+    background-color: @g0_dim;
+}
+
+scrollbar > range > trough > slider:hover:active {
+    background-color: @g0_fg;
+}
+
+/* views */
+
+row:selected,
+listview > row:selected,
+columnview > listview > row:selected,
+gridview > child:selected,
+flowbox > flowboxchild:selected,
+.view:selected {
+    background-color: @g0_press;
+    color: @g0_fg;
+}
+
+row.activatable:hover:not(:selected),
+listview > row:hover:not(:selected),
+gridview > child:hover:not(:selected) {
+    background-color: @g0_hover;
+}
+
+gridview > child,
+flowbox > flowboxchild {
+    border-radius: 8px;
+}
+
+list.boxed-list,
+list.content,
+.card {
+    border: 1px solid @g0_line;
+    border-radius: 8px;
+    background-color: transparent;
+    box-shadow: none;
+}
+
+list.boxed-list > row,
+list.content > row {
+    background-color: transparent;
+}
+
+list.boxed-list > row:selected,
+list.content > row:selected {
+    background-color: @g0_press;
+}
+
+list.boxed-list > row:first-child,
+list.content > row:first-child {
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+}
+
+list.boxed-list > row:last-child,
+list.content > row:last-child {
+    border-bottom-left-radius: 7px;
+    border-bottom-right-radius: 7px;
+}
+
+columnview > header > button,
+treeview.view > header > button {
+    padding: 2px 8px;
+    border-style: none none solid none;
+    border-color: @g0_sep;
+    border-radius: 0;
+    background-color: @g0_bg;
+    color: @g0_dim;
+    font-weight: normal;
+}
+
+columnview > header > button:hover {
+    color: @g0_fg;
+}
+
+rubberband,
+.rubberband {
+    border: 1px solid @g0_dim;
+    border-radius: 4px;
+    background-color: color-mix(in srgb, @g0_fg 6%, transparent);
+}
+
+/* side bars */
+
+.sidebar,
+.navigation-sidebar,
+stacksidebar {
+    background-color: @g0_bg;
+}
+
+.navigation-sidebar > row,
+stacksidebar row {
+    min-height: 30px;
+    margin: 1px 6px;
+    border-radius: 8px;
+    color: @g0_dim;
+}
+
+.navigation-sidebar > row:hover,
+stacksidebar row:hover {
+    background-color: transparent;
+    color: @g0_fg;
+}
+
+.navigation-sidebar > row:selected,
+stacksidebar row:selected {
+    background-color: @g0_press;
+    color: @g0_fg;
+}
+
+/* tabs */
+
+notebook > header {
+    border-color: @g0_sep;
+    background-color: @g0_bg;
+    box-shadow: none;
+}
+
+notebook > header.top {
+    box-shadow: inset 0 -1px @g0_sep;
+}
+
+notebook > header.bottom {
+    box-shadow: inset 0 1px @g0_sep;
+}
+
+notebook > header > tabs > tab {
+    min-height: 26px;
+    margin: 4px 2px;
+    padding: 2px 12px;
+    border: none;
+    border-radius: 8px;
+    background-color: transparent;
+    color: @g0_dim;
+    box-shadow: none;
+}
+
+notebook > header > tabs > tab:hover {
+    background-color: transparent;
+    color: @g0_fg;
+    box-shadow: none;
+}
+
+notebook > header > tabs > tab:checked,
+notebook > header > tabs > tab:checked:hover {
+    background-color: @g0_press;
+    color: @g0_fg;
+    box-shadow: none;
+}
+
+viewswitcher button.toggle {
+    color: @g0_dim;
+}
+
+viewswitcher button.toggle:checked {
+    color: @g0_fg;
+}
+
+/* popups */
+
+popover > contents,
+popover.menu > contents {
+    padding: 4px;
+    border: none;
+    border-radius: 12px;
+    background-color: @g0_popup;
+    box-shadow: 0 0 0 1px @g0_line, 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+popover > arrow {
+    border-color: @g0_line;
+    background-color: @g0_popup;
+}
+
+popover modelbutton,
+popover.menu modelbutton {
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 6px;
+    color: @g0_fg;
+}
+
+popover modelbutton:hover,
+popover modelbutton:selected,
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+    background-color: @g0_press;
+    color: @g0_fg;
+}
+
+popover.menu accelerator {
+    color: @g0_dim;
+}
+
+popover.menu separator {
+    margin: 4px 6px;
+}
+
+tooltip,
+tooltip.background {
+    padding: 4px 8px;
+    border: 1px solid @g0_line;
+    border-radius: 8px;
+    background-color: @g0_popup;
+    color: @g0_fg;
+    box-shadow: none;
+}
+
+/* messages */
+
+infobar > revealer > box {
+    border: none;
+    background-color: @g0_bg;
+    color: @g0_fg;
+    box-shadow: inset 3px 0 @g0_green, inset 0 -1px @g0_sep;
+}
+
+infobar.warning > revealer > box {
+    box-shadow: inset 3px 0 @g0_accent, inset 0 -1px @g0_sep;
+}
+
+infobar.error > revealer > box {
+    box-shadow: inset 3px 0 @g0_red, inset 0 -1px @g0_sep;
+}
+
+banner > revealer > widget {
+    background-color: @g0_bg;
+    box-shadow: inset 3px 0 @g0_accent, inset 0 -1px @g0_sep;
+}
+
+toast {
+    border: 1px solid @g0_line;
+    border-radius: 9999px;
+    background-color: @g0_popup;
+    color: @g0_fg;
+}
