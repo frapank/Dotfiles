@@ -2,11 +2,13 @@
 set -u
 
 show() {
-    notify-send -a "$2" -u low -e -t 1500 -h "string:x-dunst-stack-tag:osd-$1" \
+    notify-send -a "$2" -u low -e -t "${5:-1500}" -h "string:x-dunst-stack-tag:osd-$1" \
         ${4:+-h "int:value:$4"} "$3" 2>/dev/null
 }
 
 volume() {
+    # the bar redraws its volume icon now instead of at its next read
+    pkill -USR1 -u "$(id -u)" -x g0wm-status.sh 2>/dev/null
     v=$(wpctl get-volume "$1") || exit 1
     case $v in
     *MUTED*) show "$2" "$3" "Muted" 0 ;;
@@ -23,6 +25,28 @@ brightness() {
     show brightness " Brightness" "$p%" "$p"
 }
 
+battery() {
+    # sum over the batteries, in energy (uWh/uW) or charge (uAh/uA)
+    t=$(cat /sys/class/power_supply/BAT*/uevent 2>/dev/null | awk -F= '
+		$1 ~ /_STATUS$/ { st = st == "" || $2 != "Full" ? $2 : st }
+		$1 ~ /_(ENERGY|CHARGE)_NOW$/ { now += $2 }
+		$1 ~ /_(ENERGY|CHARGE)_FULL$/ { full += $2 }
+		$1 ~ /_(POWER|CURRENT)_NOW$/ { rate += $2 < 0 ? -$2 : $2 }
+		END {
+			if (st == "") exit 1
+			if (st == "Full") { print "Fully charged"; exit }
+			if (rate <= 0) { print st == "Charging" ? "Charging" : "Not charging"; exit }
+			h = st == "Charging" ? (full - now) / rate : now / rate
+			m = int(h * 60 + 0.5)
+			left = m < 60 ? m "m" : int(m / 60) "h " sprintf("%02d", m % 60) "m"
+			print left, st == "Charging" ? "until full" : "remaining"
+		}') || {
+        show battery " Battery" "No battery"
+        exit 0
+    }
+    show battery " Battery" "$t" '' 3000
+}
+
 player() {
     sleep "$1"
     st=$(playerctl status 2>/dev/null) || {
@@ -35,6 +59,13 @@ player() {
     show player " Media" "$st${t:+ · $t}"
 }
 
+# one wheel notch after another, so none reads a volume the next one changes
+case ${1:-} in volume | mic)
+    exec 9>"${XDG_RUNTIME_DIR:-/tmp}/osd.lock"
+    flock 9
+    ;;
+esac
+
 case ${1:-}/${2:-} in
 volume/up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
 volume/down) wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
@@ -45,8 +76,10 @@ brightness/down) brightnessctl -q s 10%- 2>/dev/null && brightness ;;
 media/play) playerctl play-pause 2>/dev/null; player 0.2 ;;
 media/next) playerctl next 2>/dev/null; player 0.4 ;;
 media/prev) playerctl previous 2>/dev/null; player 0.4 ;;
+battery/) battery ;;
+clock/) show clock " Date" "$(date '+%-d/%-m/%Y %H:%M:%S')" '' 3000 ;;
 *)
-    echo "usage: osd volume up|down|mute | mic mute | brightness up|down | media play|next|prev" >&2
+    echo "usage: osd volume up|down|mute | mic mute | brightness up|down | media play|next|prev | battery | clock" >&2
     exit 2
     ;;
 esac

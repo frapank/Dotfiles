@@ -29,6 +29,10 @@ write it.
   -1, --once      print one line and exit
   -c, --config    read another config file
   SECONDS         seconds between battery reads (same as battery_interval)
+
+<module>_click_left, _click_middle, _click_right, _scroll_up and _scroll_down
+run a command when the module is clicked or scrolled in the bar. SIGUSR1
+reads the volume again at once: osd sends it after every change.
 EOF
             exit 0
             ;;
@@ -51,17 +55,23 @@ EOF
 }
 
 defaults() {
-    all_modules='date time battery cpu ram netdown netup rec mic cam dns nightlight awake'
+    all_modules='date time battery volume cpu ram netdown netup rec mic cam dns nightlight awake'
     modules='date time battery'
-    module_defaults='date:60 time:1 battery:30 cpu:2 ram:2 net:2 rec:0.5 mic:1 cam:1 dns:5 nightlight:0.5 awake:0.5'
+    module_defaults='date:60 time:1 battery:30 volume:2 cpu:2 ram:2 net:2 rec:0.5 mic:1 cam:1 dns:5 nightlight:0.5 awake:0.5'
+    # g0wm's numbers for the buttons of a ^sN!command^ area, 4 and 5 the wheel
+    area_buttons='1:click_left 2:click_right 3:click_middle 4:scroll_up 5:scroll_down'
     interval=
     for m in $module_defaults; do eval "${m%%:*}_interval="; done
+    for m in $all_modules; do
+        for ab in $area_buttons; do eval "${m}_${ab#*:}="; done
+    done
     prefix=' '
     separator=' '
     suffix=' '
     date_format='%a %d %b'
     time_format='%H:%M:%S'
     battery_format='%v%'
+    volume_format='%i %v%'
     cpu_format='cpu %v%'
     ram_format='ram %v%'
     netdown_format='down %v'
@@ -76,6 +86,8 @@ defaults() {
     icon_date=
     icon_time=
     icon_battery=
+    icon_volume=
+    icon_volume_muted=
     icon_cpu=
     icon_ram=
     icon_netdown=
@@ -86,12 +98,13 @@ defaults() {
     icon_dns=
     icon_nightlight=
     icon_awake=
-    all_colors='color_date color_time color_battery color_cpu color_ram
+    all_colors='color_date color_time color_battery color_volume color_cpu color_ram
 color_netdown color_netup color_battery_low color_battery_charging
 color_rec color_mic color_cam color_dns color_nightlight color_awake'
     color_date=
     color_time=
     color_battery=
+    color_volume=
     color_cpu=
     color_ram=
     color_netdown=
@@ -161,9 +174,26 @@ read_config() { # reads $conf if present, then finalizes the timing settings
                 color_battery_charging | \
                 rec_format | mic_format | cam_format | dns_format | nightlight_format | awake_format | \
                 icon_rec | icon_mic | icon_cam | icon_dns | icon_nightlight | icon_awake | \
-                color_rec | color_mic | color_cam | color_dns | color_nightlight | color_awake)
+                color_rec | color_mic | color_cam | color_dns | color_nightlight | color_awake | \
+                volume_interval | volume_format | icon_volume | icon_volume_muted | color_volume)
                 # the name is one of the above, and the value is never re-parsed
                 eval "$key=\$val"
+                ;;
+            *_click_left | *_click_middle | *_click_right | *_scroll_up | *_scroll_down)
+                rc_m=${key%_click_*}
+                rc_m=${rc_m%_scroll_*}
+                case " $all_modules " in
+                *" $rc_m "*) ;;
+                *)
+                    warn "$conf:$lineno: unknown module in '$key'"
+                    continue
+                    ;;
+                esac
+                # a caret would end the command early in the bar
+                case $val in
+                *^*) warn "$conf:$lineno: $key cannot contain '^'" ;;
+                *) eval "$key=\$val" ;;
+                esac
                 ;;
             *) warn "$conf:$lineno: unknown setting '$key'" ;;
             esac
@@ -208,6 +238,16 @@ read_config() { # reads $conf if present, then finalizes the timing settings
     separator=$ec
     esc "$suffix"
     suffix=$ec
+
+    # area_<module> opens the clickable area, which render() closes
+    for rc_m in $all_modules; do
+        rc_a=
+        for ab in $area_buttons; do
+            eval "rc_v=\${${rc_m}_${ab#*:}}"
+            [ -n "$rc_v" ] && rc_a="$rc_a^s${ab%%:*}!$rc_v^"
+        done
+        eval "area_$rc_m=\$rc_a"
+    done
 }
 
 to_ms() { # seconds to ms, 0 when not a number
@@ -290,6 +330,8 @@ detect() { # have_date, battery_method, cpu_method, ram_method, net_method
     [ -r /proc/self/comm ] && have_proc=1
     have_uptime=0
     [ -r /proc/uptime ] && have_uptime=1
+    have_wpctl=0
+    command -v wpctl >/dev/null 2>&1 && have_wpctl=1
 
     # 127.0.0.1:53 is 0100007F:0035 in /proc/net/udp
     dns_sock=
@@ -337,6 +379,13 @@ filter_modules() { # -> modules trimmed to what is available, and want_*
             [ "$battery_method" != none ] ||
                 {
                     warn 'no battery found, battery disabled'
+                    continue
+                }
+            ;;
+        volume)
+            [ "$have_wpctl" = 1 ] ||
+                {
+                    warn "'wpctl' not found, volume disabled"
                     continue
                 }
             ;;
@@ -492,20 +541,38 @@ bat_color() { # capacity -> bc, the colour its level and its state ask for
     return 0
 }
 
-bat_icon() { # capacity -> bi, picked out of icon_battery by level
+level_icon() { # icons percent -> bi, picked out of the icons by level
     bi= bi_n=0
-    for bi_g in $icon_battery; do bi_n=$((bi_n + 1)); done
+    for bi_g in $1; do bi_n=$((bi_n + 1)); done
     [ "$bi_n" -gt 0 ] || return 0
-    bi_k=$(($1 * bi_n / 100 + 1))
+    bi_k=$(($2 * bi_n / 100 + 1))
     [ "$bi_k" -gt "$bi_n" ] && bi_k=$bi_n
     bi_i=0
-    for bi_g in $icon_battery; do
+    for bi_g in $1; do
         bi_i=$((bi_i + 1))
         [ "$bi_i" = "$bi_k" ] && {
             bi=$bi_g
             return
         }
     done
+}
+
+vol_pct= vol_muted=0
+read_volume() { # "Volume: 0.53 [MUTED]" -> vol_pct 53, vol_muted 1
+    vol_pct= vol_muted=0
+    rv=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null) || return 0
+    case $rv in
+    'Volume: '*) ;;
+    *) return 0 ;;
+    esac
+    case $rv in *MUTED*) vol_muted=1 ;; esac
+    rv=${rv#Volume: } rv=${rv%% *}
+    rv_i=${rv%%.*} rv_f=${rv#*.}
+    [ "$rv_f" = "$rv" ] && rv_f=0
+    rv_f=${rv_f}00
+    rv_f=${rv_f%"${rv_f#??}"}
+    case $rv_i$rv_f in '' | *[!0-9]*) return 0 ;; esac
+    vol_pct=$((rv_i * 100 + 1$rv_f - 100))
 }
 
 cpu_tot=0 cpu_idl=0 cpu_tot_prev=0 cpu_idl_prev=0 cpu_pct=0
@@ -686,6 +753,10 @@ update() { # read a group and set when it is due again
         read_battery
         ivl=$ivl_battery
         ;;
+    volume)
+        read_volume
+        ivl=$ivl_volume
+        ;;
     cpu)
         read_cpu
         ivl=$ivl_cpu
@@ -731,7 +802,7 @@ render() {
     battery)
         rn_all=
         for rn_c in $bat_caps; do
-            bat_icon "$rn_c"
+            level_icon "$icon_battery" "$rn_c"
             fmt "$battery_format" "$rn_c" "$bi"
             esc "$r"
             bat_color "$rn_c"
@@ -739,7 +810,17 @@ render() {
             rn_all=${rn_all:+$rn_all }$r
         done
         r=$rn_all
+        area battery
         return 0
+        ;;
+    volume)
+        [ -n "$vol_pct" ] || return 0
+        if [ "$vol_muted" = 1 ]; then
+            bi=$icon_volume_muted
+        else
+            level_icon "$icon_volume" "$vol_pct"
+        fi
+        fmt "$volume_format" "$vol_pct" "$bi"
         ;;
     cpu) fmt "$cpu_format" "$cpu_pct" "$icon_cpu" ;;
     ram)
@@ -765,6 +846,13 @@ render() {
     eval "rn_col=\$color_$1"
     esc "$r"
     paint "$ec" "$rn_col"
+    area "$1"
+}
+
+area() { # module -> r wrapped in the module's clickable area, if it has one
+    eval "ar=\$area_$1"
+    [ -n "$r" ] && [ -n "$ar" ] && r="$ar$r^e^"
+    return 0
 }
 
 main() {
@@ -775,6 +863,9 @@ main() {
     once=0
     arg_battery_interval=
 
+    # osd asks for the volume after changing it; set first, USR1 kills by default
+    kick=0
+    trap 'kick=1' USR1
     options "$@"
     defaults
     read_config
@@ -800,6 +891,10 @@ main() {
     for g in $groups; do eval "due_$g=\$now"; done
     last=
     while :; do
+        if [ "$kick" = 1 ]; then
+            kick=0
+            case " $groups " in *" volume "*) due_volume=$now ;; esac
+        fi
         for g in $groups; do
             # read groups due soon now so they share a wake
             early=0
@@ -842,7 +937,14 @@ main() {
         [ "$wait" -gt 10 ] || wait=10
         ws=$((wait % 1000))
         case $ws in ?) ws=00$ws ;; ??) ws=0$ws ;; esac
-        sleep "$((wait / 1000)).$ws"
+        # in the background, so USR1 cuts the wait short; one that came
+        # while reading skips it
+        if [ "$kick" = 1 ]; then
+            wait=0
+        else
+            sleep "$((wait / 1000)).$ws" &
+            wait "$!" || kill "$!" 2>/dev/null
+        fi
         now=$((now + wait))
         [ "$have_uptime" = 1 ] && now_ms
     done
