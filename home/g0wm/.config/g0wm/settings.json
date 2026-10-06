@@ -82,6 +82,9 @@
         "smartgaps": false,
         "titlebar": true,
         "titlepadding": 15,
+        "titlecenter": true,
+        "titleclose": true,
+        "titleclosecolor": "#ff5f57ff",
         "layouts": [
             {
                 "symbol": "[ ]",
@@ -116,6 +119,8 @@
         "showbar": true,
         "topbar": true,
         "barwintitle": false,
+        "bartagdots": true,
+        "barltsymbol": false,
         "barboxradius": 2,
         "barpadding": 4,
         "barheight": 1.5,
@@ -128,7 +133,8 @@
         "notification_timeout": 5,
         "notification_linewidth": 4,
         "notification_lineradius": 2,
-        "notification_actionsign": ""
+        "notification_actionsign": "",
+        "runner_placeholder": "Run..."
     },
     "opacity": {
         "opacity_enabled": false,
@@ -1030,6 +1036,20 @@
             "button": "right",
             "action": "moveresize",
             "arg": "resize"
+        }
+    ],
+    "gestures": [
+        {
+            "motion": "swipe-left",
+            "fingers": 3,
+            "action": "shiftview",
+            "arg": 1
+        },
+        {
+            "motion": "swipe-right",
+            "fingers": 3,
+            "action": "shiftview",
+            "arg": -1
         }
     ],
     "misc": {
