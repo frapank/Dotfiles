@@ -1,7 +1,10 @@
 #!/bin/sh
-# warmer colors from 18:00 to 06:00
+# warmer colors from 18:00 to 06:00, at the temperature 'nightlight warmer'
+# and 'nightlight cooler' set
 exec 2>&1
 pkill -u "$(id -u)" -x wlsunset
+k=$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/nightlight" 2>/dev/null) || k=
+case $k in '' | *[!0-9]*) k=4000 ;; esac
 # for the nightlight icon in the bar
 echo $$ >"${XDG_RUNTIME_DIR:-/tmp}/nightlight.pid"
-exec wlsunset -t 4000 -T 4001 -S 06:00 -s 18:00
+exec wlsunset -t "$k" -T $((k + 1)) -S 06:00 -s 18:00

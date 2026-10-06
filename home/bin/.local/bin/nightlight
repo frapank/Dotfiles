@@ -1,9 +1,43 @@
 #!/bin/sh
 set -u
 
-# colors and hours are in ~/.config/sv/nightlight/run
+# the temperature in kelvin, which ~/.config/sv/nightlight/run reads
+temp=${XDG_STATE_HOME:-$HOME/.local/state}/nightlight
+run=${XDG_RUNTIME_DIR:-/tmp}
+min=2500 max=6000 step=250
+
 on() { exec services start nightlight; }
 off() { exec services stop nightlight; }
+
+kelvin() {
+    k=$(cat "$temp" 2>/dev/null) || k=
+    case $k in '' | *[!0-9]*) k=4000 ;; esac
+}
+
+show() {
+    notify-send -a " Nightlight" -u low -e -t 1500 -h string:x-dunst-stack-tag:osd-nightlight \
+        ${2:+-h "int:value:$2"} "$1" 2>/dev/null
+}
+
+# warmer is lower: the wheel takes it a step at a time, and wlsunset restarts
+# once the wheel stops instead of at every notch
+shift_temp() {
+    exec 9>"$run/nightlight.lock"
+    flock 9
+    kelvin
+    k=$((k + $1))
+    [ "$k" -ge "$min" ] || k=$min
+    [ "$k" -le "$max" ] || k=$max
+    mkdir -p -- "${temp%/*}"
+    echo "$k" >"$temp"
+    echo $$ >"$run/nightlight.seq"
+    exec 9>&-
+    show "$k K" $(((max - k) * 100 / (max - min)))
+    sleep 0.4
+    [ "$(cat "$run/nightlight.seq" 2>/dev/null)" = $$ ] || exit 0
+    services status nightlight >/dev/null 2>&1 && exec services restart nightlight
+    exit 0
+}
 
 case ${1:-toggle} in
 on) on ;;
@@ -16,8 +50,14 @@ toggle)
     *) exit 1 ;;
     esac
     ;;
+warmer) shift_temp -$step ;;
+cooler) shift_temp $step ;;
+info)
+    kelvin
+    show "$k K"
+    ;;
 *)
-    echo "usage: nightlight [on|off|toggle]" >&2
+    echo "usage: nightlight [on|off|toggle|warmer|cooler|info]" >&2
     exit 2
     ;;
 esac

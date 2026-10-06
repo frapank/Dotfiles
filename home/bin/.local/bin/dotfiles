@@ -34,6 +34,7 @@ record|Super+Print, Shift: region, Ctrl: no audio
 nightlight|Super+=
 awake|Super+-
 osd|the volume, brightness and media keys, the bar clicks
+indicator|the clicks on the mic, cam and dns icons
 power|the power key: sleep, reboot, shut down
 photo video pdf office browser files audio|the default app
 wifi bluetooth|their manager, or on/off
