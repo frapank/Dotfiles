@@ -1,7 +1,8 @@
 {
     "look": {
         "fonts": [
-            "Geist Mono:size=11"
+            "Geist Mono:size=11",
+            "Symbols Nerd Font:size=12"
         ],
         "colors": {
             "norm": {
