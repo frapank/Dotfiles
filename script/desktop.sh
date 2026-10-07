@@ -25,7 +25,7 @@ do_g0wm() {
     wp=$(grep -o '"wallpaper": *"[^"]*"' "$THOME/.config/g0wm/settings.json" | cut -d'"' -f4 || true)
     [[ -z $wp || -f $wp ]] || warn "wallpaper $wp does not exist, set it in settings.json"
 
-    local src=$THOME/.local/src/g0wm bin=$THOME/.local/bin before= rev out f where=
+    local src=$THOME/.local/src/g0wm bin=$THOME/.local/bin before= rev out where=
     where=$(g0wm_where) || where=
     if [[ -n $where ]] && ! g0wm_clone "$src"; then
         note "g0wm in ${where/#$THOME/\~}, built elsewhere: not cloned nor rebuilt"
@@ -55,7 +55,7 @@ do_g0wm() {
     run "configure g0wm" as_user sh -c 'cd "$1" && exec ./configure' _ "$src"
     run "build g0wm" as_user make -C "$src" -j"$(nproc)"
     run "test g0wm" as_user make -C "$src" test
-    for f in g0wm start-g0wm g0wm-status.sh; do stash "$bin/$f"; done
+    stash "$bin/g0wm"
     run "install g0wm into ~/.local/bin" as_user make -C "$src" install
     do_home g0wm
     out=$(as_user "$bin/g0wm" -v 2>&1 || true)
