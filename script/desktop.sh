@@ -109,10 +109,42 @@ write_mimeapps() {
     rm -f -- "$ours" "$new"
 }
 
+write_thunar_prefs() {
+    local tx=$THOME/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml new u
+    new=$(mktemp -p "$BAK")
+    {
+        if [[ -f $tx ]]; then
+            awk '/<property name="hidden-bookmarks"/ { if ($0 !~ /\/>/) skip = 1; next }
+				skip { if (/<\/property>/) skip = 0; next }
+				/<\/channel>/ { exit } { print }' "$tx"
+        else
+            printf '<?xml version="1.1" encoding="UTF-8"?>\n\n<channel name="thunar" version="1.0">\n'
+        fi
+        echo '  <property name="hidden-bookmarks" type="array">'
+        for u in "${THUNAR_HIDDEN[@]}"; do
+            printf '    <value type="string" value="%s"/>\n' "$u"
+        done
+        echo '  </property>'
+        echo '</channel>'
+    } >"$new"
+    if [[ -f $tx && ! -L $tx ]] && cmp -s "$new" "$tx" &&
+        [[ $(stat -c '%a %U' -- "$tx") == "600 $TUSER" ]]; then
+        skip "${tx/#$THOME/\~}"
+    else
+        stash "$tx"
+        as_user rm -f -- "$tx"
+        umkdir "${tx%/*}"
+        as_user sh -c 'umask 077 && cat >"$1"' _ "$tx" <"$new"
+        ok "Thunar side pane hides ${THUNAR_HIDDEN[*]}"
+    fi
+    rm -f -- "$new"
+}
+
 do_apps() {
     step "User apps"
     do_home "${HOME_APPS[@]}"
     write_mimeapps
+    write_thunar_prefs
     local mime want got
     for mime in image/png=org.gnome.Loupe.desktop video/mp4=org.gnome.Showtime.desktop \
         application/pdf=org.gnome.Papers.desktop inode/directory=thunar.desktop \

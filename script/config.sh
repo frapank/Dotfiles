@@ -106,6 +106,8 @@ SECTIONS=(update locale cli lsp harden usb apparmor net boot hw power logs swap 
 GEIST_DIR=/usr/local/share/fonts/Geist
 GEIST_MONO_DIR=/usr/local/share/fonts/GeistMono
 OLD_FONT_DIRS=(/usr/local/share/fonts/SF-Mono /usr/local/share/fonts/SF-Pro)
+# Thunar side pane: only home, Desktop, Trash, the bookmarks and File System
+THUNAR_HIDDEN=(computer:/// recent:/// network:///)
 MIME_DEFAULTS=(
     application/pdf=org.gnome.Papers.desktop
     image/png=org.gnome.Loupe.desktop
