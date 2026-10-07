@@ -53,9 +53,32 @@ _setup_prompt() {
         # shellcheck disable=SC1003
         printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "$out"
     }
+
+    # name the window after the folder, or the command while it runs
+    __title_host=
+    [[ -n $SSH_CONNECTION ]] && __title_host="$HOSTNAME: "
+
+    # shellcheck disable=SC1003
+    __title() { printf '\e]2;%s%s\e\\' "$__title_host" "${1//[[:cntrl:]]/}"; }
+
+    # the title waits half a second so quick commands do not flash it
+    __title_cmd() {
+        [[ -v READLINE_LINE ]] && return
+        __title_armed=
+        [[ $BASH_COMMAND == __set_bash_prompt ]] && return
+        local cmd=$BASH_COMMAND
+        __title_pid=$({ sleep 0.5 && __title "$cmd"; } </dev/null >/dev/tty 2>&1 & echo $!)
+    }
+    __title_dir() {
+        [[ -z $__title_pid ]] || kill "$__title_pid" 2>/dev/null
+        __title_pid=
+        __title "${PWD/#$HOME/\~}"
+    }
+    __title_armed='' __title_pid=''
+    trap '[[ -z $__title_armed ]] || __title_cmd' DEBUG
     __mark='\[\e]133;A\e\\\]'
     PS0=$'\e]133;C\e\\'
-    PROMPT_COMMAND='__set_bash_prompt; printf "\e]133;D\e\\\\"; __osc7; history -a'
+    PROMPT_COMMAND='__set_bash_prompt; printf "\e]133;D\e\\\\"; __osc7; __title_dir; history -a; __title_armed=1'
 }
 
 _setup_env() {
