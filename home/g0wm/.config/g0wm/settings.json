@@ -799,6 +799,14 @@
         },
         {
             "mod": [
+                "logo"
+            ],
+            "key": "Escape",
+            "action": "toggleinhibit",
+            "arg": null
+        },
+        {
+            "mod": [
                 "ctrl",
                 "alt"
             ],
@@ -1043,6 +1051,8 @@
     ],
     "misc": {
         "log_level": "error",
-        "bypass_surface_visibility": false
+        "bypass_surface_visibility": false,
+        "allow_tearing": true,
+        "auto_vrr": true
     }
 }
