@@ -21,9 +21,6 @@ if [ "$(tty)" = /dev/tty1 ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
     __start_g0wm() {
         PROMPT_COMMAND=${PROMPT_COMMAND#__start_g0wm; }
         unset -f __start_g0wm
-        if [ -x "$HOME/.config/sv/pipewire/run" ]; then
-            export G0WM_AUDIO=0
-        fi
         if command -v start-g0wm >/dev/null 2>&1; then
             exec start-g0wm
         fi

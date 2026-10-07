@@ -95,10 +95,6 @@
                 "arrange": "float"
             },
             {
-                "symbol": "[M]",
-                "arrange": "monocle"
-            },
-            {
                 "symbol": "| |",
                 "arrange": "tabbed"
             }
@@ -141,13 +137,6 @@
         "opacity_focus": 0.82,
         "opacity_unfocus": 0.82,
         "opacity_deco": 1,
-        "opacity_exclusion_type": "only-listed",
-        "opacity_apps": [
-            "foot",
-            "thunar",
-            "Thunar",
-            "lutris"
-        ],
         "opacity_type": "blur",
         "blur_radius": 15,
         "blur_passes": 1,
