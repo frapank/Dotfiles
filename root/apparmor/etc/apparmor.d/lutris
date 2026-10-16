@@ -7,6 +7,7 @@ profile lutris /usr/bin/lutris flags=(attach_disconnected) {
   include <abstractions/dotfiles/secrets>
   include <abstractions/dotfiles/persist>
   include <abstractions/dotfiles/setuid>
+  include <abstractions/dotfiles/browser-data>
 
   file,
   network,
@@ -19,6 +20,9 @@ profile lutris /usr/bin/lutris flags=(attach_disconnected) {
   mount,
   umount,
   pivot_root,
+
+  # links open in librewolf under its own profile
+  /usr/lib/librewolf/librewolf Px,
 
   include if exists <local/lutris>
 }
