@@ -30,7 +30,7 @@ dbus-filter-open is a dbus service in python that runs outside the sandbox. When
 
 xdg-dbus-proxy and bubblewrap are external programs, the same ones Flatpak uses. The proxy acts as a fake bus and lets through only portals, dconf and little else. The apps write dconf in a database of their own, ~/.config/dconf/sandbox, and read the user's under it: a setting they write never reaches the programs outside, some of which run what they find there (virt-manager connects to the libvirt URIs in its settings, and a URI can run a command). bwrap instead hides the real bus, ssh-agent, gpg, keyring and X11 and takes the network away from the apps without network.
 
-wl-sandbox is a small program in C that creates a "sandbox" Wayland socket: this way g0wm knows it is a confined app and does not let it read the clipboard and the screen or send fake input.
+wl-sandbox is a small program in C that creates a "sandbox" Wayland socket: this way g0wm knows it is a confined app and does not let it read the screen or send fake input. Without that socket the app has no display, it never gets the real compositor. The clipboard is not restricted: as on any Wayland desktop, the focused app is told what was copied last.
 
 Another protection present is GrapheneOS's hardened_malloc in the light variant, which is a hardened memory allocator that if it detects a memory bug makes the app crash instead of becoming a hole. It is used by papers, showtime, xarchiver and tumblerd.
 
