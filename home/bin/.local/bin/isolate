@@ -10,7 +10,8 @@ no sound, no D-Bus, no logs and no other process, and only TERM and LANG are
 passed from the environment. The current folder is visible read-only, unless
 it is your home or holds it. What is written in the empty home is lost.
 
-  -n       allow the network
+  -n       allow the network; then no Unix sockets, which would reach the
+           host's X11 and D-Bus
   -w       make the current folder writable
   -r PATH  also make PATH visible, read-only; can be repeated
 
@@ -84,7 +85,27 @@ args=(
     --setenv TERM "${TERM:-dumb}" --setenv LANG "${LANG:-C.UTF-8}"
 )
 [[ ! -d /media ]] || args+=(--tmpfs /media)
-((net)) && args+=(--share-net)
+if ((net)); then
+    # no AF_UNIX sockets: with the host network they reach X11 and D-Bus
+    [[ $(uname -m) == x86_64 ]] || die "-n: the socket filter is for x86_64 only"
+    exec 3< <(python3 -I -c '
+import struct, sys
+LD, JEQ, JGE, RET = 0x20, 0x15, 0x35, 0x06
+prog = [
+    (LD, 0, 0, 4),                 # architecture
+    (JEQ, 1, 0, 0xc000003e),       # x86_64
+    (RET, 0, 0, 0x80000000),       # else kill: 32-bit calls would go around it
+    (LD, 0, 0, 0),                 # syscall number
+    (JGE, 4, 0, 0x40000000),       # x32: refused
+    (JEQ, 0, 2, 41),               # socket()
+    (LD, 0, 0, 16),                # its domain
+    (JEQ, 1, 0, 1),                # AF_UNIX: refused
+    (RET, 0, 0, 0x7fff0000),       # allowed
+    (RET, 0, 0, 0x00050000 | 97),  # EAFNOSUPPORT
+]
+sys.stdout.buffer.write(b"".join(struct.pack("=HBBI", *i) for i in prog))')
+    args+=(--share-net --seccomp 3)
+fi
 # without the tiocsti block a sandboxed program could type into this terminal
 [[ $(cat /proc/sys/dev/tty/legacy_tiocsti 2>/dev/null) == 0 ]] || args+=(--new-session)
 
