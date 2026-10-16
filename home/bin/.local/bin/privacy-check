@@ -168,7 +168,7 @@ dns=$(
     python3 - "$probe" <<'EOF'
 import errno, random, socket, struct, sys
 
-def query(server, name, qtype, port=53, timeout=3):
+def query(server, name, qtype, port=53, timeout=3, tries=1):
     tid = random.randrange(65536)
     pkt = struct.pack('>HHHHHH', tid, 0x0100, 1, 0, 0, 0)
     pkt += b''.join(bytes([len(p)]) + p.encode() for p in name.split('.')) + b'\0'
@@ -176,8 +176,14 @@ def query(server, name, qtype, port=53, timeout=3):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(timeout)
     s.connect((server, port))
-    s.send(pkt)
-    return answers(s.recv(4096))
+    for n in range(tries):
+        s.send(pkt)
+        try:
+            return answers(s.recv(4096))
+        except socket.timeout:
+            # anonymized relays are sometimes slow
+            if n == tries - 1:
+                raise
 
 def answers(r):
     qd, an = struct.unpack('>4xHH4x', r[:12])
@@ -212,7 +218,7 @@ def say(level, msg):
     print(level + '\t' + msg)
 
 try:
-    info = [txt(d) for t, d in query('127.0.0.1', 'resolver.dnscrypt.info', 16) if t == 16]
+    info = [txt(d) for t, d in query('127.0.0.1', 'resolver.dnscrypt.info', 16, tries=2) if t == 16]
     ip = next((l.split(': ', 1)[1] for l in info if l.startswith('Resolver IP')), '?')
     say('ok', 'local resolver answers, upstream resolver ' + ip)
     if any('DNSSEC OK' in l for l in info):
@@ -224,7 +230,7 @@ except OSError as e:
 
 if sys.argv[1]:
     try:
-        a = query('127.0.0.1', sys.argv[1], 1)
+        a = query('127.0.0.1', sys.argv[1], 1, tries=2)
         if any(t == 1 for t, _ in a):
             say('warn', 'blocklist not applied: ' + sys.argv[1] + ' resolves')
         else:
@@ -318,13 +324,17 @@ if [ -x /usr/local/sbin/nosuid ]; then
         ok "no setuid on su, pkexec, passwd and the others"
     fi
 fi
-open=$(ss -tulnH 2>/dev/null | awk '$5 !~ /^(127\.|\[::1\]|\[::ffff:127\.)|%lo:/ { print $1 " " $5 }' | sort -u)
+open=$(ss -tulnpH 2>/dev/null | awk '$5 !~ /^(127\.|\[::1\]|\[::ffff:127\.)|%lo:/ { print $1 " " $5 " " $NF }' | sort -u)
+# librewolf UDP sockets (QUIC, WebRTC) are listed apart
+web=$(printf '%s\n' "$open" | grep -c '^udp .*"librewolf"' || true)
+open=$(printf '%s\n' "$open" | grep -v '^udp .*"librewolf"' | awk 'NF { print $1 " " $2 }' || true)
 if [ -z "$open" ]; then
     ok "no ports listening outside localhost"
 else
     # shellcheck disable=SC2086,SC2116 # echo joins the lines
     warn "listening outside localhost (the firewall still drops input): $(echo $open)"
 fi
+[ "$web" -eq 0 ] || info "librewolf has $web UDP sockets open (QUIC, WebRTC), the firewall drops what arrives unasked"
 if grep -v '^Filename' /proc/swaps | grep -qv '^/dev/zram'; then
     info "swap on disk: RAM contents can end up there"
 fi
