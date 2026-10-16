@@ -8,10 +8,13 @@ mods=$run/record.modules
 info=$run/record.info
 
 recording() { pgrep -u "$(id -u)" -x wf-recorder >/dev/null; }
+# refresh the bar after $1 seconds
+bar() { setsid -f sh -c "sleep ${1:-0}; exec pkill -USR1 -u $(id -u) -x g0wm-status.sh" >/dev/null 2>&1; }
 
 stop() {
     pkill -INT -u "$(id -u)" -x wf-recorder
     rm -f "$pid" "$info"
+    bar
     file=$(cat "$last" 2>/dev/null) || file=
     (
         [ "$(notify-send -a " record" -u low -A default=Open \
@@ -121,6 +124,8 @@ wf-recorder ${audio:+--audio="$audio"} ${geo:+-g "$geo"} ${out:+-o "$out"} \
 rec=$!
 # wf-recorder's own pid: g0wm-status.sh shows the rec icon while it runs
 printf '%s\n' "$rec" >"$pid"
+bar 0.5
 wait "$rec" || wait "$rec" || :
 rm -f "$pid" "$info"
+bar
 unload

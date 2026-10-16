@@ -32,8 +32,8 @@ write it.
 
 <module>_click_left, _click_middle, _click_right, _scroll_up and _scroll_down
 run a command when the module is clicked or scrolled in the bar. SIGUSR1
-reads the volume and the microphone again at once: osd sends it after every
-change.
+reads volume, mic, rec, nightlight and awake again at once: osd, record and
+the nightlight and idle services send it after a change.
 EOF
             exit 0
             ;;
@@ -910,8 +910,9 @@ main() {
     while :; do
         if [ "$kick" = 1 ]; then
             kick=0
-            case " $groups " in *" volume "*) due_volume=$now ;; esac
-            case " $groups " in *" mic "*) due_mic=$now ;; esac
+            for g in volume mic rec nightlight awake; do
+                case " $groups " in *" $g "*) eval "due_$g=\$now" ;; esac
+            done
         fi
         for g in $groups; do
             # read groups due soon now so they share a wake
