@@ -51,16 +51,16 @@ plan() {
 		Without a keyboard and a mouse here now it asks before going on, also with -y.
 	EOF
     section apparmor "AppArmor: confine the apps that parse untrusted input" <<-EOF
-		Apps keep working, but an exploit cannot read secrets (~/.ssh ~/.gnupg keyrings history), write files that run code later (shell startup, autostart, PATH, configs, git hooks, this repo) or use setuid programs.
+		Apps keep working, but an exploit cannot read the hidden files of the home but the few GTK and the fonts need (~/.ssh ~/.gnupg keyrings histories and the data and logins of every other app, also of those installed later), reach what runs commands outside (nvim, tmux, the session services), write files that run code later (shell startup, autostart, PATH, configs, git hooks, this repo) or use setuid programs.
 		  librewolf: keeps network, camera, mic and screen sharing.
 		  papers libreoffice xarchiver: offline, no mic or camera.
 		  showtime offline. tumblerd offline, writes only to ~/.cache.
 		  foot: no network, no secrets. The shell inside is not confined.
 		  dnscrypt-proxy chronyd bluetoothd NetworkManager pipewire wireplumber fwupd: only what they use.
 		  wpa_supplicant reads certificates, so eduroam works.
-		  steam lutris, if you install them: all but secrets, shell startup and setuid programs.
+		  steam lutris, if you install them: all but secrets, the browser's data, shell startup and setuid programs.
 		  Loupe is left to glycin, which already sandboxes image decoding.
-		Sandbox: these apps start in bwrap via dbus-filter, with a filtered session bus (portals, dconf, gvfs, notifications, media keys), no X11, no user namespaces and no network (librewolf keeps both).
+		Sandbox: these apps start in bwrap via dbus-filter, with a filtered session bus (portals, dconf, notifications, media keys), no X11, no user namespaces, no other process in sight and no network (librewolf keeps the network and its namespaces).
 		  With wp_security_context_v1 in g0wm they also cannot read the clipboard or screen or inject input. Copy and paste still work.
 		hardened_malloc (GrapheneOS) in papers tumblerd showtime xarchiver: heap bugs in file parsers crash instead of being exploitable.
 		Removes about 150 unused Void profiles, also on updates.

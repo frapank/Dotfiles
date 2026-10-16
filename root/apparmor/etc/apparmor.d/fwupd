@@ -28,6 +28,7 @@ profile fwupd /usr/libexec/fwupd/fwupd {
   /var/cache/fwupd/{,**} rwk,
   @{run}/dbus/system_bus_socket rw,
   @{run}/udev/{,**} r,
+  @{run}/mount/utab r,
   @{PROC}/** r,
   @{sys}/** r,
   @{sys}/firmware/efi/efivars/** rw,
@@ -39,6 +40,8 @@ profile fwupd /usr/libexec/fwupd/fwupd {
   /usr/libexec/fwupd/** ix,
 
   deny /{etc,var/lib/dbus}/machine-id r,
+  # it looks at the programs that call it, and works without
+  deny ptrace (read) peer=unconfined,
   audit deny /home/{,**} mrwkl,
   audit deny /root/{,**} mrwkl,
   audit deny /etc/{shadow,gshadow}{,-,+} mrwkl,

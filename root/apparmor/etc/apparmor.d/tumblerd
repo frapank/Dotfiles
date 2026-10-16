@@ -12,7 +12,9 @@ profile tumblerd /usr/lib/tumbler-1/tumblerd flags=(attach_disconnected) {
   include <abstractions/dotfiles/no-av>
 
   @{HOMEDIRS} r,
-  owner @{HOME}/{,**} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/[^.]** r,
+  owner @{HOME}/.config/tumbler/{,**} r,
   /{mnt,media}/{,**} r,
   @{run}/media/{,**} r,
   owner /tmp/** rwk,
