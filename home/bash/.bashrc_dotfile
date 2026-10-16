@@ -147,11 +147,12 @@ _setup_completion() {
 _setup_fzf() {
     _has fzf || return
 
+    # from the palette in script/g0wm-theme.py
     local _colors=(
-        fg:#ffffff bg:#0a0a0a hl:#9d9d9d fg+:#0a0a0a bg+:#cccccc hl+:#9d9d9d
-        border:#1a1a1a header:#8a8a8a gutter:#0a0a0a spinner:#9d9d9d info:#8a8a8a
-        pointer:#9d9d9d marker:#9d9d9d prompt:#9d9d9d query:#ffffff separator:#1a1a1a
-        scrollbar:#555555 label:#8a8a8a disabled:#7d7d7d preview-fg:#ffffff preview-bg:#0f0f0f
+        fg:#e9e9e9 bg:#0a0a0a hl:#e0a86a fg+:#e9e9e9 bg+:#1c1c1c hl+:#e0a86a
+        border:#1a1a1a header:#8a8a8a gutter:#0a0a0a spinner:#8a8a8a info:#8a8a8a pointer:#e0a86a
+        marker:#e0a86a prompt:#8a8a8a query:#e9e9e9 separator:#1a1a1a scrollbar:#555555 label:#8a8a8a
+        disabled:#555555 preview-fg:#e9e9e9 preview-bg:#0e0e0e
     )
     export FZF_DEFAULT_OPTS="--color=$(
         IFS=,
