@@ -121,7 +121,7 @@ plan() {
 		A service runs these hourly, catches up on missed ones and notifies failures. Needs / and /home on btrfs.
 		Daily: read-only snapshot of /home, last 14 kept (3 under 10% free). Same disk, not a backup.
 		  Downloads, ~/Private, ~/.cache, ~/Games, ~/.local/share/Steam and the librewolf profile are left out: what you delete there is gone.
-		Daily: system update while you are logged in, with battery over 20% and 10% free on /.
+		Daily: system update while you are logged in, with battery over 20% and 10% free on /. Flatpak apps too, if there are any.
 		  Downloads first, snapshots / (last 3 kept), then installs. Sleep and shutdown wait for it. Notifies every stage.
 		  Waits for a good connection: postponed when requests to the mirror fail or hang, under 100 KB/s, or when the download would take over 30 minutes. A notification after 3 days, 'doas maint update' updates anyway.
 		  The snapshots of / are in the GRUB menu (grub-btrfs, 'Snapshots before updates'), the daily ones of /home are not.

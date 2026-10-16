@@ -368,6 +368,10 @@ job_update() {
         log "$list"
         return 1
     }
+    if command -v flatpak >/dev/null && ! flatpak update -y --noninteractive --system 2>&1; then
+        log "update: flatpak update failed"
+        notify normal "" "Flatpak" "Update of the Flatpak apps failed: 'logs service maint'"
+    fi
     if [ -z "$list" ]; then
         log "update: up to date"
         return 0
