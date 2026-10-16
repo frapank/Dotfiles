@@ -32,6 +32,18 @@ grub_words() {
     return 0
 }
 
+# the kernel argument $1 becomes $2 in /etc/default/grub, when it is there
+grub_swap() {
+    local old=$1 new=$2
+    [[ -f /etc/default/grub ]] || return 0
+    grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub | grep -qE "[\"'[:space:]]${old}[\"'[:space:]]" || return 0
+    backup /etc/default/grub
+    sed -i -E "/^GRUB_CMDLINE_LINUX(_DEFAULT)?=/ s/([\"'[:space:]])${old}([\"'[:space:]])/\1${new}\2/" /etc/default/grub
+    grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub | grep -qF -- "$new" || die "could not change $old to $new in /etc/default/grub"
+    ok "GRUB: $old -> $new"
+    GRUB_STALE=1
+}
+
 grub_update() {
     [[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
     run "update-grub" update-grub

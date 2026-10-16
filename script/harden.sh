@@ -66,6 +66,8 @@ do_harden() {
     put_tree modprobe
     put_tree machineid
     run "machine ID script parses" sh -n /etc/runit/core-services/06-machine-id.sh
+    # replaces lockdown=integrity of older versions
+    grub_swap lockdown=integrity lockdown=confidentiality
     grub_words "${HARDEN_CMDLINE[@]}"
     boot_mask
     tmp_mount

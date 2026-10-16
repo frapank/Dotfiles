@@ -38,7 +38,7 @@ PKG_HARDEN=(nftables openssh)
 PKG_USB=(usbguard libnotify)
 HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
     randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
-    efi=disable_early_pci_dma lockdown=integrity module.sig_enforce=1 proc_mem.force_override=ptrace)
+    efi=disable_early_pci_dma lockdown=confidentiality module.sig_enforce=1 proc_mem.force_override=ptrace)
 PKG_APPARMOR=(apparmor runit-void-apparmor xdg-dbus-proxy bubblewrap python3-gobject
     wayland-devel wayland-protocols pkg-config)
 AA_KEEP=(bin.ping unix-chkpwd usr.bin.wpa_supplicant usr.sbin.dnsmasq zgrep loupe chromium cam

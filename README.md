@@ -61,7 +61,7 @@ The profiles instead are these:
 
 There are hardened kernel options that prevent several exploits:
 - memory zeroed when it is allocated and freed.
-- lockdown and only signed modules.
+- lockdown at the confidentiality level and only signed modules.
 - no kexec, SysRq and io_uring.
 - ASLR at max and kernel addresses hidden.
 - ptrace, perf and BPF restricted.
