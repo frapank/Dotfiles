@@ -17,6 +17,8 @@ profile librewolf /usr/lib/librewolf/librewolf flags=(attach_disconnected) {
 
   owner @{HOME}/.{librewolf,config/librewolf}/** rwlkm,
   owner @{HOME}/.cache/librewolf/{,**} rwk,
+  # password manager extensions
+  owner @{HOME}/.mozilla/native-messaging-hosts/{,**} r,
   /dev/snd/{,**} rw,
   /dev/video* rw,
   /dev/media* rw,

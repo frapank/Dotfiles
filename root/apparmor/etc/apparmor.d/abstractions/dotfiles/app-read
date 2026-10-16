@@ -28,16 +28,30 @@
 
   @{run}/dbus/system_bus_socket rw,
   owner @{run}/user/@{uid}/ r,
-  owner @{run}/user/@{uid}/[^.]** rwk,
+  # the rest has sockets that run commands outside the sandbox
+  owner @{run}/user/@{uid}/{pipewire-0,pulse/native} rw,
+  owner @{run}/user/@{uid}/dconf/{,user} rwk,
+  owner @{run}/user/@{uid}/{doc,gvfs}/{,**} rwk,
 
-  owner @{HOME}/.cache/{,**} r,
+  # sockets and shared memory of other programs
+  audit deny /tmp/{.*,lazygit-*,steam_chrome_*}{,/**} rwlkm,
+  audit deny /dev/shm/.* rwlkm,
+  # Steam login tokens
+  audit deny @{HOME}/.local/share/Steam/{config/{,**},ssfn*} mrwkl,
+
+  # hidden files: only what GTK, Qt, fonts and Vulkan read
+  owner @{HOME}/.{cache,config,local,local/share}/ r,
   owner @{HOME}/.cache/{fontconfig,mesa_shader_cache*,radv_builtin_shaders*,nvidia,gtk-4.0,gstreamer-1.0,thumbnails}/{,**} rwk,
   owner @{HOME}/.cache/event-sound-cache.tdb.* rwk,
-  owner @{HOME}/.config/{,**} r,
-  owner @{HOME}/.local/share/{,**} r,
-  owner @{HOME}/.icons/{,**} r,
-  owner @{HOME}/.fonts/{,**} r,
-  owner @{HOME}/.{gtkrc-2.0,XCompose,Xdefaults} r,
+  owner @{HOME}/.config/{fontconfig,gtk-3.0,gtk-4.0,dconf,xkb,vulkan,Kvantum,qt5ct,qt6ct,enchant}/{,**} r,
+  # libpulse locks its cookie while it reads it
+  owner @{HOME}/.config/pulse/{,**} rk,
+  owner @{HOME}/.config/{mimeapps.list,user-dirs.dirs,user-dirs.locale,kdeglobals} r,
+  owner @{HOME}/.local/share/{fonts,icons,themes,mime,applications,sounds,vulkan,glib-2.0,gvfs-metadata}/{,**} r,
+  owner @{HOME}/.local/share/flatpak/exports/share/{,**} r,
+  owner @{HOME}/.local/share/recently-used.xbel r,
+  owner @{HOME}/.{icons,fonts,themes,fontconfig,xkb}/{,**} r,
+  owner @{HOME}/.{gtkrc-2.0,XCompose,Xdefaults,drirc} r,
 
   unix,
   network netlink raw,

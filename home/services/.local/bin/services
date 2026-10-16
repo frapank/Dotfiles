@@ -4,7 +4,8 @@ set -u
 DEFS=${XDG_CONFIG_HOME:-$HOME/.config}/sv
 STATE=${XDG_STATE_HOME:-$HOME/.local/state}/services
 RUN=${XDG_RUNTIME_DIR:-}
-RT=$RUN/services
+# hidden from the sandboxed apps: runsvdir runs what is in it
+RT=$RUN/.services
 
 usage() {
     cat <<EOF

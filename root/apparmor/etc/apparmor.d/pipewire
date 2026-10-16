@@ -21,8 +21,11 @@ profile pipewire /usr/bin/pipewire flags=(attach_disconnected) {
   /dev/media* rw,
   /dev/dma_heap/{,**} rw,
   owner /dev/shm/** rwk,
+  owner @{run}/user/@{uid}/pipewire-0{,-manager}{,.lock} rwk,
+  owner @{run}/user/@{uid}/pulse/{,**} rwk,
   owner @{HOME}/.local/state/{pipewire,wireplumber}/{,**} rwk,
   owner @{HOME}/.config/pulse/{,**} rwk,
+  owner @{HOME}/.config/pipewire/{,**} r,
 
   /usr/bin/pipewire ix,
   /usr/bin/wireplumber Px,

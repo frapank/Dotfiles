@@ -21,7 +21,9 @@ profile wireplumber /usr/bin/wireplumber flags=(attach_disconnected) {
   /dev/media* rw,
   /dev/dma_heap/{,**} rw,
   owner /dev/shm/** rwk,
+  owner @{run}/user/@{uid}/pipewire-0{,-manager} rw,
   owner @{HOME}/.local/state/wireplumber/{,**} rwk,
+  owner @{HOME}/.{config,local/share}/wireplumber/{,**} r,
 
   /usr/{lib,libexec}/** ix,
 

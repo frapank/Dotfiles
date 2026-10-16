@@ -8,6 +8,9 @@ profile foot /usr/bin/foot{,client} {
   include <abstractions/dotfiles/pipewire-manager>
   include <abstractions/dotfiles/browser-data>
 
+  owner @{run}/user/@{uid}/wayland-[0-9]* rw,
+  owner @{HOME}/.config/foot/{,**} r,
+
   /{usr,opt}/** ux,
   /usr/bin/foot ix,
   signal (send) peer=unconfined,
