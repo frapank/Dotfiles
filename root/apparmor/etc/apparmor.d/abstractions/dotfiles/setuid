@@ -4,5 +4,7 @@
   audit deny /usr/bin/{mount,umount,fusermount,fusermount3,newuidmap,newgidmap,unix_chkpwd} x,
   audit deny /usr/bin/{xbps-uchroot,write,wall,firejail} x,
   audit deny /usr/lib/polkit-1/polkit-agent-helper-1 x,
+  audit deny /usr/libexec/{qemu-bridge-helper,spice-client-glib-usb-acl-helper} x,
+  audit deny /usr/bin/{cdrecord,readcd,cdda2wav} x,
   audit deny /usr/libexec/{dbus-daemon-launch-helper,ssh-keysign,libgtop_server2,lxc/lxc-user-nic} x,
   deny /usr/lib/utempter/utempter x,

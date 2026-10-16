@@ -99,15 +99,22 @@ hide_pids() {
 }
 
 no_suid() {
-    local f m n=0
+    local f m c n=0
     put_tree nosuid
     run "nosuid parses" sh -n /usr/local/sbin/nosuid
     run "nosuid boot script parses" sh -n /etc/runit/core-services/05-nosuid.sh
     while IFS= read -r f; do
-        m=$(stat -c '%a %u:%g' -- "$f")
-        jot perm "$f" "${m% *}" "${m#* }"
-        chmod ug-s -- "$f"
-        ok "$f ${m% *} -> $(stat -c %a -- "$f")"
+        if [[ -u $f || -g $f ]]; then
+            m=$(stat -c '%a %u:%g' -- "$f")
+            jot perm "$f" "${m% *}" "${m#* }"
+            chmod ug-s -- "$f"
+            ok "$f ${m% *} -> $(stat -c %a -- "$f")"
+        else
+            c=$(getcap -- "$f" | sed 's/^[^ ]* \(= \)\{0,1\}//')
+            jot cap "$f" "$c"
+            setcap -r "$f"
+            ok "$f: file capabilities removed"
+        fi
         n=$((n + 1))
     done < <(/usr/local/sbin/nosuid -n)
     ((n)) || skip "no setuid on su pkexec passwd and the others"

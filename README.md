@@ -71,7 +71,7 @@ There are hardened kernel options that prevent several exploits:
 ## Users, permissions and processes
 
 - the processes of other users are invisible.
-- nosuid removes setuid from su, pkexec, passwd etc., since doas is enough.
+- nosuid removes setuid from su, pkexec, passwd etc., since doas is enough, and the file capabilities of cdrecord and the other cdrtools programs.
 - doas instead of sudo.
 - a new machine-id at every boot.
 - /boot readable only by root and umask 077.

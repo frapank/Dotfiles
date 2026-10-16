@@ -86,6 +86,7 @@ rollback() {
         hchmod) as_user chmod -- "$b" "$a" ;;
         hown) chown -- "$b" "$a" ;;
         perm) chown -- "$c" "$a" && chmod -- "$b" "$a" ;;
+        cap) setcap "$b" "$a" ;;
         pkgback)
             read -ra pk <<<"$a"
             xbps-install -y -- "${pk[@]}"

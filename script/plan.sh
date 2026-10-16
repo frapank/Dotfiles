@@ -42,7 +42,8 @@ plan() {
 		fstab: /boot root only, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
 		Core dumps: a dump is the memory of the program, keys and passwords included. Only the one of g0wm is kept (~/.local/state/g0wm, for debugging it), the others are dropped (core-keep).
 		/proc, after reboot: the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, $TUSER (the polkit agent needs it).
-		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap ssh-keysign wall write firejail lxc-user-nic libgtop_server2: doas does it ('doas passwd $TUSER'). Updates put it back, maint and every boot take it off again (nosuid).
+		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap fusermount (the old one, fusermount3 stays for the FUSE mounts of the desktop) ssh-keysign wall write firejail lxc-user-nic libgtop_server2 qemu-bridge-helper spice-client-glib-usb-acl-helper: doas does it ('doas passwd $TUSER').
+		No file capabilities on cdrecord readcd cdda2wav (dac_override and sys_admin on programs anyone can run). Updates put them back, maint and every boot take them off again (nosuid).
 	EOF
     section usb "USB devices: usbguard" <<-EOF
 		The devices plugged in now are allowed. Later a new one stays blocked, and a notification asks: Allow or Block, what the device says it is and a warning when a storage or network device can also type.
