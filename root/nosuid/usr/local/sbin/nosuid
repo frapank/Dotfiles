@@ -1,6 +1,7 @@
 #!/bin/sh
-# Drops setuid/setgid from programs not needed with doas. -n only lists them.
-# Updates put the bits back: maint and the boot run this again.
+# Drops setuid/setgid from programs not needed with doas, and the file capabilities
+# of the ones anyone can run. -n only lists them.
+# Updates put them back: maint and the boot run this again.
 set -u
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
 
@@ -9,10 +10,15 @@ LIST='/usr/bin/su /usr/bin/pkexec
 /usr/bin/gpasswd /usr/bin/newgrp /usr/bin/sg
 /usr/bin/mount /usr/bin/umount
 /usr/bin/newuidmap /usr/bin/newgidmap
+/usr/bin/fusermount
 /usr/libexec/ssh-keysign
 /usr/bin/wall /usr/bin/write
 /usr/libexec/Xorg.wrap
+/usr/libexec/qemu-bridge-helper /usr/libexec/spice-client-glib-usb-acl-helper
 /usr/bin/firejail /usr/libexec/lxc/lxc-user-nic /usr/libexec/libgtop_server2'
+
+# cdrtools: dac_override, sys_admin and sys_rawio on programs with mode 0711
+CAPS='/usr/bin/cdrecord /usr/bin/readcd /usr/bin/cdda2wav'
 
 check=0
 case ${1:-} in
@@ -30,5 +36,12 @@ for f in $LIST; do
     [ -u "$f" ] || [ -g "$f" ] || continue
     echo "$f"
     [ "$check" = 1 ] || chmod ug-s -- "$f" || rc=1
+done
+command -v getcap >/dev/null && command -v setcap >/dev/null || exit "$rc"
+for f in $CAPS; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    [ -n "$(getcap -- "$f" 2>/dev/null)" ] || continue
+    echo "$f"
+    [ "$check" = 1 ] || setcap -r "$f" || rc=1
 done
 exit "$rc"

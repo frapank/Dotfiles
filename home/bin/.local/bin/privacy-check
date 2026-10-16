@@ -313,7 +313,7 @@ if [ -x /usr/local/sbin/nosuid ]; then
     s=$(/usr/local/sbin/nosuid -n | sed 's,.*/,,' | tr '\n' ' ')
     s=${s% }
     if [ -n "$s" ]; then
-        warn "setuid back after an update: $s ('doas nosuid' or the next boot removes it)"
+        warn "setuid or file capabilities back after an update: $s ('doas nosuid' or the next boot removes them)"
     else
         ok "no setuid on su, pkexec, passwd and the others"
     fi
