@@ -17,6 +17,7 @@ plan() {
 
     section update "System upgrade" <<-EOF
 		Upgrades the whole system (xbps-install -Su). Recommended.
+		On btrfs it first takes a read-only snapshot of / in /.snapshots, like maint does, so a bad upgrade can be booted away from GRUB.
 	EOF
     section locale "English everywhere" <<-EOF
 		LANG=en_US.UTF-8 and LC_COLLATE=C in /etc/locale.conf, generates the locale.
