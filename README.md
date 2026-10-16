@@ -28,7 +28,7 @@ All this comes with some .service files in /usr/local/share/dbus-1/services/ tha
 
 dbus-filter-open is a dbus service in python that runs outside the sandbox. When a filtered app wants to open another one, for example papers opening a link, the request goes through it: it checks the arguments and opens the right app with its filter. If an app without network wants to open a link in the browser, it first asks for confirmation with a notification, so it cannot get data out.
 
-xdg-dbus-proxy and bubblewrap are external programs, the same ones Flatpak uses. The proxy acts as a fake bus and lets through only portals, dconf and little else. bwrap instead hides the real bus, ssh-agent, gpg, keyring and X11 and takes the network away from the apps without network.
+xdg-dbus-proxy and bubblewrap are external programs, the same ones Flatpak uses. The proxy acts as a fake bus and lets through only portals, dconf and little else. The apps write dconf in a database of their own, ~/.config/dconf/sandbox, and read the user's under it: a setting they write never reaches the programs outside, some of which run what they find there (virt-manager connects to the libvirt URIs in its settings, and a URI can run a command). bwrap instead hides the real bus, ssh-agent, gpg, keyring and X11 and takes the network away from the apps without network.
 
 wl-sandbox is a small program in C that creates a "sandbox" Wayland socket: this way g0wm knows it is a confined app and does not let it read the clipboard and the screen or send fake input.
 

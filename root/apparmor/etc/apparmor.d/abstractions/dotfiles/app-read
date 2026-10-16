@@ -30,7 +30,8 @@
   owner @{run}/user/@{uid}/ r,
   # the rest has sockets that run commands outside the sandbox
   owner @{run}/user/@{uid}/{pipewire-0,pulse/native} rw,
-  owner @{run}/user/@{uid}/dconf/{,user} rwk,
+  # sandbox: the dconf database the apps write (DCONF_PROFILE)
+  owner @{run}/user/@{uid}/dconf/{,user,sandbox} rwk,
   owner @{run}/user/@{uid}/{doc,gvfs}/{,**} rwk,
 
   # sockets and shared memory of other programs

@@ -60,7 +60,7 @@ plan() {
 		  wpa_supplicant reads certificates, so eduroam works.
 		  steam lutris, if you install them: all but secrets, the browser's data, shell startup and setuid programs.
 		  Loupe is left to glycin, which already sandboxes image decoding.
-		Sandbox: these apps start in bwrap via dbus-filter, with a filtered session bus (portals, dconf, notifications, media keys), no X11, no user namespaces, no other process in sight and no network (librewolf keeps the network and its namespaces).
+		Sandbox: these apps start in bwrap via dbus-filter, with a filtered session bus (portals, dconf, notifications, media keys; their dconf writes go to ~/.config/dconf/sandbox, the programs outside never see them), no X11, no user namespaces, no other process in sight and no network (librewolf keeps the network and its namespaces).
 		  With wp_security_context_v1 in g0wm they also cannot read the clipboard or screen or inject input. Copy and paste still work.
 		hardened_malloc (GrapheneOS) in papers tumblerd showtime xarchiver: heap bugs in file parsers crash instead of being exploitable.
 		Removes about 150 unused Void profiles, also on updates.
