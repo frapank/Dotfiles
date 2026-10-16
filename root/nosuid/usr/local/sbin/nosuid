@@ -11,7 +11,8 @@ LIST='/usr/bin/su /usr/bin/pkexec
 /usr/bin/newuidmap /usr/bin/newgidmap
 /usr/libexec/ssh-keysign
 /usr/bin/wall /usr/bin/write
-/usr/libexec/Xorg.wrap'
+/usr/libexec/Xorg.wrap
+/usr/bin/firejail /usr/libexec/lxc/lxc-user-nic /usr/libexec/libgtop_server2'
 
 check=0
 case ${1:-} in

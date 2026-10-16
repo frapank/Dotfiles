@@ -32,16 +32,16 @@ plan() {
 		Installs ${PKG_LSP[*]}
 	EOF
     section harden "Kernel and firewall hardening" <<-EOF
-		sysctl: /etc/sysctl.d/{10,20,30,40}-*.conf, TCP timestamps off.
-		Firewall (nftables): drops input and forward, allows output. ICMP only errors, rate limited ping from the LAN only (the internet cannot see the machine is up, IPv6 included), neighbor discovery, router adverts, MLD.
+		sysctl: /etc/sysctl.d/{11,20,30,40}-*.conf, TCP timestamps off.
+		Firewall (nftables): drops input and forward, allows output. ICMP only errors, rate limited ping from the LAN only (the internet cannot see the machine is up, IPv6 included), neighbor discovery, router adverts, MLD. Nothing goes out that announces the machine on the LAN (mDNS, LLMNR, SSDP, NetBIOS, WS-Discovery, Steam).
 		SSH client: offers only configured keys, hashed known_hosts, no agent forwarding. ~/.ssh gets mode 0700, no keys are generated.
-		Blocks rarely used kernel modules with a history of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25 netrom rose x25 can ieee802154 firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2 vivid. hfsplus udf exfat ntfs3 still work.
-		Kernel command line, active after reboot: freed memory is zeroed (a few % slower), no DMA attacks over PCI and Thunderbolt, only signed modules, no /dev/mem, kexec or hibernation. The recovery entry boots without them.
+		Blocks rarely used kernel modules with a history of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25 netrom rose x25 can ieee802154 firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2 vivid kcm rxrpc nfc nilfs2 zonefs. hfsplus udf exfat ntfs3 still work.
+		Kernel command line, active after reboot: freed memory is zeroed (a few % slower), no DMA attacks over PCI and Thunderbolt, only signed modules, no /dev/mem, kexec or hibernation, no writing into a program's memory through /proc but by a debugger. The recovery entry boots without them.
 		  ${HARDEN_CMDLINE[*]}
 		New machine ID at every boot, so apps cannot track this machine by it.
-		fstab: /boot root only, /tmp a nosuid,nodev tmpfs unless a partition.
+		fstab: /boot root only, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
 		/proc, after reboot: the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, $TUSER (the polkit agent needs it).
-		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap ssh-keysign wall write: doas does it ('doas passwd $TUSER'). Updates put it back, maint and every boot take it off again (nosuid).
+		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap ssh-keysign wall write firejail lxc-user-nic libgtop_server2: doas does it ('doas passwd $TUSER'). Updates put it back, maint and every boot take it off again (nosuid).
 	EOF
     section usb "USB devices: usbguard" <<-EOF
 		The devices plugged in now are allowed. Later a new one stays blocked, and a notification asks: Allow or Block, what the device says it is and a warning when a storage or network device can also type.
