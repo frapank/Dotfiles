@@ -19,7 +19,32 @@ do_repos() {
 
 do_update() {
     step "System upgrade"
+    root_snapshot
     run "update the system" xbps-install -Suy
+}
+
+# the same read-only snapshot of / that maint takes before its updates, listed in the GRUB menu
+root_snapshot() {
+    local dir=/.snapshots snap
+    if ! command -v btrfs >/dev/null || [[ $(stat -f -c %T /) != btrfs ]] || ! btrfs subvolume show / >/dev/null 2>&1; then
+        skip "/ is not a btrfs subvolume, no snapshot before the upgrade"
+        return 0
+    fi
+    if [[ ! -e $dir && ! -L $dir ]]; then
+        run "create $dir" btrfs subvolume create "$dir"
+        chmod 0700 "$dir"
+    fi
+    if [[ -L $dir || ! -d $dir || $(stat -c %u -- "$dir") != 0 ]]; then
+        warn "$dir is not a folder owned by root, no snapshot before the upgrade"
+        return 0
+    fi
+    snap=root-$(date +%Y-%m-%d_%H%M)
+    if [[ -e $dir/$snap ]]; then
+        skip "$dir/$snap"
+        return 0
+    fi
+    run "snapshot of / before the upgrade" btrfs subvolume snapshot -r / "$dir/$snap"
+    note "$dir/$snap can be booted from GRUB (Snapshots before updates), maint deletes the old ones"
 }
 
 do_packages() {
