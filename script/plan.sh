@@ -39,7 +39,7 @@ plan() {
 		Kernel command line, active after reboot: freed memory is zeroed (a few % slower), no DMA attacks over PCI and Thunderbolt, only signed modules, no /dev/mem, kexec or hibernation, no reading of kernel memory through /proc/kcore, tracing or BPF (lockdown confidentiality), no writing into a program's memory through /proc but by a debugger. The recovery entry boots without them.
 		  ${HARDEN_CMDLINE[*]}
 		New machine ID at every boot, so apps cannot track this machine by it.
-		fstab: /boot root only, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
+		fstab: /boot root only and nosuid,nodev,noexec, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
 		Core dumps: a dump is the memory of the program, keys and passwords included. Only the one of g0wm is kept (~/.local/state/g0wm, for debugging it), the others are dropped (core-keep).
 		/proc, after reboot: the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, $TUSER (the polkit agent needs it).
 		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap fusermount (the old one, fusermount3 stays for the FUSE mounts of the desktop) ssh-keysign wall write firejail lxc-user-nic libgtop_server2 qemu-bridge-helper spice-client-glib-usb-acl-helper: doas does it ('doas passwd $TUSER').
