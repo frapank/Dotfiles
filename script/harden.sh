@@ -133,12 +133,12 @@ boot_mask() {
 		!/^[[:space:]]*#/ && $2 == m && $3 == "vfat" {
 			n = split($4, o, ","); $4 = ""
 			for (i = 1; i <= n; i++)
-				if (o[i] !~ /^(fmask|dmask|umask)=/) $4 = $4 o[i] ","
-			$4 = $4 "fmask=0077,dmask=0077"
+				if (o[i] !~ /^(fmask|dmask|umask|nosuid|nodev|noexec|exec|suid|dev)(=|$)/) $4 = $4 o[i] ","
+			$4 = $4 "nosuid,nodev,noexec,fmask=0077,dmask=0077"
 		}
 		{ print }' /etc/fstab)
     if [[ $new == "$(cat /etc/fstab)" ]]; then
-        skip "$mnt fmask=0077,dmask=0077"
+        skip "$mnt nosuid,nodev,noexec,fmask=0077,dmask=0077"
         return 0
     fi
     put_text /etc/fstab 0644 <<<"$new"
