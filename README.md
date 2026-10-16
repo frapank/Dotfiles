@@ -53,8 +53,8 @@ The profiles instead are these:
 - librewolf: network, audio and webcam, but never ~/Private.
 - papers, libreoffice, xarchiver: no network, audio and webcam.
 - showtime: no network, but with audio.
-- tumblerd: read only, it writes only the thumbnails.
-- foot: the terminal is confined, the shell inside is not.
+- tumblerd: read only, it writes only the thumbnails and its temporary files.
+- foot: the terminal is confined, the shell inside is not. It keeps foot itself from reading the secrets, not an exploit in foot, which can start a shell.
 - pipewire, wireplumber: only audio and video.
 - NetworkManager, dnscrypt-proxy, chronyd, bluetoothd, fwupd: only what they use.
 - steam, lutris: everything except secrets, browser and setuid, only if you install them.
@@ -70,7 +70,7 @@ There are hardened kernel options that prevent several exploits:
 
 ## Users, permissions and processes
 
-- the processes of other users are invisible.
+- the processes of other users are invisible to the users of the daemons. Your user is in the proc group, which the polkit agent needs, and sees them all, and so does librewolf, which has no PID namespace of its own.
 - nosuid removes setuid from su, pkexec, passwd etc., since doas is enough, and the file capabilities of cdrecord and the other cdrtools programs.
 - doas instead of sudo, with the password every time (no persist).
 - a new machine-id at every boot.

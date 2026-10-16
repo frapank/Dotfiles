@@ -57,8 +57,8 @@ plan() {
 		Apps keep working, but an exploit cannot read the hidden files of the home but the few GTK and the fonts need (~/.ssh ~/.gnupg keyrings histories and the data and logins of every other app, also of those installed later), reach what runs commands outside (nvim, tmux, the session services), write files that run code later (shell startup, autostart, PATH, configs, git hooks, this repo) or use setuid programs.
 		  librewolf: keeps network, camera, mic and screen sharing, but not ~/Private (to upload a file from there, copy it to ~/Get).
 		  papers libreoffice xarchiver: offline, no mic or camera.
-		  showtime offline. tumblerd offline, writes only to ~/.cache.
-		  foot: no network, no secrets. The shell inside is not confined.
+		  showtime offline. tumblerd offline, writes only to ~/.cache and its temporary files.
+		  foot: no network, no secrets. The shell inside is not confined, so neither is a program an exploit in foot starts.
 		  dnscrypt-proxy chronyd bluetoothd NetworkManager pipewire wireplumber fwupd: only what they use.
 		  wpa_supplicant reads certificates, so eduroam works.
 		  steam lutris, if you install them: all but secrets, the browser's data, shell startup and setuid programs.
