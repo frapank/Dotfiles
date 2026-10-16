@@ -266,7 +266,14 @@ if [ "$r" != 1 ]; then
         ok "all time servers use NTS"
     fi
     leap=$(chronyc -n tracking 2>/dev/null | awk -F': ' '/^Leap status/ { print $2 }')
-    [ "$leap" = Normal ] && ok "clock synchronized" || warn "clock not synchronized (${leap:-no answer})"
+    if [ "$leap" = Normal ]; then
+        ok "clock synchronized"
+    elif [ -z "$leap" ] && [ "$(id -u)" != 0 ]; then
+        # cmdport 0: chronyc talks to chronyd as root only
+        info "clock: 'doas privacy-check' asks chronyd"
+    else
+        warn "clock not synchronized (${leap:-no answer})"
+    fi
 else
     warn "chronyd is not running"
 fi
@@ -382,6 +389,13 @@ if [ -n "$cam" ]; then warn "camera in use by: $cam"; else ok "camera not in use
 mic=$(pactl list source-outputs 2>/dev/null | sed -n 's/.*application\.name = "\(.*\)"/\1/p' | sort -u | tr '\n' ' ')
 mic=${mic% }
 if [ -n "$mic" ]; then warn "microphone in use by: $mic"; else ok "microphone not in use"; fi
+# input/uinput: any program can read or fake the keyboard
+u=${DOAS_USER:-$(id -un)}
+for g in $(id -Gn "$u" | tr ' ' '\n' | grep -xE 'input|uinput'); do
+    warn "$u in the group $g: any program reads the keyboard or types, 'doas gpasswd -d $u $g'"
+    kbd=1
+done
+[ -n "${kbd:-}" ] || ok "only the compositor reads the keyboard"
 
 echo
 if [ "$bad" = 0 ]; then
