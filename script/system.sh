@@ -199,8 +199,9 @@ do_doas() {
     doas=$(command -v doas) || die "doas not installed"
     [[ $(stat -c %u -- "$doas") == 0 && -u $doas ]] || die "$doas is not setuid root"
 
+    # no persist: the terminal would stay root after a password
     put_text /etc/doas.conf 0400 <<-'EOF'
-		permit persist :wheel
+		permit :wheel
 	EOF
 
     tmp=$(mktemp -d)

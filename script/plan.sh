@@ -190,7 +190,8 @@ plan() {
 		Removes the full Nerd Fonts (about 8 GB).
 	EOF
     section doas "doas instead of sudo" <<-EOF
-		'permit persist :wheel', adds $TUSER to wheel, removes and blocks sudo.
+		'permit :wheel', adds $TUSER to wheel, removes and blocks sudo.
+		The password is asked every time (no persist): a program in the same terminal cannot be root for the minutes after one.
 		Needs a password for $TUSER. Runs last, a rollback always leaves you with doas or sudo.
 	EOF
 
