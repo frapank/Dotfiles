@@ -40,6 +40,9 @@ do_harden() {
         rm -f -- "$f"
         ok "removed $f (now 11-kernel-hardening.conf)"
     fi
+    # core_pattern runs it: it goes in first
+    put_tree cores
+    run "core-keep parses" sh -n /usr/local/libexec/core-keep
     save_sysctl "$REPO"/root/sysctl/etc/sysctl.d/*.conf
     put_tree sysctl
     for f in "$REPO"/root/sysctl/etc/sysctl.d/*.conf; do
