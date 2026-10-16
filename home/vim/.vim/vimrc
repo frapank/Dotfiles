@@ -26,6 +26,10 @@ if !isdirectory($HOME .. '/.vim/undo')
 endif
 set undofile undodir=~/.vim/undo
 
+# no history, undo or swap for temporary files
+set viminfo+=r/tmp,r/dev/shm,r/run
+autocmd BufReadPre,BufNewFile /tmp/*,/dev/shm/*,/run/* setlocal noundofile noswapfile
+
 # WRAPPING & SCROLLING
 set nowrap
 set linebreak

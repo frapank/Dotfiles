@@ -68,7 +68,7 @@ PKG_APPS=(
     Thunar thunar-volman thunar-archive-plugin tumbler ffmpegthumbnailer
     gvfs gvfs-mtp udisks2 xarchiver
     # default apps
-    xdg-utils gtk+3 desktop-file-utils shared-mime-info
+    xdg-utils gtk+3 desktop-file-utils shared-mime-info gsettings-desktop-schemas dconf
     # screenshots, screen recording, night light
     grim slurp swappy wl-clipboard wf-recorder libnotify wlsunset
     # terminal tools

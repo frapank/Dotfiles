@@ -145,6 +145,8 @@ do_apps() {
     do_home "${HOME_APPS[@]}"
     write_mimeapps
     write_thunar_prefs
+    # GTK reads it from gsettings, not settings.ini
+    gset remember-recent-files false org.gnome.desktop.privacy
     local mime want got
     for mime in image/png=org.gnome.Loupe.desktop video/mp4=org.gnome.Showtime.desktop \
         application/pdf=org.gnome.Papers.desktop inode/directory=thunar.desktop \

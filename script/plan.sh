@@ -162,6 +162,7 @@ plan() {
 		Super+Print: record, Shift: region, Ctrl: no audio.
 		Super+= nightlight. Super+- always on: no lock or blank until off.
 		Default apps: images Loupe, video Showtime, PDF Papers, web librewolf, folders Thunar, archives xarchiver, documents LibreOffice, text vim (nvim in Open With).
+		GTK apps keep no list of recently used files.
 		LibreWolf: letterboxing on, so the window size the tiling layout gives it does not identify it (~/.config/librewolf/librewolf/librewolf.overrides.cfg).
 	EOF
     section games "Games: Steam and Lutris work once you install them" <<-EOF
