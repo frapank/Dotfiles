@@ -1,2 +1,3 @@
 #!/bin/sh
 rm -f -- "${XDG_RUNTIME_DIR:-/tmp}/nightlight.pid"
+pkill -USR1 -u "$(id -u)" -x g0wm-status.sh 2>/dev/null

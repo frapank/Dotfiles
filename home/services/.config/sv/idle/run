@@ -6,6 +6,7 @@ pkill -u "$(id -u)" -x swayidle
 if [ -e "$run/awake" ]; then
     # for the awake icon in the bar
     echo $$ >"$run/awake.pid"
+    setsid -f sh -c 'sleep 0.5; exec pkill -USR1 -u "$(id -u)" -x g0wm-status.sh' >/dev/null 2>&1
     exec swayidle -w before-sleep 'gtklock -d'
 fi
 exec swayidle -w timeout 300 'gtklock -d' before-sleep 'gtklock -d'
