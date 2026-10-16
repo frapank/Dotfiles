@@ -59,7 +59,7 @@ plan() {
 		  dnscrypt-proxy chronyd bluetoothd NetworkManager pipewire wireplumber fwupd: only what they use.
 		  wpa_supplicant reads certificates, so eduroam works.
 		  steam lutris, if you install them: all but secrets, the browser's data, shell startup and setuid programs.
-		  Loupe is left to glycin, which already sandboxes image decoding.
+		  Loupe is left to glycin, which already sandboxes image decoding. It starts without gvfs (GIO_USE_VFS=local), also over D-Bus: the sandboxed apps can ask it to open a URI, gvfs would fetch an http one for them.
 		Sandbox: these apps start in bwrap via dbus-filter, with a filtered session bus (portals, dconf, notifications, media keys; their dconf writes go to ~/.config/dconf/sandbox, the programs outside never see them), no X11, no user namespaces, no other process in sight and no network (librewolf keeps the network and its namespaces).
 		  landlock-scope closes in the kernel what bwrap cannot: abstract unix sockets (Xwayland listens on one, and librewolf has the host network), signals to processes outside, and every pathname unix socket but the few the app uses. AppArmor does not do this here: its parser knows network/af_unix and this kernel offers network_v9/af_unix, so the unix rules are not compiled.
 		  The apps get a Wayland socket of their own (wp_security_context_v1 in g0wm): no screen, no input injection, no clipboard managers. Without that socket they have no display at all, never the real compositor.

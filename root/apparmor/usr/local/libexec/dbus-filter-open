@@ -13,7 +13,7 @@ APPS = {
     "showtime": "/usr/local/bin/showtime",
     "xarchiver": "/usr/local/bin/xarchiver",
     "libreoffice": "/usr/local/bin/libreoffice",
-    "loupe": "/usr/bin/loupe",
+    "loupe": "/usr/local/bin/loupe",
 }
 FLAGS = {"--new-window", "--private-window", "--writer", "--calc", "--impress", "--draw", "--math", "--base"}
 SCHEMES = ("http://", "https://", "file://")
