@@ -32,6 +32,8 @@ xdg-dbus-proxy and bubblewrap are external programs, the same ones Flatpak uses.
 
 wl-sandbox is a small program in C that creates a "sandbox" Wayland socket: this way g0wm knows it is a confined app and does not let it read the screen or send fake input. Without that socket the app has no display, it never gets the real compositor. The clipboard is not restricted: as on any Wayland desktop, the focused app is told what was copied last.
 
+landlock-scope is another small program in C. bwrap hides the sockets of the session, but it cannot hide an abstract unix socket from an app with the host network (librewolf), and Xwayland listens on one. landlock-scope runs the app under Landlock: no abstract unix socket and no signal outside the sandbox, and of the pathname unix sockets only the few the app uses (its filtered bus, the system bus, audio). This is done by the kernel and does not depend on AppArmor: AppArmor 4.1 knows the unix sockets as network/af_unix, this kernel offers them as network_v9/af_unix, so its parser does not compile the unix rules and the rules on socket paths in the profiles do not stop connect(). The comments in the abstractions say so.
+
 Another protection present is GrapheneOS's hardened_malloc in the light variant, which is a hardened memory allocator that if it detects a memory bug makes the app crash instead of becoming a hole. It is used by papers, showtime, xarchiver and tumblerd.
 
 Then there is isolate to run a command by hand in a sandbox: read-only system, empty home and no network.

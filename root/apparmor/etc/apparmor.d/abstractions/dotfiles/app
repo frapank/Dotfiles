@@ -25,4 +25,5 @@
 
   audit deny @{run}/user/@{uid}/wayland-* rw,
   audit deny /tmp/.X11-unix/{,*} rw,
+  # not enforced by AppArmor 4.1 (see secrets), landlock-scope closes it
   deny unix peer=(addr="@/tmp/.X11-unix/*"),

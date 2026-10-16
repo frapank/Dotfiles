@@ -107,6 +107,13 @@ else
     fail "src/wl-sandbox.c"
 fi
 rm -rf -- "$wl"
+ll=$(mktemp -d)
+if cc -O2 -Wall -Wextra -Werror -o "$ll/landlock-scope" src/landlock-scope.c && "$ll/landlock-scope" /bin/true 2>/dev/null; then
+    pass "src/landlock-scope.c builds with -Werror and runs"
+else
+    fail "src/landlock-scope.c"
+fi
+rm -rf -- "$ll"
 
 echo "apparmor $(apparmor_parser --version | awk 'NR == 1 { print $NF }')"
 aa=$(mktemp -d)

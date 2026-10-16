@@ -174,8 +174,20 @@ else
 fi
 mask "$run/.dbus-filter"
 [ "$own" = 0 ] || masks="$masks --bind $dir $dir"
+# Landlock: no abstract sockets (Xwayland) or signals outside, pathname sockets only the ones listed
+ll=
+if [ -x /usr/local/libexec/landlock-scope ]; then
+    ll="/usr/local/libexec/landlock-scope -u /run/dbus/system_bus_socket"
+    [ "$own" = 0 ] || ll="$ll -u $dir"
+    [ "$av" = 0 ] || ll="$ll -u $run/pipewire-0 -u $run/pulse/native"
+    # soffice and xarchiver find their own running instance on a socket in /tmp
+    case $app in libreoffice | xarchiver) ll="$ll -u /tmp" ;; esac
+    ll="$ll --"
+else
+    echo "dbus-filter: no landlock-scope, $app keeps its unix sockets" >&2
+fi
 set -f
 # shellcheck disable=SC2086
-set -- bwrap --dev-bind / / $masks $unshare --new-session $x11 $preload -- "$prog" "$@"
+set -- bwrap --dev-bind / / $masks $unshare --new-session $x11 $preload -- $ll "$prog" "$@"
 [ -z "$wl" ] || set -- /usr/local/libexec/wl-sandbox "$app" "$wl" -- "$@"
 exec "$@"
