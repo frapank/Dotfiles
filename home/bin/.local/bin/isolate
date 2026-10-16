@@ -11,7 +11,8 @@ passed from the environment. The current folder is visible read-only, unless
 it is your home or holds it. What is written in the empty home is lost.
 
   -n       allow the network; then no Unix sockets, which would reach the
-           host's X11 and D-Bus
+           host's X11 and D-Bus. It is the host's network, 127.0.0.1 too:
+           the command can reach local servers (dnscrypt-proxy, databases)
   -w       make the current folder writable
   -r PATH  also make PATH visible, read-only; can be repeated
 

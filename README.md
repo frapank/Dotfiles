@@ -36,7 +36,7 @@ landlock-scope is another small program in C. bwrap hides the sockets of the ses
 
 Another protection present is GrapheneOS's hardened_malloc in the light variant, which is a hardened memory allocator that if it detects a memory bug makes the app crash instead of becoming a hole. It is used by papers, showtime, xarchiver and tumblerd.
 
-Then there is isolate to run a command by hand in a sandbox: read-only system, empty home and no network.
+Then there is isolate to run a command by hand in a sandbox: read-only system, empty home and no network. With -n it has the host network, 127.0.0.1 included.
 
 Another system put there is AppArmor with profiles and abstractions. Among the abstractions we have these:
 - app-read: the base, reading the system and using the GPU.
