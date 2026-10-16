@@ -50,7 +50,7 @@ Another system put there is AppArmor with profiles and abstractions. Among the a
 - root-secrets: for the root services, no /home, passwords and keys.
 
 The profiles instead are these:
-- librewolf: network, audio and webcam.
+- librewolf: network, audio and webcam, but never ~/Private.
 - papers, libreoffice, xarchiver: no network, audio and webcam.
 - showtime: no network, but with audio.
 - tumblerd: read only, it writes only the thumbnails.

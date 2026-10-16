@@ -55,7 +55,7 @@ plan() {
 	EOF
     section apparmor "AppArmor: confine the apps that parse untrusted input" <<-EOF
 		Apps keep working, but an exploit cannot read the hidden files of the home but the few GTK and the fonts need (~/.ssh ~/.gnupg keyrings histories and the data and logins of every other app, also of those installed later), reach what runs commands outside (nvim, tmux, the session services), write files that run code later (shell startup, autostart, PATH, configs, git hooks, this repo) or use setuid programs.
-		  librewolf: keeps network, camera, mic and screen sharing.
+		  librewolf: keeps network, camera, mic and screen sharing, but not ~/Private (to upload a file from there, copy it to ~/Get).
 		  papers libreoffice xarchiver: offline, no mic or camera.
 		  showtime offline. tumblerd offline, writes only to ~/.cache.
 		  foot: no network, no secrets. The shell inside is not confined.

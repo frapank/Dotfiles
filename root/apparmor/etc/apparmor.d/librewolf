@@ -5,6 +5,9 @@ include <tunables/global>
 profile librewolf /usr/lib/librewolf/librewolf flags=(attach_disconnected) {
   include <abstractions/dotfiles/app>
 
+  # the only app with the network: no ~/Private, uploads go through ~/Get
+  audit deny @{HOME}/Private/{,**} mrwkl,
+
   userns,
   capability sys_admin,
   capability sys_chroot,
