@@ -131,7 +131,8 @@ def call(conn, sender, path, iface, method, params, invocation):
         invocation.return_dbus_error("org.dotfiles.Open.Refused", f"refused: {app} {args}")
         return
     who = sandbox_of(conn, sender)
-    urls = [a for a in args if a.startswith(WEB)]
+    # an offline app could leak data through a page
+    urls = [a for a in args if a.startswith(WEB) or app in NET]
     if who is not None and who not in NET and urls:
         confirm(who, app, args, urls)
     else:
