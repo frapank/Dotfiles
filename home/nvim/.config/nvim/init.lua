@@ -6,6 +6,16 @@ for _, provider in ipairs({ "perl", "ruby", "node", "python3" }) do
     vim.g["loaded_" .. provider .. "_provider"] = 0
 end
 
+-- No history, undo or swap for temporary files
+vim.opt.shada:append({ "r/dev/shm", "r/run" }) -- r/tmp/ is a default
+vim.api.nvim_create_autocmd({ "BufReadPre", "BufNewFile" }, {
+    pattern = { "/tmp/*", "/dev/shm/*", "/run/*" },
+    callback = function()
+        vim.opt_local.undofile = false
+        vim.opt_local.swapfile = false
+    end,
+})
+
 -- Big files
 vim.api.nvim_create_autocmd("BufReadPre", {
     callback = function(a)
