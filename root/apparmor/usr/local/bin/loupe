@@ -1,0 +1,3 @@
+#!/bin/sh
+# sandboxed apps can open URIs with Loupe over D-Bus: no gvfs, local files only
+GIO_USE_VFS=local exec /usr/bin/loupe "$@"

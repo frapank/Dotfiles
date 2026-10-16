@@ -24,7 +24,7 @@ For the snapshots there are snap, that shows and restores the versions of a file
 
 One of the blocks is dbus-filter. dbus-filter is a simple sh script. Basically it combines xdg-dbus-proxy and bwrap in order to create a protected environment, where the filtered application can send only the necessary requests to the dbus filter (the proxy), with bwrap acting as a block on the process, so that it cannot access the main bus.
 The applications affected by dbus-filter are in /usr/local/bin/{applications} and they include librewolf, papers, libreoffice, soffice, showtime and xarchiver.
-All this comes with some .service files in /usr/local/share/dbus-1/services/ that open with the filter also the apps started by dbus, that is tumblerd and showtime.
+All this comes with some .service files in /usr/local/share/dbus-1/services/ that open with the filter also the apps started by dbus, that is tumblerd and showtime. Loupe, which is not in the sandbox (glycin already sandboxes the decoding), starts from there and from /usr/local/bin/loupe without gvfs: the filtered apps can ask it over dbus to open a URI, and gvfs would fetch an http one for an app without network.
 
 dbus-filter-open is a dbus service in python that runs outside the sandbox. When a filtered app wants to open another one, for example papers opening a link, the request goes through it: it checks the arguments and opens the right app with its filter. If an app without network wants to open a link in the browser, it first asks for confirmation with a notification, so it cannot get data out.
 
