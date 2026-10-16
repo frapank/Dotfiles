@@ -41,7 +41,7 @@ Then there is isolate to run a command by hand in a sandbox: read-only system, e
 Another system put there is AppArmor with profiles and abstractions. Among the abstractions we have these:
 - app-read: the base, reading the system and using the GPU.
 - app: reading the files in the home, but writing only to ~/Get, ~/Random, ~/Media and /tmp.
-- secrets: never ~/.ssh, gpg, keyring, credentials and histories.
+- secrets: never ~/.ssh, gpg, keyring, credentials, histories and core dumps.
 - persist: never writing things that run code later, like bashrc, PATH and autostart.
 - setuid: never launching doas, su, pkexec etc.
 - browser-data: never the browser profile.
@@ -75,6 +75,7 @@ There are hardened kernel options that prevent several exploits:
 - doas instead of sudo.
 - a new machine-id at every boot.
 - /boot readable only by root and umask 077.
+- core dumps are dropped, only the one of g0wm is kept for debugging it.
 
 ## Network and privacy
 

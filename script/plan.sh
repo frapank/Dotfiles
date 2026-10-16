@@ -40,6 +40,7 @@ plan() {
 		  ${HARDEN_CMDLINE[*]}
 		New machine ID at every boot, so apps cannot track this machine by it.
 		fstab: /boot root only, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
+		Core dumps: a dump is the memory of the program, keys and passwords included. Only the one of g0wm is kept (~/.local/state/g0wm, for debugging it), the others are dropped (core-keep).
 		/proc, after reboot: the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, $TUSER (the polkit agent needs it).
 		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap ssh-keysign wall write firejail lxc-user-nic libgtop_server2: doas does it ('doas passwd $TUSER'). Updates put it back, maint and every boot take it off again (nosuid).
 	EOF
