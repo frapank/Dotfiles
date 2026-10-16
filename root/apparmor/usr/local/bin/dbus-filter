@@ -20,8 +20,12 @@ portal="--call=$P.Desktop=org.freedesktop.DBus.Properties.*@$D
 	--call=$P.Desktop=$P.FileChooser.*@$D
 	--call=$P.Desktop=$P.Request.Close@$D/request/*
 	--broadcast=$P.Desktop=$P.Request.Response@$D/request/*"
+# dconf writes go to the sandbox database, not the user's: programs outside act on it (virt-manager URIs)
+W=/ca/desrt/dconf/Writer/sandbox
+dconf="--call=ca.desrt.dconf=ca.desrt.dconf.Writer.*@$W
+	--broadcast=ca.desrt.dconf=ca.desrt.dconf.Writer.*@$W"
 # no gvfs: it fetches http for offline apps and can mark launchers trusted
-common="$portal --talk=ca.desrt.dconf $open"
+common="$portal $dconf $open"
 av=1 net=0 hm=0 ns=0
 case $app in
 librewolf)
@@ -158,6 +162,11 @@ fi
 if [ "$filtered" = 1 ]; then
     export DBUS_SESSION_BUS_ADDRESS="unix:path=$sock"
     [ -z "${DBUS_STARTER_ADDRESS:-}" ] || export DBUS_STARTER_ADDRESS="unix:path=$sock"
+    # sandbox writes first, user settings below
+    db=${XDG_CONFIG_HOME:-$HOME/.config}/dconf/user
+    if { echo user-db:sandbox && { [ ! -f "$db" ] || echo "file-db:$db"; }; } >"$sock.dconf"; then
+        export DCONF_PROFILE="$sock.dconf"
+    fi
 else
     export DBUS_SESSION_BUS_ADDRESS=disabled:
     unset DBUS_STARTER_ADDRESS DBUS_STARTER_BUS_TYPE
