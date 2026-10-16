@@ -20,6 +20,7 @@ do_apparmor() {
     done
     run "AppArmor profiles compile" apparmor_parser -QK -- "${prof[@]}" /etc/apparmor.d/usr.bin.wpa_supplicant
     aa_wlsandbox
+    aa_landlock
     aa_hmalloc
     aa_prune
     aa_cache
@@ -69,6 +70,17 @@ aa_wlsandbox() {
 			$(pkg-config --cflags --libs wayland-client)' _ "$tmp" "$xml" "$REPO/src/wl-sandbox.c"
     put "$tmp/wl-sandbox" /usr/local/libexec/wl-sandbox 0755
     rm -rf -- "$tmp"
+}
+
+aa_landlock() {
+    local tmp
+    tmp=$(mktemp -d)
+    run "build landlock-scope" cc -O2 -Wall -Wextra -Werror -o "$tmp/landlock-scope" "$REPO/src/landlock-scope.c"
+    run "landlock-scope runs a program" "$tmp/landlock-scope" /bin/true
+    put "$tmp/landlock-scope" /usr/local/libexec/landlock-scope 0755
+    rm -rf -- "$tmp"
+    [[ ,$(cat /sys/kernel/security/lsm 2>/dev/null), == *,landlock,* ]] ||
+        warn "Landlock is not active now: landlock-scope works after a reboot with landlock in lsm="
 }
 
 aa_hmalloc() {
