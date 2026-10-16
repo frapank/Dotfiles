@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generate colors.css, the GTK base.css files and the Kvantum theme from the palette.
+"""Generate colors.css, the GTK base.css files, the Kvantum theme and the colors of
+foot and fzf from the palette.
 
 GTK: Adwaita's greys are mapped onto the palette and :backdrop is dropped.
 Kvantum: frame pieces are s x s, scaled to half of frame.expansion.
@@ -34,6 +35,8 @@ VISITED = "#c59dc8"
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEME = os.path.join(REPO, "home/gtk/.local/share/themes/G0wm")
 KVANTUM = os.path.join(REPO, "home/qt/.config/Kvantum/G0wm")
+FOOT = os.path.join(REPO, "home/foot/.config/foot/foot.ini")
+BASHRC = os.path.join(REPO, "home/bash/.bashrc_dotfile")
 
 PARTS = ("topleft", "top", "topright", "left", "", "right", "bottomleft", "bottom", "bottomright")
 
@@ -622,8 +625,37 @@ progress.indicator.text.color={FG}
         f.write(text)
 
 
+def foot_colors():
+    # ANSI colors stay as they are
+    keys = {"background": BG, "foreground": FG, "cursor": f"{ON_ACCENT} {ACCENT}",
+            "selection-foreground": ON_ACCENT, "selection-background": ACCENT}
+    with open(FOOT, encoding="utf-8") as f:
+        text = f.read()
+    for k, v in keys.items():
+        text, n = re.subn(rf"^{k}=.*$", f"{k}={v.replace('#', '')}", text, count=1, flags=re.M)
+        assert n == 1, f"{k}= missing in {FOOT}"
+    with open(FOOT, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def fzf_colors():
+    c = [("fg", FG), ("bg", BG), ("hl", ACCENT), ("fg+", FG), ("bg+", SEL), ("hl+", ACCENT),
+         ("border", SEP), ("header", DIM), ("gutter", BG), ("spinner", DIM), ("info", DIM),
+         ("pointer", ACCENT), ("marker", ACCENT), ("prompt", DIM), ("query", FG), ("separator", SEP),
+         ("scrollbar", MUTE), ("label", DIM), ("disabled", MUTE), ("preview-fg", FG), ("preview-bg", POPUP)]
+    rows = "".join("        " + " ".join(f"{k}:{v}" for k, v in c[i:i + 6]) + "\n" for i in range(0, len(c), 6))
+    with open(BASHRC, encoding="utf-8") as f:
+        text = f.read()
+    text, n = re.subn(r"(    local _colors=\(\n).*?(    \)\n)", lambda m: m[1] + rows + m[2], text, count=1, flags=re.S)
+    assert n == 1, f"_colors=( missing in {BASHRC}"
+    with open(BASHRC, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
 def main():
     colors_css()
+    foot_colors()
+    fzf_colors()
     gtk_base("/usr/lib/libgtk-3.so.0", "/org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css",
              "/org/gtk/libgtk/theme/Adwaita/assets", os.path.join(THEME, "gtk-3.0/base.css"))
     gtk_base("/usr/lib/libgtk-4.so.1", "/org/gtk/libgtk/theme/Default/Default-dark.css",
