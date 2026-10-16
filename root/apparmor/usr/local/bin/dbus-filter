@@ -20,12 +20,13 @@ portal="--call=$P.Desktop=org.freedesktop.DBus.Properties.*@$D
 	--call=$P.Desktop=$P.FileChooser.*@$D
 	--call=$P.Desktop=$P.Request.Close@$D/request/*
 	--broadcast=$P.Desktop=$P.Request.Response@$D/request/*"
-# gvfsd would fetch http and sftp for the apps without network
-common="$portal --talk=ca.desrt.dconf --talk=org.gtk.vfs.Metadata $open"
+# no gvfs: it fetches http for offline apps and can mark launchers trusted
+common="$portal --talk=ca.desrt.dconf $open"
 av=1 net=0 hm=0 ns=0
 case $app in
 librewolf)
-    rules="$common --own=org.mozilla.* --own=org.mpris.MediaPlayer2.*
+    # io.gitlab.librewolf.*: link remoting
+    rules="$common --own=org.mozilla.* --own=io.gitlab.librewolf.* --own=org.mpris.MediaPlayer2.*
 		--talk=org.freedesktop.Notifications
 		--call=org.freedesktop.FileManager1=org.freedesktop.FileManager1.ShowItems@/org/freedesktop/FileManager1
 		--call=$P.Desktop=$P.ScreenCast.*@$D
@@ -37,7 +38,7 @@ showtime) rules="$common --own=org.gnome.Showtime.* --own=org.mpris.MediaPlayer2
 papers) rules="$common --own=org.gnome.Papers.*" av=0 hm=1 ;;
 libreoffice) rules="$common --own=org.libreoffice.*" av=0 ;;
 xarchiver) rules=$common av=0 hm=1 ;;
-tumblerd) rules='--own=org.freedesktop.thumbnails.* --talk=org.gtk.vfs.Metadata' av=0 hm=1 ;;
+tumblerd) rules='--own=org.freedesktop.thumbnails.*' av=0 hm=1 ;;
 *)
     echo "dbus-filter: unknown app $app" >&2
     exit 2
@@ -131,7 +132,8 @@ if [ "$av" = 0 ]; then
 fi
 unshare=
 [ "$net" = 1 ] || unshare=--unshare-net
-[ "$ns" = 1 ] || unshare="$unshare --unshare-user --disable-userns"
+# own processes only
+[ "$ns" = 1 ] || unshare="$unshare --unshare-user --disable-userns --unshare-pid --unshare-ipc --proc /proc"
 preload=
 lib=/usr/local/lib/libhardened_malloc-light.so
 [ "$hm" = 0 ] || [ ! -f "$lib" ] || preload="--setenv LD_PRELOAD $lib"
@@ -140,7 +142,8 @@ wl=
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then
     mask /tmp/.X11-unix
     # AppArmor blocks the librewolf wayland proxy
-    x11='--unsetenv DISPLAY --unsetenv XAUTHORITY --setenv MOZ_DISABLE_WAYLAND_PROXY 1'
+    # Electron parents pass GDK_BACKEND=x11
+    x11='--unsetenv DISPLAY --unsetenv XAUTHORITY --setenv GDK_BACKEND wayland --setenv MOZ_DISABLE_WAYLAND_PROXY 1'
     if [ "$own" = 1 ] && /usr/local/libexec/wl-sandbox --probe 2>/dev/null; then
         wl=$sock.wayland
         for f in "$run"/wayland-*; do
