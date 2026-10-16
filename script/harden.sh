@@ -33,7 +33,13 @@ nft_apply() {
 
 do_harden() {
     step "Kernel and firewall hardening"
-    local f
+    local f=/etc/sysctl.d/10-kernel-hardening.conf
+    # now 11-: 10-void.conf sorted after it and reset kptr_restrict
+    if [[ -e $f ]]; then
+        backup "$f"
+        rm -f -- "$f"
+        ok "removed $f (now 11-kernel-hardening.conf)"
+    fi
     save_sysctl "$REPO"/root/sysctl/etc/sysctl.d/*.conf
     put_tree sysctl
     for f in "$REPO"/root/sysctl/etc/sysctl.d/*.conf; do
@@ -60,6 +66,7 @@ do_harden() {
     grub_words "${HARDEN_CMDLINE[@]}"
     boot_mask
     tmp_mount
+    home_mount
     hide_pids
     no_suid
 }
@@ -141,13 +148,7 @@ tmp_mount() {
             printf 'tmpfs /tmp tmpfs defaults,nosuid,nodev,mode=1777 0 0\n'
         )
     else
-        new=$(awk '
-			!/^[[:space:]]*#/ && $2 == "/tmp" && $3 == "tmpfs" {
-				o = "," $4 ","
-				if (o !~ /,nosuid,/) $4 = $4 ",nosuid"
-				if (o !~ /,nodev,/) $4 = $4 ",nodev"
-			}
-			{ print }' /etc/fstab)
+        new=$(fstab_nosuid /tmp)
     fi
     if [[ $new == "$(cat /etc/fstab)" ]]; then
         skip "/tmp tmpfs nosuid,nodev"
@@ -160,6 +161,33 @@ tmp_mount() {
     else
         ok "/tmp becomes a tmpfs after the reboot"
     fi
+}
+
+# /etc/fstab with nosuid,nodev added to the entry of $1
+fstab_nosuid() {
+    awk -v m="$1" '
+		!/^[[:space:]]*#/ && $2 == m {
+			o = "," $4 ","
+			if (o !~ /,nosuid,/) $4 = $4 ",nosuid"
+			if (o !~ /,nodev,/) $4 = $4 ",nodev"
+		}
+		{ print }' /etc/fstab
+}
+
+home_mount() {
+    local new
+    if ! awk '!/^[[:space:]]*#/ && $2 == "/home" { f = 1 } END { exit !f }' /etc/fstab; then
+        skip "/home is not in /etc/fstab"
+        return 0
+    fi
+    new=$(fstab_nosuid /home)
+    if [[ $new == "$(cat /etc/fstab)" ]]; then
+        skip "/home nosuid,nodev"
+        return 0
+    fi
+    put_text /etc/fstab 0644 <<<"$new"
+    run "fstab is valid" findmnt --verify
+    try "remount /home" mount -o remount /home
 }
 
 ssh_dir() {
