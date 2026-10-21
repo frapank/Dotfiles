@@ -162,7 +162,7 @@ plan() {
 		Apps: foot Thunar grim slurp swappy swayidle gtklock brightnessctl playerctl.
 		Adds $TUSER to ${USER_GROUPS[*]}. Copies home/{$(join , "${HOME_DESKTOP[@]}")} with the default wallpaper.
 		Builds, tests and installs g0wm into ~/.local/bin, again only on new commits. A g0wm built elsewhere is left alone.
-		  Debian 13 has wlroots 0.18: wlroots 0.20.2 is built into $WLR_PREFIX at fixed commits, with the wayland, libdrm, xkbcommon and wayland-protocols it needs. Only g0wm uses them (rpath), the system keeps its own.
+		  Debian 13 has wlroots 0.18: wlroots 0.20.2 is built into $WLR_PREFIX at fixed commits, with the wayland, libdrm, xkbcommon, wayland-protocols and pixman it needs, and libscfg for the g0wm config. Only g0wm uses them (rpath), the system keeps its own.
 		Log in on tty1 and g0wm starts.
 		'services': systemd user units keep the polkit agent, Thunar, the idle lock and the nightlight running while g0wm runs (g0wm-session.target), with the PipeWire and ssh-agent units of Debian. g0wm uses the user bus of dbus-user-session.
 	EOF

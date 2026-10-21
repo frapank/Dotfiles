@@ -19,9 +19,9 @@ g0wm_clone() {
 # in a prefix of its own, with what it needs newer than Debian: only g0wm finds it, by its rpath
 wlroots_build() {
     local tmp d name url rev stage mark=$STATE/wlroots
-    if [[ -f $WLR_PREFIX/lib/pkgconfig/wlroots-0.20.pc && ! -L $WLR_PREFIX &&
-        $(cat -- "$mark" 2>/dev/null) == "$WLR_REV ${WLR_DEPS[*]}" ]]; then
-        skip "wlroots 0.20 in $WLR_PREFIX"
+    if [[ -f $WLR_PREFIX/lib/pkgconfig/wlroots-0.20.pc && -f $WLR_PREFIX/lib/pkgconfig/scfg.pc && ! -L $WLR_PREFIX &&
+        $(cat -- "$mark" 2>/dev/null) == "$WLR_REV ${WLR_DEPS[*]} $SCFG_REV" ]]; then
+        skip "wlroots 0.20 and libscfg in $WLR_PREFIX"
         return 0
     fi
     tmp=$(mktemp -d)
@@ -30,18 +30,28 @@ wlroots_build() {
         read -r name url rev <<<"$d"
         git_at "$tmp/wlroots/subprojects/$name" "$url" "$rev" links
     done
-    # the libdrm of the drivers stays the system one, Mesa loads it
+    # the libdrm of the drivers stays the system one, Mesa loads it; Debian's pixman
+    # 0.44 passes the check of wlroots' top meson.build, not the 0.46 of its pixman renderer
     run "configure wlroots 0.20" env LDFLAGS="-Wl,-rpath,$WLR_PREFIX/lib" \
         meson setup "$tmp/build" "$tmp/wlroots" --prefix="$WLR_PREFIX" --libdir=lib \
         --buildtype=release --wrap-mode=nodownload -Dwerror=false \
-        --force-fallback-for=wayland,libdrm,libxkbcommon,wayland-protocols \
+        --force-fallback-for=wayland,libdrm,libxkbcommon,wayland-protocols,pixman \
         -Dexamples=false -Dbackends=drm,libinput -Dxwayland=enabled -Dicon_directory=/usr/share/icons \
         -Dwayland:dtd_validation=false -Dlibxkbcommon:xkb-config-root=/usr/share/X11/xkb \
         -Dlibxkbcommon:x-locale-root=/usr/share/X11/locale -Dlibdrm:intel=disabled \
-        -Dlibdrm:radeon=disabled -Dlibdrm:amdgpu=disabled -Dlibdrm:nouveau=disabled -Dlibdrm:vmwgfx=disabled
+        -Dlibdrm:radeon=disabled -Dlibdrm:amdgpu=disabled -Dlibdrm:nouveau=disabled -Dlibdrm:vmwgfx=disabled \
+        -Dpixman:tests=disabled -Dpixman:demos=disabled -Dpixman:gtk=disabled -Dpixman:libpng=disabled \
+        -Dpixman:openmp=disabled
     run "build wlroots 0.20" meson compile -C "$tmp/build"
     run "install wlroots 0.20 into a staging folder" meson install -C "$tmp/build" --destdir "$tmp/root" --quiet
     [[ -f $tmp/root$WLR_PREFIX/lib/pkgconfig/wlroots-0.20.pc ]] || die "the wlroots build left no wlroots-0.20.pc"
+    git_at "$tmp/scfg" "$SCFG_URL" "$SCFG_REV"
+    run "configure libscfg" env LDFLAGS="-Wl,-rpath,$WLR_PREFIX/lib" \
+        meson setup "$tmp/scfg-build" "$tmp/scfg" --prefix="$WLR_PREFIX" --libdir=lib \
+        --buildtype=release --wrap-mode=nodownload
+    run "build libscfg" meson compile -C "$tmp/scfg-build"
+    run "install libscfg into the staging folder" meson install -C "$tmp/scfg-build" --destdir "$tmp/root" --quiet
+    [[ -f $tmp/root$WLR_PREFIX/lib/pkgconfig/scfg.pc ]] || die "the libscfg build left no scfg.pc"
     mkdirs "${WLR_PREFIX%/*}"
     stage=$(mktemp -d -p "${WLR_PREFIX%/*}" ".${WLR_PREFIX##*/}.XXXXXX")
     cp -a -- "$tmp/root$WLR_PREFIX/." "$stage/"
@@ -55,8 +65,8 @@ wlroots_build() {
         jot remove "$WLR_PREFIX"
     fi
     mv -T -- "$stage" "$WLR_PREFIX"
-    ok "$WLR_PREFIX (wlroots ${WLR_REV:0:12})"
-    put_text "$mark" 0644 <<<"$WLR_REV ${WLR_DEPS[*]}"
+    ok "$WLR_PREFIX (wlroots ${WLR_REV:0:12}, libscfg ${SCFG_REV:0:12})"
+    put_text "$mark" 0644 <<<"$WLR_REV ${WLR_DEPS[*]} $SCFG_REV"
     WLR_NEW=1
 }
 
@@ -85,8 +95,9 @@ do_g0wm() {
     put_tree logind
 
     local wp
-    wp=$(grep -o '"wallpaper": *"[^"]*"' "$THOME/.config/g0wm/settings.json" | cut -d'"' -f4 || true)
-    [[ -z $wp || -f $wp ]] || warn "wallpaper $wp does not exist, set it in settings.json"
+    wp=$(awk '$1 == "wallpaper" { sub(/^[[:space:]]*wallpaper[[:space:]]*/, ""); gsub(/"/, ""); print; exit }' \
+        "$THOME/.config/g0wm/config" 2>/dev/null || true)
+    [[ -z $wp || -f $wp ]] || warn "wallpaper $wp does not exist, set it in ~/.config/g0wm/config"
 
     local src=$THOME/.local/src/g0wm bin=$THOME/.local/bin before= rev out where=
     wlroots_build
@@ -119,10 +130,12 @@ do_g0wm() {
     # DT_RPATH, not RUNPATH: it also holds for the libraries wlroots and Mesa load
     run "configure g0wm" as_user sh -c 'cd "$1" && exec ./configure --wlroots-prefix="$2" --ldflags=-Wl,--disable-new-dtags' \
         _ "$src" "$WLR_PREFIX"
-    run "build g0wm" as_user make -C "$src" -j"$(nproc)"
-    run "test g0wm" as_user make -C "$src" test
+    # the Makefile asks pkg-config for libscfg and the rest itself, they are in the prefix too
+    local pc=PKG_CONFIG_PATH=$WLR_PREFIX/lib/pkgconfig
+    run "build g0wm" as_user env "$pc" make -C "$src" -j"$(nproc)"
+    run "test g0wm" as_user env "$pc" make -C "$src" test
     stash "$bin/g0wm"
-    run "install g0wm into ~/.local/bin" as_user make -C "$src" install
+    run "install g0wm into ~/.local/bin" as_user env "$pc" make -C "$src" install
     do_home g0wm
     out=$(as_user "$bin/g0wm" -v 2>&1 || true)
     [[ $out == g0wm\ * ]] || die "the installed g0wm does not run: $out"

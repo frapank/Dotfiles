@@ -10,7 +10,7 @@ grub_words() {
         return 0
     fi
     base=$(grep -hE '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub || true)
-    have=$(sed -n 's/^GRUB_CMDLINE_LINUX_DEFAULT="\$GRUB_CMDLINE_LINUX_DEFAULT \(.*\)"$/\1/p' "$f" 2>/dev/null)
+    have=$(sed -n 's/^GRUB_CMDLINE_LINUX_DEFAULT="\$GRUB_CMDLINE_LINUX_DEFAULT \(.*\)"$/\1/p' "$f" 2>/dev/null || true)
     for w in "$@"; do
         grep -qsF -- "$w" /boot/grub/grub.cfg || stale=1
         [[ " $have " == *" $w "* || " $base " =~ [\"\'[:space:]]"$w"[\"\'[:space:]] ]] && continue
@@ -229,6 +229,30 @@ do_boot() {
     fi
 }
 
+# console-setup: Terminus on every tty, larger on screens 1440 pixels tall or more
+console_font() {
+    local f=/etc/default/console-setup size=8x16 h= n font
+    [[ -f $f ]] || die "$f missing (console-setup)"
+    [[ -r /sys/class/graphics/fb0/virtual_size ]] && h=$(cut -d, -f2 /sys/class/graphics/fb0/virtual_size)
+    [[ $h =~ ^[0-9]+$ ]] && ((h >= 1440)) && size=16x32
+    # 8x16 is Uni2-Terminus16, 16x32 Uni3-Terminus32x16
+    [[ $size == 8x16 ]] && font=Terminus16 || font=Terminus32x16
+    compgen -G "/usr/share/consolefonts/Uni?-$font.psf.gz" >/dev/null || die "console-setup-linux has no $font font"
+    n=$(njot)
+    put_text "$f" 0644 < <(awk -v face=Terminus -v size="$size" '
+		/^[[:space:]]*FONTFACE=/ { print "FONTFACE=\"" face "\""; f = 1; next }
+		/^[[:space:]]*FONTSIZE=/ { print "FONTSIZE=\"" size "\""; s = 1; next }
+		{ print }
+		END {
+			if (!f) print "FONTFACE=\"" face "\""
+			if (!s) print "FONTSIZE=\"" size "\""
+		}' "$f")
+    ((n == $(njot))) && return 0
+    # the initramfs has it too, for the LUKS prompt
+    REGEN=1
+    try "console font Terminus $size" setupcon --force --save
+}
+
 # Debian unlocks the root in the initramfs from /etc/crypttab (cryptsetup-initramfs),
 # not from rd.luks arguments; GRUB reads /boot, unencrypted unless it is told otherwise
 luks_check() {
@@ -259,7 +283,7 @@ initramfs_stale() {
 
 regen_initramfs() {
     ((REGEN < 2)) || return 0
-    local kvers=() k crypt=0
+    local kvers=() k crypt=0 list
     for k in /usr/lib/modules/*/modules.dep; do
         [[ -e $k ]] || continue
         k=${k%/modules.dep}
@@ -280,7 +304,10 @@ regen_initramfs() {
             run "initramfs for $k" update-initramfs -c -k "$k"
         fi
         [[ -s /boot/initrd.img-$k ]] || die "/boot/initrd.img-$k is empty"
-        ((crypt == 0)) || lsinitramfs "/boot/initrd.img-$k" | grep -qx 'cryptroot/crypttab' ||
+        ((crypt)) || continue
+        # the whole list first: grep -q would stop reading, and zstd would fail on the closed pipe
+        list=$(lsinitramfs "/boot/initrd.img-$k") || die "cannot list /boot/initrd.img-$k"
+        grep -qx 'cryptroot/crypttab' <<<"$list" ||
             die "/boot/initrd.img-$k cannot unlock the LUKS root, the old one is restored on rollback"
     done
     REGEN=2

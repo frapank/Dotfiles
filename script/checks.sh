@@ -94,7 +94,7 @@ check_repo() {
         d=$(dirname -- "$d")
     done
 
-    bad=$(find "$REPO/home" "$REPO/root" "$REPO/src" "$REPO/script" \( -perm /022 -o \( ! -user "$TUSER" ! -user root \) \) -print -quit)
+    bad=$(unsafe "$(id -u -- "$TUSER")" "$REPO/home" "$REPO/root" "$REPO/src" "$REPO/script")
     [[ -z $bad ]] || die "unsafe owner or permissions: $bad (fix: chmod -R go-w '$REPO')"
     bad=$(find "$REPO/home" "$REPO/root" "$REPO/src" "$REPO/script" -type l -print -quit)
     [[ -z $bad ]] || die "symlink in the repo, refusing: $bad"

@@ -2,8 +2,8 @@
 # settings
 
 readonly G0WM_URL=https://github.com/frapank/g0wm.git
-# wlroots 0.20.2, with the newer wayland 1.25.0, libdrm 2.4.131, xkbcommon 1.13.1 and
-# wayland-protocols 1.47 it needs: Debian 13 has none of them
+# wlroots 0.20.2, with the newer wayland 1.25.0, libdrm 2.4.131, xkbcommon 1.13.1,
+# wayland-protocols 1.47 and pixman 0.46.4 it needs: Debian 13 has none of them
 readonly WLR_URL=https://gitlab.freedesktop.org/wlroots/wlroots.git
 readonly WLR_REV=d783533489e1f75d6886c2ab5c5960090ef268f8
 readonly WLR_PREFIX=/usr/local/lib/wlroots-0.20
@@ -12,7 +12,11 @@ readonly WLR_DEPS=(
     'libdrm https://gitlab.freedesktop.org/mesa/drm.git 6bfcfc725fbe0ece0918535556d61ee567b1ffff'
     'libxkbcommon https://github.com/xkbcommon/libxkbcommon.git 6f76d19db72b5d450e927b41e1e96cbe3252aba8'
     'wayland-protocols https://gitlab.freedesktop.org/wayland/wayland-protocols.git 88223018d1b578d0d8869866da66d9608e05f928'
+    'pixman https://gitlab.freedesktop.org/pixman/pixman.git 9cc163c9da0fb4da430641715313d95a6ec466d9'
 )
+# libscfg 0.2.0 for the config of g0wm, not in Debian 13: in the same prefix
+readonly SCFG_URL=https://codeberg.org/emersion/libscfg.git
+readonly SCFG_REV=f7d74ce6c81e55976d85b824ba73c03f6c0f157a
 readonly GEIST_URL=https://github.com/vercel/geist-font/releases/download/v1.7.2/geist-font-v1.7.2.zip
 readonly GEIST_SHA256=7fc800d2ac6b92844895196e5041aca55d814c15db70c44f79b3b83ab82b04e2
 readonly NERD_URL=https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/NerdFontsSymbolsOnly.tar.xz
