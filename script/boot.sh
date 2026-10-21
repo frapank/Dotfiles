@@ -51,20 +51,43 @@ grub_update() {
     GRUB_STALE=0
 }
 
+# Debian has no package: 41_snapshots-btrfs from the repository, at a fixed commit
+grub_btrfs() {
+    local tmp mark=$STATE/grub-btrfs f=/etc/grub.d/41_snapshots-btrfs
+    if [[ -x $f && $(cat -- "$mark" 2>/dev/null) == "$GRUB_BTRFS_REV" ]]; then
+        skip "grub-btrfs ${GRUB_BTRFS_REV:0:12}"
+        return 0
+    fi
+    tmp=$(mktemp -d)
+    git_at "$tmp/src" "$GRUB_BTRFS_URL" "$GRUB_BTRFS_REV"
+    [[ -f $tmp/src/41_snapshots-btrfs ]] || die "unexpected layout in $GRUB_BTRFS_URL"
+    run "41_snapshots-btrfs parses" bash -n "$tmp/src/41_snapshots-btrfs"
+    put "$tmp/src/41_snapshots-btrfs" "$f" 0755
+    rm -rf -- "$tmp"
+    put_text "$mark" 0644 <<<"$GRUB_BTRFS_REV"
+    GRUB_STALE=1
+}
+
 grub_snaps() {
-    local home
+    local home= n
     if [[ ! -f /etc/default/grub ]] || ! command -v update-grub >/dev/null; then
         warn "no GRUB here, the snapshots of / are not in the boot menu"
         return 0
     fi
-    [[ -x /etc/grub.d/41_snapshots-btrfs ]] || die "grub-btrfs did not install /etc/grub.d/41_snapshots-btrfs"
-    # /etc/default/grub-btrfs/config is not a conf file for xbps, 41_snapshots-btrfs reads /etc/default/grub after it
-    grub_set GRUB_BTRFS_SUBMENUNAME "Snapshots before updates"
-    grub_set GRUB_BTRFS_SNAPSHOT_KERNEL_PARAMETERS rd.overlay=1
+    grub_btrfs
     if [[ $(findmnt -no UUID -T /home) == "$(findmnt -no UUID -T /)" ]]; then
         home=$(btrfs subvolume show /home | head -n1)
-        [[ -z $home || $home == / ]] || grub_set GRUB_BTRFS_IGNORE_PREFIX_PATH "$home"
+        [[ $home != / ]] || home=
     fi
+    # no package owns it: the whole file is this script's
+    n=$(njot)
+    put_text /etc/default/grub-btrfs/config 0644 <<-EOF
+		GRUB_BTRFS_SUBMENUNAME="Snapshots before updates"
+		GRUB_BTRFS_SNAPSHOT_KERNEL_PARAMETERS="rd.overlay=1"
+		GRUB_BTRFS_IGNORE_SPECIFIC_PATH=("@")
+		GRUB_BTRFS_IGNORE_PREFIX_PATH=("var/lib/docker" "@var/lib/docker" "@/var/lib/docker" "var/lib/containers" "@var/lib/containers" "@/var/lib/containers"${home:+ \"$home\"})
+	EOF
+    ((n == $(njot))) || GRUB_STALE=1
     grep -qs snapshots-btrfs /boot/grub/grub.cfg || GRUB_STALE=1
     if ((GRUB_STALE)); then
         grub_update
