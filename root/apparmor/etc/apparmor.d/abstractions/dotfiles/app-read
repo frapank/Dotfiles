@@ -34,9 +34,6 @@
   owner @{run}/user/@{uid}/dconf/{,user,sandbox} rwk,
   owner @{run}/user/@{uid}/{doc,gvfs}/{,**} rwk,
 
-  # sockets and shared memory of other programs
-  audit deny /tmp/{.*,lazygit-*,steam_chrome_*}{,/**} rwlkm,
-  audit deny /dev/shm/.* rwlkm,
   # Steam login tokens
   audit deny @{HOME}/.local/share/Steam/{config/{,**},ssfn*} mrwkl,
 

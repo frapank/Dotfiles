@@ -1,0 +1,4 @@
+  abi <abi/4.0>,
+
+  # Discord logins: all but vesktop
+  audit deny @{HOME}/.config/{vesktop,discord}/{,**} mrwkl,
