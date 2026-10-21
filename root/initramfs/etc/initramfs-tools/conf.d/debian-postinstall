@@ -1,0 +1,2 @@
+# only the modules this machine boots with, as dracut hostonly
+MODULES=dep

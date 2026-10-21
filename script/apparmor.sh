@@ -107,16 +107,7 @@ aa_cache() {
     install -d -m 0755 /var/cache/apparmor
 }
 
+# the last lsm= wins: the one of the drop-in, after /etc/default/grub
 aa_grub() {
-    local cur
-    cur=$(grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub 2>/dev/null |
-        grep -oE '["[:space:]]lsm=[a-z0-9_,]*' | tr -d '"[:space:]' || true)
-    if [[ -n $cur && ,${cur#lsm=}, != *,apparmor,* ]]; then
-        backup /etc/default/grub
-        sed -i -E "/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/([\"[:space:]])$cur([\"[:space:]])/\1$cur,apparmor\2/" /etc/default/grub
-        cur+=,apparmor
-        grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qF -- "$cur" || die "could not add apparmor to lsm= in /etc/default/grub"
-        ok "GRUB: lsm= now ends in apparmor"
-    fi
-    grub_words "${cur:-$(aa_lsm)}"
+    grub_words "$(aa_lsm)"
 }

@@ -41,8 +41,12 @@ do_logs() {
 
 do_maint() {
     step "Maintenance"
-    local conf=etc/dracut.conf.d/40-snapshots.conf
-    cmp -s -- "$REPO/root/maint/$conf" "/$conf" || REGEN=1
+    home_subvol
+    [[ " ${NEW_PKGS[*]} " != *" overlayroot "* ]] || REGEN=1
+    # overlayroot only acts on the overlayroot= of a snapshot entry
+    if [[ -f /etc/overlayroot.conf ]] && grep -qE '^[[:space:]]*overlayroot="[^"]' /etc/overlayroot.conf; then
+        die "/etc/overlayroot.conf sets overlayroot: every boot would be in RAM"
+    fi
     put_tree session
     svc_refresh maint.service put_tree maint
     run "maint parses" sh -n /usr/local/sbin/maint
@@ -52,6 +56,25 @@ do_maint() {
     run "snap parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/bin/snap
     run "snap-ui parses" sh -n /usr/local/libexec/snap-ui
     grub_snaps
+}
+
+# Debian's installer makes only @rootfs: a subvolume of /home can be snapshotted, and the
+# snapshots of / leave it out
+home_subvol() {
+    local new=/home.pi-subvol prev=/home.pi-old
+    if [[ $(stat -c %i /home) == 256 ]]; then
+        skip "/home is a subvolume"
+        return 0
+    fi
+    [[ ! -e $new && ! -e $prev ]] || die "$new or $prev exists, move it away"
+    jot subvol-rm "$new"
+    run "create the subvolume for /home" btrfs subvolume create -- "$new"
+    chmod 0755 "$new"
+    run "copy /home into it (reflinks, no extra space)" cp -a --reflink=always -- /home/. "$new/"
+    jot subvol-swap /home "$prev"
+    mv -T -- /home "$prev"
+    mv -T -- "$new" /home
+    ok "/home is a subvolume; $prev holds the old copy until maint deletes it after the reboot"
 }
 
 do_nosnap() {

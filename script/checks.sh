@@ -180,30 +180,26 @@ aa_lsm() {
     [[ -r /sys/kernel/security/lsm ]] && l=$(</sys/kernel/security/lsm)
     [[ -n $l ]] || l=landlock,lockdown,yama,integrity,bpf
     l=,$l,
-    l=${l//,capability,/,}
-    l=${l//,apparmor,/,}
+    # TOMOYO is in the Debian list, unused
+    for x in capability apparmor selinux smack tomoyo; do l=${l//,$x,/,}; done
     l=${l#,}
     l=${l%,}
     echo "lsm=${l:+$l,}apparmor"
 }
 
+# an lsm= of the user goes before the drop-in's, the last one wins
 aa_check() {
-    local line w lsm= n=0 bad
-    bad=$(grep -oE '(^|,)(selinux|smack|tomoyo)(,|$)' /sys/kernel/security/lsm 2>/dev/null | tr -d , || true)
+    local line w bad
+    bad=$(grep -oE '(^|,)(selinux|smack)(,|$)' /sys/kernel/security/lsm 2>/dev/null | tr -d , || true)
     [[ -z $bad ]] || die "apparmor: $bad is running, it cannot run next to AppArmor"
     [[ -f /etc/default/grub ]] || return 0
-    line=$(grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub || true)
-    for w in $(grep -oE '(^|["[:space:]])(lsm|security|apparmor)=[^"[:space:]]*' <<<"$line" | tr -d '"' || true); do
+    line=$(grep -hE '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub "$GRUB_D"/*.cfg 2>/dev/null || true)
+    for w in $(grep -oE '(^|["[:space:]])(security|apparmor)=[^"[:space:]]*' <<<"$line" | tr -d '"' || true); do
         case $w in
         apparmor=1 | security=apparmor) ;;
-        lsm=*) lsm=$w n=$((n + 1)) ;;
-        *) die "apparmor: $w in /etc/default/grub, remove it first" ;;
+        *) die "apparmor: $w on the kernel command line (/etc/default/grub), remove it first" ;;
         esac
     done
-    ((n <= 1)) || die "apparmor: $n lsm= in /etc/default/grub, keep one"
-    [[ -z $lsm || ,${lsm#lsm=}, == *,apparmor,* ]] && return 0
-    grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qE "[\"[:space:]]${lsm}[\"[:space:]]" ||
-        die "apparmor: $lsm is in GRUB_CMDLINE_LINUX, add ',apparmor' to it yourself"
 }
 
 usb_check() {

@@ -1,12 +1,12 @@
 [Plymouth Theme]
-Name=Void Minimal
-Description=Minimal theme: g0wm black background, gtklock-style password box, Void logo above a spinning ring, crisp procedurally-drawn assets for high-DPI displays.
+Name=g0wm
+Description=Minimal theme: g0wm black background, gtklock-style password box, a spinning ring, crisp procedurally-drawn assets for high-DPI displays. The initramfs hook of Debian adds its logo above when desktop-base is installed.
 ModuleName=two-step
 
 [two-step]
-Font=Cantarell 12
-TitleFont=Cantarell Light 30
-ImageDir=/usr/share/plymouth/themes/void-minimal
+Font=Sans 12
+TitleFont=Sans 30
+ImageDir=/usr/share/plymouth/themes/g0wm
 DialogHorizontalAlignment=.5
 DialogVerticalAlignment=.64
 TitleHorizontalAlignment=.5
