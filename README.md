@@ -2,7 +2,7 @@
 
 These are my personal dotfiles, made for my PC and for the way I use it, not meant to be a thing for others. I do not recommend anyone install them: the installer changes quite a lot of the system and takes my choices for granted. If something interests you take inspiration and copy just that piece.
 
-This repo contains my dotfiles and the installer of them. My dotfiles aim to guarantee an environment that is consistent, secure and that gives priority to privacy.
+This repo contains my dotfiles and the installer of them, for Debian 13 (trixie). My dotfiles aim to guarantee an environment that is consistent, secure and that gives priority to privacy.
 The script provides a pre-installation of several programs, among which:
 - G0wm, my personal window manager, originally based on dwl.
 - Several utils scripts: open, extract, compress, metadata-remover, traces, conns, isolate, snap, forget, logs etc.
@@ -10,14 +10,25 @@ The script provides a pre-installation of several programs, among which:
 - Many of these scripts are tied to g0wm keybinds and to the statusbar icons, for example awake that keeps gtklock from starting and nightlight that is the blue light filter. This comes with record, screenshot, volume manager etc.
 - Many programs, especially the ones that open files, are completely sandboxed through AppArmor and dbus-filter.
 
+## Install
+
+Debian from the netinst image, in the text installer:
+- in "Software selection" only "standard system utilities": no desktop, g0wm is the desktop.
+- partitioning "Guided - use entire disk and set up encrypted LVM", or by hand LUKS with btrfs on it: / has to be btrfs for the snapshots. The installer puts / in a @rootfs subvolume, the script makes /home a subvolume of its own.
+- a password for your user. A root password is not needed: doas replaces sudo.
+
+Then on tty1, from the cloned repo: `doas ./install.sh`, or `sudo ./install.sh` the first time. It asks what to apply, shows the plan and rolls everything back if a step fails.
+
+What Debian does not have is built or downloaded at fixed commits and checksums: wlroots 0.20 with the newer wayland, libdrm, xkbcommon and wayland-protocols it needs, in /usr/local/lib/wlroots-0.20 (only g0wm uses them, by its rpath), grub-btrfs, hardened_malloc, the Geist and Nerd symbols fonts, the cursor and icon themes. LibreWolf comes from its own repository, with the key Debian's extrepo lists for it.
+
 ## Maint
 
 maint is the service that handles the maintenance of the system automatically. Every hour it checks what there is to do and does it:
 - every day: snapshot of /home (it keeps 14), cleanup of old thumbnails and trash, update of the system and of the DNS blocklist.
-- every week: old kernels, orphan packages, firmware (notification only), disk health.
+- every week: old kernels and orphan packages (apt autoremove; the kernels a snapshot of / boots are kept), firmware (notification only), disk health, the integrity of the package files (debsums).
 - every month: btrfs scrub, only with the PC plugged in.
 
-The update starts only if you are logged in, with the battery above 20% and enough free disk. First it takes a snapshot of / that can be booted from GRUB, then it installs. Every phase sends a notification.
+The update starts only if you are logged in, with the battery above 20% and enough free disk. First it takes a snapshot of / that can be booted from GRUB, then it installs. Every phase sends a notification. apt takes the same snapshot when you run it by hand, before dpkg changes anything. A snapshot boots with a throwaway overlay in RAM (overlayroot).
 For the snapshots there are snap, that shows and restores the versions of a file, and forget, that deletes it from all the snapshots.
 
 ## Sandbox
@@ -32,7 +43,7 @@ xdg-dbus-proxy and bubblewrap are external programs, the same ones Flatpak uses.
 
 wl-sandbox is a small program in C that creates a "sandbox" Wayland socket: this way g0wm knows it is a confined app and does not let it read the screen or send fake input. Without that socket the app has no display, it never gets the real compositor. The clipboard is not restricted: as on any Wayland desktop, the focused app is told what was copied last.
 
-landlock-scope is another small program in C. bwrap hides the sockets of the session, but it cannot hide an abstract unix socket from an app with the host network (librewolf), and Xwayland listens on one. landlock-scope runs the app under Landlock: no abstract unix socket and no signal outside the sandbox, and of the pathname unix sockets only the few the app uses (its filtered bus, the system bus, audio). This is done by the kernel and does not depend on AppArmor: AppArmor 4.1 knows the unix sockets as network/af_unix, this kernel offers them as network_v9/af_unix, so its parser does not compile the unix rules and the rules on socket paths in the profiles do not stop connect(). The comments in the abstractions say so.
+landlock-scope is another small program in C. bwrap hides the sockets of the session, but it cannot hide an abstract unix socket from an app with the host network (librewolf), and Xwayland listens on one. landlock-scope runs the app under Landlock: no abstract unix socket and no signal outside the sandbox, and with Landlock ABI 9 (kernel 7, from trixie-backports) of the pathname unix sockets only the few the app uses (its filtered bus, the system bus, audio); the 6.12 kernel of Debian 13 stops at ABI 6, there bwrap hiding the sockets is what holds. This is done by the kernel and does not depend on AppArmor: the 6.12 kernel does not mediate unix sockets, and the newer ones offer them as network_v9/af_unix, which the parser of AppArmor 4.1 does not compile, so the rules on socket paths in the profiles do not stop connect(). The comments in the abstractions say so.
 
 Another protection present is GrapheneOS's hardened_malloc in the light variant, which is a hardened memory allocator that if it detects a memory bug makes the app crash instead of becoming a hole. It is used by papers, showtime, xarchiver and tumblerd.
 
@@ -56,8 +67,11 @@ The profiles instead are these:
 - tumblerd: read only, it writes only the thumbnails and its temporary files.
 - foot: the terminal is confined, the shell inside is not. It keeps foot itself from reading the secrets, not an exploit in foot, which can start a shell.
 - pipewire, wireplumber: only audio and video.
-- NetworkManager, dnscrypt-proxy, chronyd, bluetoothd, fwupd: only what they use.
+- NetworkManager, dnscrypt-proxy, bluetoothd, fwupd, wpa_supplicant: only what they use.
+- chronyd: the profile of Debian, with the certificates for NTS and the root secrets added in local/.
 - steam, lutris: everything except secrets, browser and setuid, only if you install them.
+
+The other profiles of Debian stay. The ones for the same programs are disabled in /etc/apparmor.d/disable: those of papers and LibreOffice, which let the app write all of the home, and the unconfined steam and librewolf profiles.
 
 There are hardened kernel options that prevent several exploits:
 - memory zeroed when it is allocated and freed.
@@ -66,23 +80,33 @@ There are hardened kernel options that prevent several exploits:
 - ASLR at max and kernel addresses hidden.
 - ptrace, perf and BPF restricted.
 - a program cannot type into the terminal that launched it.
-- many rare modules blocked, like firewire and old filesystems.
+- many rare modules blocked, like firewire and old filesystems, part of them from the list of Kicksecure.
+- from Kicksecure too: no IOMMU passthrough, KFENCE, the random pool not trusted to the CPU or the bootloader alone.
+
+The kernel arguments go in /etc/default/grub.d, /etc/default/grub stays the one of Debian. The sysctl files sort after the 50-default.conf of Debian, which would undo part of them.
+
+## systemd
+
+The services of the dotfiles are systemd units: maint, watchdog, usbguard-notify, journal-prune. Those of the session are user units bound to g0wm-session.target, with the PipeWire and ssh-agent units of Debian, and 'services' starts and stops them. On top of the units of Debian, drop-ins add the sandbox of systemd to NetworkManager, dnscrypt-proxy and bluetoothd.
+
+The logs are in the journal, on disk and capped: logs reads it. Nothing is written on the terminals (ForwardToWall).
 
 ## Users, permissions and processes
 
-- the processes of other users are invisible to the users of the daemons. Your user is in the proc group, which the polkit agent needs, and sees them all, and so does librewolf, which has no PID namespace of its own.
-- nosuid removes setuid from su, pkexec, passwd etc., since doas is enough, and the file capabilities of cdrecord and the other cdrtools programs.
-- doas instead of sudo, with the password every time (no persist).
-- a new machine-id at every boot.
-- /boot readable only by root, nosuid,nodev,noexec, and umask 077.
+- the processes of other users are invisible to the users of the daemons (hidepid in fstab). Your user is in the proc group, which the polkit agent needs, and sees them all, and so does librewolf, which has no PID namespace of its own; systemd-logind and polkitd are in it too.
+- nosuid removes setuid from su, pkexec, passwd etc., since doas is enough, and the file capabilities of cdrecord and the other cdrtools programs. dpkg-statoverride keeps it across updates.
+- doas instead of sudo, with the password every time (no persist). sudo is pinned away, polkit asks the password of the wheel group.
+- a new machine-id at every boot: /etc/machine-id is empty on disk and systemd puts a random one over it in RAM.
+- /boot and /boot/efi readable only by root and nosuid,nodev,noexec.
 - core dumps are dropped, only the one of g0wm is kept for debugging it.
 
 ## Network and privacy
 
 - firewall with nftables: nothing incoming and no announcements on the LAN.
-- dnscrypt-proxy: all the DNS encrypted, with a blocklist, and the firewall blocks the DNS of the others.
+- dnscrypt-proxy: all the DNS encrypted, with a blocklist, and the firewall blocks the DNS of the others. It runs on the socket of Debian's unit, 127.0.2.1.
 - chrony with authenticated time (NTS).
-- NetworkManager with random MAC and no hostname in DHCP.
+- NetworkManager with random MAC and no hostname in DHCP. It takes over the interfaces the Debian installer set.
+- apt only over https, its downloads under seccomp, never from an unsigned repository.
 
 ## USB
 

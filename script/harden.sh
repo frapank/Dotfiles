@@ -91,7 +91,9 @@ hide_pids() {
         gpasswd -a "$u" proc >>"$LOG" 2>&1 || die "cannot add $u to proc"
         ok "$u added to proc"
     done
-    svc_refresh systemd-logind.service put_tree hidepid
+    # logind is not restarted under a running session: the drop-in counts from the reboot, with hidepid
+    put_tree hidepid
+    svc_reload
     new=$(awk -v g="$(getent group proc | cut -d: -f3)" '
 		!/^[[:space:]]*#/ && $2 == "/proc" { next }
 		{ print }
