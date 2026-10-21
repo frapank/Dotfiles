@@ -6,7 +6,7 @@
   audit deny @{HOME}/.{vim,terminfo}/{,**} wl,
   audit deny @{HOME}/{bin,.local/bin,.local/src,.local/lib,.cargo/bin,.zvm,go/bin}/{,**} wl,
   audit deny @{HOME}/.{cargo/env,bash_completion} wl,
-  audit deny @{HOME}/.config/{autostart,environment.d,systemd,sv,g0wm,gtklock,foot,tmux,nvim,git}/{,**} wl,
+  audit deny @{HOME}/.config/{autostart,environment.d,systemd,services,g0wm,gtklock,foot,tmux,nvim,git}/{,**} wl,
   audit deny @{HOME}/.config/{pipewire,wireplumber,fontconfig,Thunar,xfce4,fastfetch}/{,**} wl,
   # rg --pre and bat --pager run a command
   audit deny @{HOME}/.config/{ripgrep,bat}/{,**} wl,

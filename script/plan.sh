@@ -36,18 +36,19 @@ plan() {
 		taplo, zls, bash-language-server and yaml-language-server are not in Debian: nvim uses them once they are in PATH.
 	EOF
     section harden "Kernel and firewall hardening" <<-EOF
-		sysctl: /etc/sysctl.d/{11,20,30,40}-*.conf, TCP timestamps off.
+		sysctl: /etc/sysctl.d/5{1..5}-*.conf, after the 50-default.conf of Debian that would undo some, TCP timestamps off.
 		Firewall (nftables): drops input and forward, allows output. ICMP only errors, rate limited ping from the LAN only (the internet cannot see the machine is up, IPv6 included), neighbor discovery, router adverts, MLD. Nothing goes out that announces the machine on the LAN (mDNS, LLMNR, SSDP, NetBIOS, WS-Discovery, Steam).
 		SSH client: offers only configured keys, hashed known_hosts, no agent forwarding, keys stay in the agent for an hour. ~/.ssh gets mode 0700, no keys are generated.
 		Blocks rarely used kernel modules with a history of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25 netrom rose x25 can ieee802154 firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2 vivid kcm rxrpc nfc nilfs2 zonefs cuse userio hci_vhci. hfsplus udf exfat ntfs3 still work.
 		Kernel command line, active after reboot: freed memory is zeroed (a few % slower), no DMA attacks over PCI and Thunderbolt, only signed modules, no /dev/mem, kexec or hibernation, no reading of kernel memory through /proc/kcore, tracing or BPF (lockdown confidentiality), no writing into a program's memory through /proc but by a debugger. The recovery entry boots without them.
 		  ${HARDEN_CMDLINE[*]}
-		New machine ID at every boot, so apps cannot track this machine by it.
+		New machine ID at every boot, so apps cannot track this machine by it: /etc/machine-id is empty on disk, systemd puts a random one over it in RAM and never saves it. The journals of the old IDs are kept up to 400 MB.
 		fstab: /boot root only and nosuid,nodev,noexec, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
 		Core dumps: a dump is the memory of the program, keys and passwords included. Only the one of g0wm is kept (~/.local/state/g0wm, for debugging it), the others are dropped (core-keep).
-		/proc, after reboot: the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, $TUSER (the polkit agent needs it).
-		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap fusermount (the old one, fusermount3 stays for the FUSE mounts of the desktop) ssh-keysign wall write firejail lxc-user-nic libgtop_server2 qemu-bridge-helper spice-client-glib-usb-acl-helper: doas does it ('doas passwd $TUSER').
-		No file capabilities on cdrecord readcd cdda2wav (dac_override and sys_admin on programs anyone can run). Updates put them back, maint and every boot take them off again (nosuid).
+		/proc, after reboot (fstab): the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, systemd-logind, $TUSER (the polkit agent needs it).
+		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap fusermount (the old one, fusermount3 stays for the FUSE mounts of the desktop) ssh-keysign wall write Xorg.wrap firejail lxc-user-nic qemu-bridge-helper spice-client-glib-usb-acl-helper: doas does it ('doas passwd $TUSER').
+		No file capabilities on cdrecord readcd cdda2wav (dac_override and sys_admin on programs anyone can run).
+		  dpkg-statoverride keeps the modes across updates; apt runs nosuid after each run, for what a new package brings.
 	EOF
     section usb "USB devices: usbguard" <<-EOF
 		The devices plugged in now are allowed. Later a new one stays blocked, and a notification asks: Allow or Block, what the device says it is and a warning when a storage or network device can also type.
@@ -91,7 +92,7 @@ plan() {
 		dracut hostonly, plymouth void-minimal, 'quiet splash' in GRUB.
 		GRUB theme minimal (tomdewildt, fixed commit): only GRUB_THEME changes in /etc/default/grub, LUKS and kernel arguments are kept and checked in grub.cfg.
 		No 'Loading Linux ...' lines after the menu (10_linux patched, redone by maint after grub updates).
-		Clean tty1 login and /etc/issue. Terminus font on every tty, larger on screens 1440 pixels tall or more.
+		Clean tty1 login and /etc/issue. Terminus font on every tty (console-setup), larger on screens 1440 pixels tall or more.
 		Rebuilds the initramfs when needed, old images restored on failure.
 	EOF
     detect_hw
@@ -106,23 +107,23 @@ plan() {
 		Change it with 'powerprofilesctl set performance'.
 	EOF
     section logs "System logs, crash reports, the logs command" <<-EOF
-		socklog in /var/log/socklog, one folder per kind, more history but capped (60 MB everything and kernel, 20 MB the rest).
-		Login and doas messages readable by root only. Adds $TUSER to socklog.
+		The journal on disk, capped at 200 MB, every boot also with another machine ID: logs reads them all. Nothing goes on to a syslog daemon, emergencies are not written on the terminals (ForwardToWall).
+		Adds $TUSER to systemd-journal: the journal, login and doas messages included, reads without doas.
 		logs             live           logs errors    since boot
 		logs boot        this boot      logs crashes   segfaults, OOM
 		logs since 2h    or today, 3d   logs apparmor  blocks per app
 		logs service X   one service    logs firewall  drops per source
 		logs grep RE     search all     logs auth      logins, doas
 		logs status      disk, history  logs panics    kernel crashes
-		Kernel panics are kept by UEFI pstore and saved at the next boot. After a panic or an oops it reboots in 10 seconds.
-		Notifications for crashes, kernel bugs and lockups, GPU hangs, CPU and RAM errors, disks not answering, filesystem errors, overheating, USB events, looping services, battery at 20% and 10%, disks over 90%, mic and webcam in use, AppArmor blocks, a kernel crash last boot.
+		Kernel panics are kept by UEFI pstore and saved at the next boot (systemd-pstore). After a panic or an oops it reboots in 10 seconds.
+		Notifications for crashes, kernel bugs and lockups, GPU hangs, CPU and RAM errors, disks not answering, filesystem errors, overheating, USB events, failed services, battery at 20% and 10%, disks over 90%, mic and webcam in use, AppArmor blocks, a kernel crash last boot.
 		No core dumps from setuid programs.
 	EOF
     zram_size
     section swap "Swap in compressed RAM, earlyoom" <<-EOF
-		zramen: ${ZRAM_PCT}% of $(($(awk '/^MemTotal:/ { print $2 }' /proc/meminfo) / 1024)) MiB RAM = ${ZRAM_MIB} MiB of zstd zram (max 16 GiB).
+		zram-generator: ${ZRAM_PCT}% of $(($(awk '/^MemTotal:/ { print $2 }' /proc/meminfo) / 1024)) MiB RAM = ${ZRAM_MIB} MiB of zstd zram (max 16 GiB).
 		swappiness 180, page-cluster 0.
-		earlyoom closes the program using the most memory under 10% free RAM and 10% free swap, before the desktop freezes. Browser tabs, Steam web views and Windows games go first; g0wm, foot, PipeWire and the network last; gtklock and the runit services never. The watchdog notifies it.
+		earlyoom closes the program using the most memory under 10% free RAM and 10% free swap, before the desktop freezes. Browser tabs, Steam web views and Windows games go first; g0wm, foot, PipeWire and the network last; gtklock and systemd never. The watchdog notifies it.
 	EOF
     section maint "Maintenance: snapshots, updates, cleanup" <<-EOF
 		A service runs these hourly, catches up on missed ones and notifies failures. Needs / and /home on btrfs.
@@ -142,7 +143,7 @@ plan() {
 		Monthly: btrfs scrub, on AC power only.
 		'snap FILE' lists the versions of a file in the snapshots of /home, 'snap -r DATE FILE' copies one back, 'snap -d DATE' lists what changed in your home since then.
 		'forget FILE' deletes a file from all the snapshots of /home, 'traces -cs' does it for histories and recent files.
-		'doas maint status', 'doas maint home|update', 'svlogtail cron'.
+		'doas maint status', 'doas maint home|update', 'logs service maint'.
 	EOF
     section dirs "Home folders" <<-EOF
 		Custom user-dirs from home/{$(join , "${HOME_DIRS[@]}")}, creates those folders.
@@ -156,7 +157,7 @@ plan() {
 		Builds, tests and installs g0wm into ~/.local/bin, again only on new commits. A g0wm built elsewhere is left alone.
 		  Debian 13 has wlroots 0.18: wlroots 0.20.2 is built into $WLR_PREFIX at fixed commits, with the wayland, libdrm, xkbcommon and wayland-protocols it needs. Only g0wm uses them (rpath), the system keeps its own.
 		Log in on tty1 and g0wm starts.
-		'services': runit keeps PipeWire, ssh-agent, the polkit agent, Thunar, the idle lock and the nightlight running while g0wm runs.
+		'services': systemd user units keep the polkit agent, Thunar, the idle lock and the nightlight running while g0wm runs (g0wm-session.target), with the PipeWire and ssh-agent units of Debian. g0wm uses the user bus of dbus-user-session.
 	EOF
     section media "Screen sharing and audio" <<-EOF
 		PipeWire with wireplumber and pipewire-pulse, ALSA through PipeWire. The services command runs them.

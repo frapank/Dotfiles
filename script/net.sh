@@ -37,21 +37,19 @@ do_net_services() {
         say "  on SSH: the rest goes to $LOG only"
         exec >>"$LOG" 2>&1
     fi
-    sv_disable ntpd isc-ntpd openntpd wpa_supplicant
-    for s in "$SVDIR"/dhcpcd*; do
-        [[ -L $s ]] && sv_disable "${s##*/}"
-    done
-    sv_enable chronyd
-    sv_enable dbus
-    sv_enable NetworkManager
-    sv_enable dnscrypt-proxy
+    # chrony replaced systemd-timesyncd when it was installed
+    svc_disable ntpsec.service openntpd.service systemd-timesyncd.service
+    svc_enable chrony.service
+    svc_enable NetworkManager.service
+    svc_enable dnscrypt-proxy.socket
+    svc_enable dnscrypt-proxy.service
     put_text /etc/resolv.conf 0644 <<-'EOF'
 		nameserver 127.0.0.1
 		options edns0
 	EOF
-    if ((DNS_NEW)) && [[ $(sv status dnscrypt-proxy 2>/dev/null || true) == run:* ]]; then
-        jot svr dnscrypt-proxy
-        try "restart dnscrypt-proxy (files changed)" sv restart dnscrypt-proxy
+    if ((DNS_NEW)) && systemctl -q is-active dnscrypt-proxy.service; then
+        jot svr dnscrypt-proxy.service
+        try "restart dnscrypt-proxy (files changed)" systemctl restart dnscrypt-proxy.service
     fi
     for ((i = 0; i < 30; i++)); do
         pgrep -xu dnscrypt_proxy dnscrypt-proxy >/dev/null && break

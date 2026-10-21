@@ -32,18 +32,6 @@ grub_words() {
     return 0
 }
 
-# the kernel argument $1 becomes $2 in /etc/default/grub, when it is there
-grub_swap() {
-    local old=$1 new=$2
-    [[ -f /etc/default/grub ]] || return 0
-    grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub | grep -qE "[\"'[:space:]]${old}[\"'[:space:]]" || return 0
-    backup /etc/default/grub
-    sed -i -E "/^GRUB_CMDLINE_LINUX(_DEFAULT)?=/ s/([\"'[:space:]])${old}([\"'[:space:]])/\1${new}\2/" /etc/default/grub
-    grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub | grep -qF -- "$new" || die "could not change $old to $new in /etc/default/grub"
-    ok "GRUB: $old -> $new"
-    GRUB_STALE=1
-}
-
 grub_update() {
     [[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
     run "update-grub" update-grub
@@ -233,11 +221,8 @@ do_boot() {
     done
     initramfs_stale && REGEN=1
     put_tree agetty
-    run "agetty run script parses" sh -n /etc/sv/agetty-generic/run
-    put_tree console
-    run "console font script parses" sh -n /etc/runit/core-services/04-console-font.sh
-    [[ -f /usr/share/kbd/consolefonts/ter-v16n.psf.gz && -f /usr/share/kbd/consolefonts/ter-v32n.psf.gz ]] ||
-        die "terminus-font did not install ter-v16n and ter-v32n"
+    svc_reload
+    console_font
     [[ -f /usr/lib/plymouth/two-step.so ]] || die "plymouth two-step module missing"
     [[ $(plymouth-set-default-theme) == void-minimal ]] || die "plymouth does not pick void-minimal"
     ok "plymouth theme void-minimal"
@@ -251,6 +236,30 @@ do_boot() {
     else
         skip "initramfs up to date"
     fi
+}
+
+# console-setup: Terminus on every tty, larger on screens 1440 pixels tall or more
+console_font() {
+    local f=/etc/default/console-setup size=8x16 h= n font
+    [[ -f $f ]] || die "$f missing (console-setup)"
+    [[ -r /sys/class/graphics/fb0/virtual_size ]] && h=$(cut -d, -f2 /sys/class/graphics/fb0/virtual_size)
+    [[ $h =~ ^[0-9]+$ ]] && ((h >= 1440)) && size=16x32
+    # 8x16 is Uni2-Terminus16, 16x32 Uni3-Terminus32x16
+    [[ $size == 8x16 ]] && font=Terminus16 || font=Terminus32x16
+    compgen -G "/usr/share/consolefonts/Uni?-$font.psf.gz" >/dev/null || die "console-setup-linux has no $font font"
+    n=$(njot)
+    put_text "$f" 0644 < <(awk -v face=Terminus -v size="$size" '
+		/^[[:space:]]*FONTFACE=/ { print "FONTFACE=\"" face "\""; f = 1; next }
+		/^[[:space:]]*FONTSIZE=/ { print "FONTSIZE=\"" size "\""; s = 1; next }
+		{ print }
+		END {
+			if (!f) print "FONTFACE=\"" face "\""
+			if (!s) print "FONTSIZE=\"" size "\""
+		}' "$f")
+    ((n == $(njot))) && return 0
+    # the initramfs has it too, for the LUKS prompt
+    REGEN=1
+    try "console font Terminus $size" setupcon --force --save
 }
 
 initramfs_stale() {

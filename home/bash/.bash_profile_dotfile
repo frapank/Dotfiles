@@ -5,9 +5,10 @@
 export QT_QPA_PLATFORMTHEME=qt6ct
 export QT_STYLE_OVERRIDE=kvantum
 
+# the ssh-agent unit of Debian listens there while g0wm runs
 if [ -n "${XDG_RUNTIME_DIR:-}" ] && command -v ssh-agent >/dev/null 2>&1; then
-    export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
-    if [ ! -x "$HOME/.config/sv/ssh-agent/run" ]; then
+    export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/openssh_agent"
+    if [ ! -f /usr/lib/systemd/user/ssh-agent.service ]; then
         ssh-add -l >/dev/null 2>&1
         if [ $? -eq 2 ]; then
             rm -f "$SSH_AUTH_SOCK"

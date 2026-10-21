@@ -39,7 +39,6 @@ readonly TS=$(date +%Y%m%d-%H%M%S)
 readonly LOG=/var/log/debian-postinstall-$TS.log
 readonly BAK=/var/backups/debian-postinstall/$TS
 readonly LOCK=/run/debian-postinstall.lock
-readonly SVDIR=/var/service
 readonly STATE=/var/lib/debian-postinstall
 readonly BASHRC_LINE='[ -f "$HOME/.bashrc_dotfile" ] && . "$HOME/.bashrc_dotfile"'
 readonly PROFILE_LINE='[ -f "$HOME/.bash_profile_dotfile" ] && . "$HOME/.bash_profile_dotfile"'
@@ -120,6 +119,8 @@ PKG_MAINT=(btrfs-progs util-linux python3 smartmontools curl)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
 HOME_CLI=(bash ctags nvim vim tmux ripgrep fetch)
 HOME_DESKTOP=(foot g0wm gtklock services)
+# nightlight is off until 'services enable nightlight' or Super+=
+USER_UNITS=(idle polkit thunar)
 HOME_APPS=(thunar mime bin fastfetch librewolf)
 HOME_THEME=(gtk qt)
 HOME_FONTS=(fontconfig)
@@ -272,5 +273,5 @@ MIME_DEFAULTS=(
 
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
-HW_PKGS=() HW_DESC=() NEW_PKGS=() REGEN=0 WLR_NEW=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0 GRUB_STALE=0 USB_NEW=0
+HW_PKGS=() HW_DESC=() NEW_PKGS=() REGEN=0 WLR_NEW=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0 GRUB_STALE=0 USB_NEW=0 SD_RELOAD=0
 declare -A SEL=() BACKED=()

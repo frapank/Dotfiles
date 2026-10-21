@@ -1,7 +1,7 @@
 #!/bin/sh
 set -u
 
-# the temperature in kelvin, which ~/.config/sv/nightlight/run reads
+# the temperature in kelvin, which ~/.config/services/nightlight/run reads
 temp=${XDG_STATE_HOME:-$HOME/.local/state}/nightlight
 run=${XDG_RUNTIME_DIR:-/tmp}
 min=2500 max=6000 step=250

@@ -1,0 +1,10 @@
+[Unit]
+Description=Notifications for crashes, errors, devices and low batteries
+
+[Service]
+ExecStart=/usr/local/libexec/watchdog
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

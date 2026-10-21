@@ -1,0 +1,14 @@
+[Unit]
+Description=Maintenance: snapshots, updates and cleanup
+After=local-fs.target
+
+[Service]
+ExecStart=/usr/local/sbin/maint loop
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

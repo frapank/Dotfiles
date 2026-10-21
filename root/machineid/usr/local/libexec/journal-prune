@@ -1,0 +1,18 @@
+#!/bin/sh
+# A new machine ID at every boot gives the journal a new folder each time:
+# journald caps the one of this boot, this caps the ones of the old boots.
+set -u
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
+CAP_MB=400
+
+cd /var/log/journal 2>/dev/null || exit 0
+cur=$(cat /etc/machine-id 2>/dev/null)
+total=0
+# newest first
+find . -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\n' | sort -rn | while read -r _ d; do
+    case $d in *[!0-9a-f]*) continue ;; esac
+    [ "${#d}" = 32 ] || continue
+    total=$((total + $(du -sm -- "$d" | cut -f1)))
+    [ "$d" != "$cur" ] && [ "$total" -gt "$CAP_MB" ] || continue
+    rm -rf -- "$d" && echo "journal-prune: removed the journal of $d"
+done
