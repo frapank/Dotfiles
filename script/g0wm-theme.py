@@ -7,6 +7,7 @@ Kvantum: frame pieces are s x s, scaled to half of frame.expansion.
 """
 
 import colorsys
+import glob
 import os
 import re
 import subprocess
@@ -627,7 +628,8 @@ progress.indicator.text.color={FG}
 
 def foot_colors():
     # ANSI colors stay as they are
-    keys = {"background": BG, "foreground": FG, "cursor": f"{ON_ACCENT} {ACCENT}",
+    # color= is the one of [cursor]
+    keys = {"background": BG, "foreground": FG, "color": f"{ON_ACCENT} {ACCENT}",
             "selection-foreground": ON_ACCENT, "selection-background": ACCENT}
     with open(FOOT, encoding="utf-8") as f:
         text = f.read()
@@ -652,13 +654,21 @@ def fzf_colors():
         f.write(text)
 
 
+def lib(name):
+    # /usr/lib/<triplet> on Debian, /usr/lib elsewhere
+    for p in sorted(glob.glob(f"/usr/lib/*-linux-gnu/{name}")) + [f"/usr/lib/{name}"]:
+        if os.path.exists(p):
+            return p
+    raise SystemExit(f"{name} not found")
+
+
 def main():
     colors_css()
     foot_colors()
     fzf_colors()
-    gtk_base("/usr/lib/libgtk-3.so.0", "/org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css",
+    gtk_base(lib("libgtk-3.so.0"), "/org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css",
              "/org/gtk/libgtk/theme/Adwaita/assets", os.path.join(THEME, "gtk-3.0/base.css"))
-    gtk_base("/usr/lib/libgtk-4.so.1", "/org/gtk/libgtk/theme/Default/Default-dark.css",
+    gtk_base(lib("libgtk-4.so.1"), "/org/gtk/libgtk/theme/Default/Default-dark.css",
              "/org/gtk/libgtk/theme/Default/assets", os.path.join(THEME, "gtk-4.0/base.css"))
     kvantum_svg()
     with open(os.path.join(KVANTUM, "G0wm.svg"), "w", encoding="utf-8") as f:

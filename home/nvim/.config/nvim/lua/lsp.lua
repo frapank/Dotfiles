@@ -16,12 +16,9 @@ local servers = {
         },
         filetypes = { "c", "cpp" },
 
-        root_dir = function(bufnr, on_dir)
-            local fname = vim.api.nvim_buf_get_name(bufnr)
-            if fname == "" then return on_dir(nil) end
-
+        root_dir = function(fname)
             local pinned = vim.fs.root(fname, { "compile_commands.json", "compile_flags.txt", ".clangd" })
-            if pinned then return on_dir(pinned) end
+            if pinned then return pinned end
 
             local outermost
             for dir in vim.fs.parents(fname) do
@@ -30,7 +27,7 @@ local servers = {
                 end
                 if vim.uv.fs_stat(dir .. "/.git") then break end
             end
-            on_dir(outermost or vim.fs.root(fname, { ".git", "Makefile" }))
+            return outermost or vim.fs.root(fname, { ".git", "Makefile" })
         end,
     },
     ["rust-analyzer"] = {
@@ -60,13 +57,27 @@ local servers = {
     },
 }
 
+-- Neovim 0.10 has no vim.lsp.config/enable: each buffer of the filetypes starts
+-- its server, and vim.lsp.start reuses the one already running on the same root.
 for name, cfg in pairs(servers) do
     if vim.fn.executable(cfg.cmd[1]) == 1 then
         if cfg.root_markers then -- clangd resolves its root with a function instead
             table.insert(cfg.root_markers, ".git")
         end
-        vim.lsp.config[name] = cfg
-        vim.lsp.enable(name)
+        vim.api.nvim_create_autocmd("FileType", {
+            pattern = cfg.filetypes,
+            callback = function(a)
+                if vim.bo[a.buf].buftype ~= "" then return end
+                local fname = vim.api.nvim_buf_get_name(a.buf)
+                local root
+                if fname ~= "" and cfg.root_dir then
+                    root = cfg.root_dir(fname)
+                elseif fname ~= "" then
+                    root = vim.fs.root(fname, cfg.root_markers)
+                end
+                vim.lsp.start({ name = name, cmd = cfg.cmd, root_dir = root }, { bufnr = a.buf })
+            end,
+        })
     end
 end
 
@@ -76,10 +87,16 @@ vim.diagnostic.config({
     underline = true,
     update_in_insert = false,
     severity_sort = true,
+    float = { border = "single" },
 })
 
--- <C-n> LSP completion & fuzzy finder.
-vim.opt.completeopt = { "menuone", "noselect", "fuzzy" }
+-- 0.10 has no 'winborder': the LSP floats get their border one by one
+for _, m in ipairs({ "textDocument/hover", "textDocument/signatureHelp" }) do
+    vim.lsp.handlers[m] = vim.lsp.with(vim.lsp.handlers[m], { border = "single" })
+end
+
+-- <C-n> LSP completion (0.10 has no "fuzzy" in 'completeopt')
+vim.opt.completeopt = { "menuone", "noselect" }
 vim.keymap.set("i", "<C-n>", function()
     if vim.fn.pumvisible() == 1 or vim.bo.omnifunc ~= "v:lua.vim.lsp.omnifunc" then
         return "<C-n>"
@@ -95,17 +112,13 @@ vim.keymap.set("i", "<CR>", function()
     return "<CR>"
 end, { expr = true })
 
--- When a server attaches: fold by real code structure, plus a key to toggle the inline hints
+-- When a server attaches: a key to toggle the inline hints
 vim.api.nvim_create_autocmd("LspAttach", {
     callback = function(ev)
         local client = vim.lsp.get_client_by_id(ev.data.client_id)
         if not client then return end
 
-        if client:supports_method("textDocument/foldingRange") then
-            vim.wo[vim.api.nvim_get_current_win()][0].foldexpr = "v:lua.vim.lsp.foldexpr()"
-        end
-
-        if client:supports_method("textDocument/inlayHint") then
+        if client.supports_method("textDocument/inlayHint") then
             vim.keymap.set("n", "<leader>h", function()
                 local enabled = vim.lsp.inlay_hint.is_enabled({ bufnr = ev.buf })
                 vim.lsp.inlay_hint.enable(not enabled, { bufnr = ev.buf })

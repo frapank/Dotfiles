@@ -287,7 +287,8 @@ windowcontrols button:hover, windowcontrols button:active, windowcontrols button
 headerbar > windowhandle > box, headerbar > windowhandle > box > box.start, headerbar > windowhandle > box > box.end { border-spacing: 6px; }
 headerbar entry, headerbar spinbutton, headerbar separator:not(.sidebar), headerbar button, headerbar menubutton { margin-top: 6px; margin-bottom: 6px; }
 headerbar windowcontrols > button { margin: 0; }
-headerbar windowcontrols.start > image.icon { -gtk-icon-size: 20px; }
+headerbar windowcontrols.start { margin-left: -6px; }
+headerbar windowcontrols.start > button:first-child { padding-left: 6px; }
 headerbar windowcontrols.end { margin-right: -6px; }
 headerbar windowcontrols.end > button:last-child { padding-right: 6px; }
 headerbar menubutton > button { margin-top: 0px; margin-bottom: 0px; }
@@ -492,11 +493,11 @@ check:indeterminate:disabled, radio:indeterminate:disabled { box-shadow: none; c
 .osd check:active, .osd radio:active { color: white; border-color: rgba(0, 0, 0, 0.7); background-color: transparent; background-image: image(rgba(0, 0, 0, 0.7)); background-clip: padding-box; box-shadow: none; }
 .osd check:disabled, .osd radio:disabled { color: #8a8a8a; border-color: rgba(0, 0, 0, 0.7); background-color: transparent; background-image: image(rgba(10, 10, 10, 0.5)); background-clip: padding-box; }
 check { border-radius: 3px; -gtk-icon-size: 14px; }
-check:checked { -gtk-icon-source: -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/check-symbolic.svg")); }
-check:indeterminate { -gtk-icon-source: -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/dash-symbolic.svg")); }
+check:checked { -gtk-icon-source: -gtk-scaled(-gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/check-symbolic.symbolic.png")), -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/check@2-symbolic.symbolic.png"))); }
+check:indeterminate { -gtk-icon-source: -gtk-scaled(-gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/dash-symbolic.symbolic.png")), -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/dash@2-symbolic.symbolic.png"))); }
 treeview.view radio:selected:focus, treeview.view radio:selected, radio { border-radius: 100%; -gtk-icon-size: 14px; }
-treeview.view radio:checked:selected, radio:checked { -gtk-icon-source: -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/bullet-symbolic.svg")); }
-treeview.view radio:indeterminate:selected, radio:indeterminate { -gtk-icon-source: -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/dash-symbolic.svg")); }
+treeview.view radio:checked:selected, radio:checked { -gtk-icon-source: -gtk-scaled(-gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/bullet-symbolic.symbolic.png")), -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/bullet@2-symbolic.symbolic.png"))); }
+treeview.view radio:indeterminate:selected, radio:indeterminate { -gtk-icon-source: -gtk-scaled(-gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/dash-symbolic.symbolic.png")), -gtk-recolor(url("resource:///org/gtk/libgtk/theme/Default/assets/dash@2-symbolic.symbolic.png"))); }
 treeview.view check:selected:focus, treeview.view check:selected, treeview.view radio:selected:focus, treeview.view radio:selected { color: #ffffff; }
 progressbar > trough, scale > trough > fill, scale > trough { border: 1px solid #2a2a2a; border-radius: 3px; background-color: #2a2a2a; }
 headerbar progressbar > trough, headerbar scale > trough > fill, headerbar scale > trough { background-color: #2a2a2a; }
@@ -654,7 +655,6 @@ row.activatable:active { box-shadow: inset 0 2px 2px -2px rgba(0, 0, 0, 0.2); }
 row.activatable:selected:active { box-shadow: inset 0 2px 3px -1px rgba(0, 0, 0, 0.5); }
 row.activatable:selected.has-open-popup, row.activatable:selected:hover { background-color: #212121; }
 row:selected { outline-color: rgba(255, 255, 255, 0.3); }
-listview:not(:focus-within) > row:selected { background-color: rgba(72, 72, 74, 0.5); }
 columnview > listview > row { padding: 0; }
 columnview > listview > row > cell { padding: 8px 6px; }
 columnview > listview > row > cell:not(:first-child) { border-left: 1px solid transparent; }
@@ -909,7 +909,6 @@ menubutton arrow.right { -gtk-icon-source: -gtk-icontheme("pan-end-symbolic"); }
 @define-color warning_color #e0a86a;
 @define-color error_color #d8625e;
 @define-color success_color #8eb298;
-@define-color accent_color #8ab0c6;
 
 @define-color wm_title hsl(from #e9e9e9 h calc(s * 1.8) calc(l * 1.8));
 @define-color wm_unfocused_title #555555;

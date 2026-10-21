@@ -1,6 +1,6 @@
 [Plymouth Theme]
 Name=g0wm
-Description=Minimal theme: g0wm black background, gtklock-style password box, a spinning ring, crisp procedurally-drawn assets for high-DPI displays. The initramfs hook of Debian adds its logo above when desktop-base is installed.
+Description=Minimal theme: g0wm black background, the Debian swirl above, gtklock-style password box, a spinning ring, crisp procedurally-drawn assets for high-DPI displays. With desktop-base installed, the initramfs hook of Debian puts its own logo in place of the swirl.
 ModuleName=two-step
 
 [two-step]
