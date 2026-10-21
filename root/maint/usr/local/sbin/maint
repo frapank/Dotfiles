@@ -22,6 +22,15 @@ NET_MAX_MIN=30
 
 log() { printf '%s\n' "$*"; }
 
+# conffiles keep the local copy, as the installer does
+apt_get() {
+    DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l apt-get -y -q \
+        -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
+        -o APT::Install-Recommends=false "$@"
+}
+
+apt_busy() { pgrep -x 'apt|apt-get|aptitude|dpkg|unattended-upgr|packagekitd' >/dev/null; }
+
 as_user() { /usr/local/libexec/as-session-user "$@"; }
 
 notify() { as_user notify-send -a "$2 Maintenance" -u "$1" "$3" "$4" >/dev/null 2>&1 || true; }
@@ -227,13 +236,27 @@ snap_root() {
     grub_snaps
 }
 
-pending() { xbps-install -un 2>&1; }
+# the packages an upgrade changes, one per line
+pending() {
+    out=$(apt-get -s -o Debug::NoLocking=1 full-upgrade 2>&1) || {
+        printf '%s\n' "$out"
+        return 1
+    }
+    printf '%s\n' "$out" | awk '$1 == "Inst" { print $2 }'
+}
 
-# $1 bytes to download, $2 the repository most of them come from
+# bytes to download and the biggest file, cached packages count 0
+downloads() {
+    apt-get -qq --print-uris full-upgrade 2>/dev/null | awk '
+        { u = $1; gsub(/\047/, "", u); n = $3 + 0; t += n; if (n > m) { m = n; best = u } }
+        END { print t + 0, best }'
+}
+
+# $1 bytes to download, $2 a package from the mirror most of them come from
 # prints why the connection is not good enough
 net_bad() {
     case $2 in https://*) ;; *) return 1 ;; esac
-    url=$2/$(xbps-uhelper arch)-repodata
+    url=$2
     get() { curl -fsS -o /dev/null -L --proto =https --proto-redir =https --tlsv1.2 "$@" "$url" 2>/dev/null; }
     failed=0 slow=0 i=0
     while [ "$i" -lt "$NET_PROBES" ]; do
@@ -288,29 +311,8 @@ update_now() {
     log "update: $total package(s)"
     printf '%s\n' "$list"
 
-    # a new xbps has to go in on its own before the rest can be resolved
-    if printf '%s\n' "$list" | grep -q '^xbps-[0-9]'; then
-        if ! xbps-install -yuD xbps 2>&1; then
-            ufail "Update failed" "Download of xbps failed, nothing was installed."
-            return 3
-        fi
-        snap_root || {
-            ufail "Update failed" "No snapshot of /, nothing was installed."
-            return 3
-        }
-        if ! xbps-install -yu xbps 2>&1; then
-            ufail "Update failed" "xbps did not update. Snapshot: $ROOTSNAP/$snap"
-            return 3
-        fi
-        list=$(pending) || {
-            log "$list"
-            ufail "Update failed" "Could not list the updates after xbps. Snapshot: $ROOTSNAP/$snap"
-            return 3
-        }
-    fi
-
     if [ -n "$list" ]; then
-        if ! xbps-install -yuD 2>&1; then
+        if ! apt_get -d full-upgrade 2>&1; then
             ufail "Update failed" "Download failed, nothing was installed. Retried tomorrow."
             return 3
         fi
@@ -319,13 +321,13 @@ update_now() {
             unotify -u normal "Update postponed" "Battery at $b%, nothing was installed. Retried within the hour."
             return 2
         fi
-        [ -n "$snap" ] || snap_root || {
+        snap_root || {
             ufail "Update failed" "No snapshot of /, nothing was installed."
             return 3
         }
         ustep "Download done. Installing..." "Snapshot of / in $ROOTSNAP/$snap. Do not turn it off."
-        if ! xbps-install -yu 2>&1; then
-            ufail "Update failed" "Stopped while installing: run 'doas xbps-install -Su'. Snapshot: $ROOTSNAP/$snap, bootable from GRUB > Snapshots before updates"
+        if ! apt_get full-upgrade 2>&1; then
+            ufail "Update failed" "Stopped while installing: run 'doas apt-get full-upgrade'. Snapshot: $ROOTSNAP/$snap, bootable from GRUB > Snapshots before updates"
             return 3
         fi
     fi
@@ -334,7 +336,7 @@ update_now() {
     [ ! -x /usr/local/sbin/nosuid ] || /usr/local/sbin/nosuid | sed 's/^/nosuid: /'
     grub_snaps
 
-    if printf '%s\n' "$list" | grep -qE '^linux[0-9.]*-[0-9]'; then
+    if printf '%s\n' "$list" | grep -q '^linux-image-'; then
         unotify -u critical "Update done!" "$total package(s) updated. Restart to use the new kernel."
     else
         unotify -u normal "Update done!" "$total package(s) updated."
@@ -346,8 +348,8 @@ job_update() {
         log "update: nobody logged in"
         return 2
     fi
-    if pgrep -x 'xbps-(install|remove|reconfigur|pkgdb)' >/dev/null; then
-        log "update: xbps is running"
+    if apt_busy; then
+        log "update: apt is running"
         return 2
     fi
     b=$(battery)
@@ -360,7 +362,12 @@ job_update() {
         log "update: / is $used% full"
         return 1
     fi
-    if ! xbps-install -S >/dev/null 2>&1; then
+    # a run that was cut off left packages half configured
+    if [ -n "$(dpkg --audit 2>/dev/null)" ]; then
+        log "update: finishing an interrupted dpkg run"
+        DEBIAN_FRONTEND=noninteractive dpkg --configure -a --force-confdef --force-confold 2>&1 || return 1
+    fi
+    if ! apt-get -qq --error-on=any update >/dev/null 2>&1; then
         log "update: repositories not reachable"
         return 2
     fi
@@ -376,11 +383,8 @@ job_update() {
         log "update: up to date"
         return 0
     fi
-    # bytes to download and the repository with most of them, cached packages count 0
     # shellcheck disable=SC2046
-    set -- $(printf '%s\n' "$list" | awk '
-        { d[$4] += $6; t += $6 }
-        END { for (r in d) if (d[r] > m) { m = d[r]; best = r } print t + 0, best }')
+    set -- $(downloads)
     if [ "${FORCE:-0}" = 0 ] && [ "$1" -gt 0 ] && why=$(net_bad "$1" "${2:-}"); then
         log "update: $why"
         net_postponed "$why"
@@ -396,18 +400,18 @@ job_update() {
 
 # grub
 
-QUIET_MARK='# void-postinstall: no Loading messages'
+QUIET_MARK='# debian-postinstall: no Loading messages'
 
-# a grub update keeps the edited 10_linux and adds 10_linux.new-*, both would make boot entries
+# dpkg keeps the edited 10_linux and leaves the new one of a grub update in 10_linux.dpkg-dist
 grub_quiet() {
     f=/etc/grub.d/10_linux
     grep -qx "$QUIET_MARK" "$f" 2>/dev/null || return 0
-    src=$(printf '%s\n' "$f".new-* | sort -V | tail -n1)
+    src=$f.dpkg-dist
     [ -f "$src" ] || return 0
-    flock -n /var/db/xbps/lock true || {
-        log "grub: xbps is running"
+    if apt_busy; then
+        log "grub: apt is running"
         return 0
-    }
+    fi
     if sed -E -e '/^[[:space:]]*echo[[:space:]].*"\$message" \| grub_quote/d' \
         -e "/^$QUIET_MARK\$/d" -e "1a $QUIET_MARK" "$src" >"$f.maint" &&
         ! grep -qE '^[[:space:]]*echo[[:space:]].*\$message' "$f.maint" &&
@@ -422,7 +426,7 @@ grub_quiet() {
         rm -f "$f.maint"
         return 1
     }
-    rm -f "$f".new-*
+    rm -f "$src"
     update-grub 2>&1 || {
         notify critical  "GRUB" "update-grub failed, run 'doas update-grub'."
         return 1
@@ -443,47 +447,60 @@ grub_snaps() {
 
 # kernels
 
+# apt removes the old kernels with the orphans: the ones a snapshot of / boots stay marked manual while it exists
 job_kernels() {
-    old=$(vkpurge list all)
-    for m in "$ROOTSNAP"/root-*/usr/lib/modules/*; do
-        [ -d "$m" ] || continue
-        old=$(printf '%s\n' "$old" | grep -vxF "${m##*/}")
-    done
-    if [ -z "$old" ]; then
-        log "kernels: nothing to remove"
-        return 0
-    fi
-    # shellcheck disable=SC2086
-    flock -n -E 75 /var/db/xbps/lock vkpurge rm $old
-    rc=$?
-    if [ "$rc" = 75 ]; then
-        log "kernels: xbps is running"
+    if apt_busy; then
+        log "kernels: apt is running"
         return 2
     fi
-    for k in /boot/vmlinu[xz]-*; do
+    kept=$STATE/kernels
+    want=
+    for m in "$ROOTSNAP"/root-*/usr/lib/modules/*; do
+        [ -d "$m" ] || continue
+        p=$(dpkg-query -S "/boot/vmlinuz-${m##*/}" 2>/dev/null | cut -d: -f1)
+        [ -n "$p" ] && want="$want $p"
+    done
+    old=$(cat "$kept" 2>/dev/null)
+    auto=" $(apt-mark showauto | tr '\n' ' ') "
+    rc=0 now=
+    for p in $old; do
+        case " $want " in
+        *" $p "*) now="$now $p" ;;
+        *) if apt-mark auto "$p" >/dev/null; then log "kernels: $p no longer kept"; else rc=1; fi ;;
+        esac
+    done
+    # shellcheck disable=SC2086
+    for p in $(printf '%s\n' $want | sort -u); do
+        case " $now " in *" $p "*) continue ;; esac
+        case $auto in *" $p "*) ;; *) continue ;; esac
+        if apt-mark manual "$p" >/dev/null; then
+            now="$now $p"
+            log "kernels: $p kept, a snapshot of / boots it"
+        else
+            rc=1
+        fi
+    done
+    # shellcheck disable=SC2086
+    printf '%s\n' $now >"$kept"
+    for k in /boot/vmlinuz-*; do
         [ -e "$k" ] || continue
-        [ -e "/boot/initramfs-${k#*-}.img" ] || {
-            log "kernels: /boot/initramfs-${k#*-}.img missing"
+        [ -e "/boot/initrd.img-${k#*-}" ] || {
+            log "kernels: /boot/initrd.img-${k#*-} missing"
             rc=1
         }
     done
+    # shellcheck disable=SC2086
+    [ "$rc" != 0 ] || log "kernels: $(printf '%s\n' $now | grep -c .) kept for the snapshots"
     return "$rc"
 }
 
 job_packages() {
-    if ! flock -n /var/db/xbps/lock true; then
-        log "packages: xbps is running"
+    if apt_busy; then
+        log "packages: apt is running"
         return 2
     fi
-    keep=linux$(uname -r | cut -d. -f1-2)
-    orphans=$(xbps-query -O | xargs -r -n1 xbps-uhelper getpkgname | grep -vxE "$keep(-headers)?")
-    if [ -n "$orphans" ]; then
-        # shellcheck disable=SC2086
-        xbps-remove -Ry $orphans 2>&1 || return 1
-    else
-        log "packages: no orphans"
-    fi
-    xbps-remove -Oy 2>&1
+    apt_get autoremove --purge 2>&1 || return 1
+    apt_get autoclean 2>&1
 }
 
 # scrub
