@@ -38,6 +38,15 @@ librewolf)
 		--broadcast=$P.Desktop=$P.Session.Closed@$D/session/*"
     net=1 ns=1
     ;;
+vesktop)
+    # no keyring: it would see all of it
+    rules="$common --own=org.mpris.MediaPlayer2.*
+		--talk=org.kde.StatusNotifierWatcher --talk=org.freedesktop.Notifications
+		--call=$P.Desktop=$P.ScreenCast.*@$D
+		--call=$P.Desktop=$P.Session.Close@$D/session/*
+		--broadcast=$P.Desktop=$P.Session.Closed@$D/session/*"
+    net=1 ns=1
+    ;;
 showtime) rules="$common --own=org.gnome.Showtime.* --own=org.mpris.MediaPlayer2.*" hm=1 ;;
 papers) rules="$common --own=org.gnome.Papers.*" av=0 hm=1 ;;
 libreoffice) rules="$common --own=org.libreoffice.*" av=0 ;;

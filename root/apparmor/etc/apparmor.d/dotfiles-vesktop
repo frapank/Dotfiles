@@ -1,0 +1,55 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+# the package's own vesktop profile, unconfined, is disabled
+profile vesktop /opt/Vesktop/vesktop flags=(attach_disconnected) {
+  # not app: Chromium keeps its shared memory in /dev/shm/.org.chromium.*
+  include <abstractions/dotfiles/app-read>
+  include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/pipewire-manager>
+  include <abstractions/dotfiles/persist>
+  include <abstractions/dotfiles/setuid>
+  include <abstractions/dotfiles/browser-data>
+
+  @{HOMEDIRS} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/[^.]** rk,
+  audit deny @{HOME}/Private/{,**} mrwkl,
+  owner @{HOME}/{Get,Random,Media}/{,**} rwlk,
+  owner /tmp/** rwlkm,
+  owner /dev/shm/** rwkm,
+  # libpulse tries to remove it
+  owner @{run}/user/@{uid}/pulse/ r,
+  deny @{run}/user/@{uid}/pulse/ w,
+  deny @{run}/user/@{uid}/discord-ipc-* w,
+  # xdg-mime at every start
+  deny @{HOME}/.config/mimeapps.list.new w,
+  audit deny /tmp/{lazygit-*,steam_chrome_*}{,/**} rwlkm,
+  audit deny @{run}/user/@{uid}/wayland-* rw,
+  audit deny /tmp/.X11-unix/{,*} rw,
+  deny unix peer=(addr="@/tmp/.X11-unix/*"),
+
+  userns,
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  ptrace (read, trace) peer=@{profile_name},
+  owner @{PROC}/@{pid}/{uid_map,gid_map,setgroups,oom_score_adj} rw,
+
+  network inet,
+  network inet6,
+  network netlink raw,
+
+  owner @{HOME}/.config/vesktop/{,**} rwlkm,
+  /dev/snd/{,**} rw,
+  /dev/video* rw,
+  /dev/media* rw,
+
+  /opt/Vesktop/** mr,
+  /opt/Vesktop/{vesktop,chrome_crashpad_handler,chrome-sandbox} ix,
+  /usr/{bin,lib,libexec,local/bin}/** ix,
+  owner @{run}/user/@{uid}/.dbus-filter/vesktop/* rw,
+
+  include if exists <local/vesktop>
+}
