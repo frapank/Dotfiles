@@ -3,8 +3,9 @@ abi <abi/4.0>,
 include <tunables/global>
 
 # games are untrusted code: all but secrets, shell startup and setuid programs
-# /usr/bin/steam is a symlink to bin_steam.sh
-profile steam /{usr/lib/steam/bin_steam.sh,home/*/.local/share/Steam/steam.sh} flags=(attach_disconnected) {
+# /usr/games/steam of steam-installer or bin_steam.sh of Valve's package; Debian's own
+# steam profile, unconfined, is disabled
+profile steam /{usr/games/steam,usr/lib/steam/bin_steam.sh,home/*/.local/share/Steam/steam.sh} flags=(attach_disconnected) {
   include <abstractions/dotfiles/secrets>
   include <abstractions/dotfiles/persist>
   include <abstractions/dotfiles/setuid>

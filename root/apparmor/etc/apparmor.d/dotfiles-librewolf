@@ -2,6 +2,7 @@ abi <abi/4.0>,
 
 include <tunables/global>
 
+# the package's own librewolf profile, unconfined, is disabled
 profile librewolf /usr/share/librewolf/{librewolf,librewolf-bin} flags=(attach_disconnected) {
   include <abstractions/dotfiles/app>
 

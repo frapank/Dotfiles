@@ -61,8 +61,9 @@ HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
     efi=disable_early_pci_dma lockdown=confidentiality module.sig_enforce=1 proc_mem.force_override=ptrace)
 PKG_APPARMOR=(apparmor apparmor-utils xdg-dbus-proxy bubblewrap python3-gi gir1.2-glib-2.0
     libwayland-dev wayland-protocols pkgconf)
-AA_KEEP=(bin.ping unix-chkpwd usr.bin.wpa_supplicant usr.sbin.dnsmasq zgrep loupe chromium cam
-    libcamerify usr.bin.dhcpcd usr.sbin.ntpd usr.sbin.traceroute usr.bin.uuidd)
+# weaker or unconfined profiles of the same programs: papers and libreoffice-common ship
+# the Ubuntu ones, apparmor an unconfined steam, librewolf an unconfined librewolf
+AA_DISABLE=(usr.bin.papers usr.lib.libreoffice.program.soffice.bin steam librewolf)
 PKG_NET=(network-manager wpasupplicant wireless-regdb dnscrypt-proxy chrony dbus curl)
 PKG_BOOT=(plymouth plymouth-themes console-setup)
 PKG_DESKTOP=(

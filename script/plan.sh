@@ -64,15 +64,15 @@ plan() {
 		  showtime offline. tumblerd offline, writes only to ~/.cache and its temporary files.
 		  foot: no network, no secrets. The shell inside is not confined, so neither is a program an exploit in foot starts.
 		  dnscrypt-proxy chronyd bluetoothd NetworkManager pipewire wireplumber fwupd: only what they use.
-		  wpa_supplicant reads certificates, so eduroam works.
+		  wpa_supplicant: the profile of Void, Debian has none; it reads certificates, so eduroam works.
 		  steam lutris, if you install them: all but secrets, the browser's data, shell startup and setuid programs.
 		  Loupe is left to glycin, which already sandboxes image decoding. It starts without gvfs (GIO_USE_VFS=local), also over D-Bus: the sandboxed apps can ask it to open a URI, gvfs would fetch an http one for them.
 		Sandbox: these apps start in bwrap via dbus-filter, with a filtered session bus (portals, dconf, notifications, media keys; their dconf writes go to ~/.config/dconf/sandbox, the programs outside never see them), no X11, no user namespaces, no other process in sight and no network (librewolf keeps the network and its namespaces).
-		  landlock-scope closes in the kernel what bwrap cannot: abstract unix sockets (Xwayland listens on one, and librewolf has the host network), signals to processes outside, and every pathname unix socket but the few the app uses. AppArmor does not do this here: its parser knows network/af_unix and this kernel offers network_v9/af_unix, so the unix rules are not compiled.
+		  landlock-scope closes in the kernel what bwrap cannot: abstract unix sockets (Xwayland listens on one, and librewolf has the host network) and signals to processes outside; with Landlock ABI 9 (kernel 7, trixie-backports) also every pathname unix socket but the few the app uses, Debian's 6.12 stops at ABI 6. AppArmor does not do this here: the 6.12 kernel does not mediate unix sockets, the newer ones offer network_v9/af_unix that AppArmor 4.1 does not compile.
 		  The apps get a Wayland socket of their own (wp_security_context_v1 in g0wm): no screen, no input injection, no clipboard managers. Without that socket they have no display at all, never the real compositor.
 		  The clipboard is not restricted: as on any Wayland desktop, the focused app is told what was copied last.
 		hardened_malloc (GrapheneOS) in papers tumblerd showtime xarchiver: heap bugs in file parsers crash instead of being exploitable.
-		Removes about 150 unused Void profiles, also on updates.
+		Debian's own profiles stay. Disabled (/etc/apparmor.d/disable) where one here confines the same program: the Ubuntu ones of papers and LibreOffice (they let it write all of the home), the unconfined steam and the unconfined librewolf of its package. Debian's chrony profile gets the certificates for NTS and the root secrets in local/.
 		Kernel command line, active after reboot: $(aa_lsm)
 		Blocks go to the kernel log, local changes in /etc/apparmor.d/local/.
 	EOF

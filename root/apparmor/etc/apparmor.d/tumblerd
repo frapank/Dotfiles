@@ -2,7 +2,7 @@ abi <abi/4.0>,
 
 include <tunables/global>
 
-profile tumblerd /usr/lib/tumbler-1/tumblerd flags=(attach_disconnected) {
+profile tumblerd /usr/lib/@{multiarch}/tumbler-1/tumblerd flags=(attach_disconnected) {
   include <abstractions/dotfiles/app-read>
   include <abstractions/dotfiles/secrets>
   include <abstractions/dotfiles/pipewire-manager>
