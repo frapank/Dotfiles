@@ -53,6 +53,7 @@ run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 bus=${DBUS_SESSION_BUS_ADDRESS:-${DBUS_STARTER_ADDRESS:-}}
 dir=$run/.dbus-filter/$app
 sock=$dir/$$
+sysbus=/run/dbus/system_bus_socket
 
 forward() {
     [ "$app" != tumblerd ] || return 1
@@ -82,11 +83,15 @@ prepare() {
 
 start() {
     [ -n "$bus" ] && command -v xdg-dbus-proxy >/dev/null || return 1
-    rm -f "$sock" "$sock.sync"
+    rm -f "$sock" "$sock.sync" "$sock.system"
     mkfifo -m 0600 "$sock.sync" || return 1
+    # polkit lets the session change the network without a password
+    system=
+    [ "$av" = 0 ] || [ ! -S "$sysbus" ] ||
+        system="unix:path=$sysbus $sock.system --filter --talk=org.freedesktop.RealtimeKit1"
     set -f
     # shellcheck disable=SC2086
-    xdg-dbus-proxy --fd=3 "$bus" "$sock" --filter $rules 3>"$sock.sync" &
+    xdg-dbus-proxy --fd=3 "$bus" "$sock" --filter $rules $system 3>"$sock.sync" &
     set +f
     exec 4<"$sock.sync"
     rm -f "$sock.sync"
@@ -171,10 +176,15 @@ else
 fi
 masks="$masks $runfs"
 [ "$own" = 0 ] || masks="$masks --bind $dir $dir"
+if [ "$filtered" = 1 ] && [ -S "$sock.system" ]; then
+    masks="$masks --bind $sock.system $sysbus"
+else
+    mask "$sysbus"
+fi
 # Landlock: no abstract sockets (Xwayland) or signals outside, pathname sockets only the ones listed
 ll=
 if [ -x /usr/local/libexec/landlock-scope ]; then
-    ll="/usr/local/libexec/landlock-scope -u /run/dbus/system_bus_socket"
+    ll="/usr/local/libexec/landlock-scope -u $sysbus"
     [ "$own" = 0 ] || ll="$ll -u $dir"
     [ "$av" = 0 ] || ll="$ll -u $run/pipewire-0 -u $run/pulse/native"
     # soffice and xarchiver find their own running instance on a socket in /tmp
