@@ -240,6 +240,36 @@ Install from the gear, or with 'doas fwupdmgr update'." install=Install \
         as_user foot --hold -- doas fwupdmgr update
 }
 
+# vesktop: a .deb, apt does not update it
+
+job_vesktop() {
+    v=$(dpkg-query -W -f='${Version}' vesktop 2>/dev/null) || {
+        log "vesktop: not installed"
+        return 0
+    }
+    if ! pgrep -xo g0wm >/dev/null; then
+        log "vesktop: nobody logged in"
+        return 2
+    fi
+    tag=$(curl -fsS --proto =https --tlsv1.2 --max-time 30 https://api.github.com/repos/Vencord/Vesktop/releases/latest |
+        python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])' 2>/dev/null) || {
+        log "vesktop: GitHub not reachable"
+        return 2
+    }
+    tag=${tag#v}
+    case $tag in '' | *[!0-9.]*)
+        log "vesktop: unexpected release name"
+        return 1
+        ;;
+    esac
+    if dpkg --compare-versions "$tag" le "$v"; then
+        log "vesktop: $v is the latest"
+        return 0
+    fi
+    log "vesktop: $tag out, $v installed"
+    notify normal "" "Vesktop" "Version $tag is out, $v is installed. Download the .deb from github.com/Vencord/Vesktop/releases and install it with 'doas apt install ./vesktop_${tag}_amd64.deb': through apt the sandbox profile comes back after it."
+}
+
 # updates
 
 unotify() {
@@ -616,13 +646,14 @@ run_due() {
     due packages "$((7 * DAY))" && job packages
     due firmware "$((7 * DAY))" && job firmware
     due integrity "$((7 * DAY))" && job integrity
+    due vesktop "$DAY" && job vesktop
     due scrub "$((30 * DAY))" && job scrub
     [ -x /usr/local/sbin/dns-blocklist ] && due blocklist "$DAY" && job blocklist
     return 0
 }
 
 status() {
-    for j in home thumbs trash update disks kernels packages firmware integrity scrub blocklist; do
+    for j in home thumbs trash update disks kernels packages firmware integrity vesktop scrub blocklist; do
         if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
         printf '%-9s last %s' "$j" "$last"
         [ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
@@ -651,7 +682,7 @@ update) (
     locked
     FORCE=1 job update
 ) ;;
-home | thumbs | trash | disks | kernels | packages | firmware | integrity | scrub | blocklist) (
+home | thumbs | trash | disks | kernels | packages | firmware | integrity | vesktop | scrub | blocklist) (
     locked
     job "$1"
 ) ;;
@@ -673,7 +704,7 @@ loop)
     done
     ;;
 *)
-    echo 'usage: maint status | run | home | thumbs | trash | update | disks | kernels | packages | firmware | integrity | scrub | blocklist | apt-snapshot' >&2
+    echo 'usage: maint status | run | home | thumbs | trash | update | disks | kernels | packages | firmware | integrity | vesktop | scrub | blocklist | apt-snapshot' >&2
     exit 1
     ;;
 esac

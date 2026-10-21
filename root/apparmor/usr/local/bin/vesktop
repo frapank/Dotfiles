@@ -1,0 +1,3 @@
+#!/bin/sh
+# no X11 in the sandbox, no keyring
+exec /usr/local/bin/dbus-filter vesktop /opt/Vesktop/vesktop --ozone-platform=wayland --password-store=basic "$@"

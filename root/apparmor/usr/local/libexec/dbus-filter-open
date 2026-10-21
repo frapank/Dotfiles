@@ -18,7 +18,7 @@ APPS = {
 FLAGS = {"--new-window", "--private-window", "--writer", "--calc", "--impress", "--draw", "--math", "--base"}
 SCHEMES = ("http://", "https://", "file://")
 WEB = ("http://", "https://")
-NET = {"librewolf"}
+NET = {"librewolf", "vesktop"}
 XML = """<node><interface name="org.dotfiles.Open">
 <method name="Open"><arg type="s" direction="in"/><arg type="as" direction="in"/></method>
 </interface></node>"""
