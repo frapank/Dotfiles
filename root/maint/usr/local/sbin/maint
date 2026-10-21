@@ -23,8 +23,9 @@ NET_MAX_MIN=30
 log() { printf '%s\n' "$*"; }
 
 # conffiles keep the local copy, as the installer does
+# its own snapshot is taken: the apt hook leaves it
 apt_get() {
-    DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l apt-get -y -q \
+    MAINT_SNAPSHOT=1 DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l apt-get -y -q \
         -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
         -o APT::Install-Recommends=false "$@"
 }
@@ -178,6 +179,31 @@ job_disks() {
 Back up what matters. Click to see the log."
 }
 
+# integrity
+
+# files of the packages that are no longer what dpkg installed, conffiles aside: notified when new
+job_integrity() {
+    command -v debsums >/dev/null || {
+        log "integrity: debsums not installed"
+        return 0
+    }
+    if apt_busy; then
+        log "integrity: apt is running"
+        return 2
+    fi
+    debsums -c 2>/dev/null | LC_ALL=C sort -u >"$STATE/integrity.new"
+    touch "$STATE/integrity"
+    new=$(LC_ALL=C comm -13 "$STATE/integrity" "$STATE/integrity.new")
+    n=$(grep -c . "$STATE/integrity.new")
+    mv -f "$STATE/integrity.new" "$STATE/integrity"
+    if [ -z "$new" ]; then
+        log "integrity: $n changed package files, none new"
+        return 0
+    fi
+    printf '%s\n' "$new" | sed 's/^/integrity: changed /'
+    notify_log "Integrity" "$(printf '%s\n' "$new" | grep -c .) package files changed since last week, like $(printf '%s\n' "$new" | head -n1). Click to see the log."
+}
+
 # firmware
 
 job_firmware() {
@@ -242,6 +268,15 @@ snap_root() {
 }
 
 # the packages an upgrade changes, one per line
+# DPkg::Pre-Invoke: a snapshot when apt runs by hand, at most one in 10 minutes
+apt_snapshot() {
+    [ "${MAINT_SNAPSHOT:-0}" = 0 ] || return 0
+    [ "$(stat -f -c %T /)" = btrfs ] && btrfs subvolume show / >/dev/null 2>&1 || return 0
+    last=$(snapshots "$ROOTSNAP" root 2>/dev/null | tail -n1 | tr -dc 0-9)
+    [ -z "$last" ] || [ "$last" -lt "$(date -d '10 minutes ago' +%Y%m%d%H%M)" ] || return 0
+    snap_root && prune "$ROOTSNAP" root "$ROOT_KEEP" && log "maint: snapshot of / in $ROOTSNAP/$snap"
+}
+
 pending() {
     out=$(apt-get -s -o Debug::NoLocking=1 full-upgrade 2>&1) || {
         printf '%s\n' "$out"
@@ -580,13 +615,14 @@ run_due() {
     due kernels "$((7 * DAY))" && job kernels
     due packages "$((7 * DAY))" && job packages
     due firmware "$((7 * DAY))" && job firmware
+    due integrity "$((7 * DAY))" && job integrity
     due scrub "$((30 * DAY))" && job scrub
     [ -x /usr/local/sbin/dns-blocklist ] && due blocklist "$DAY" && job blocklist
     return 0
 }
 
 status() {
-    for j in home thumbs trash update disks kernels packages firmware scrub blocklist; do
+    for j in home thumbs trash update disks kernels packages firmware integrity scrub blocklist; do
         if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
         printf '%-9s last %s' "$j" "$last"
         [ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
@@ -615,11 +651,17 @@ update) (
     locked
     FORCE=1 job update
 ) ;;
-home | thumbs | trash | disks | kernels | packages | firmware | scrub | blocklist) (
+home | thumbs | trash | disks | kernels | packages | firmware | integrity | scrub | blocklist) (
     locked
     job "$1"
 ) ;;
 update-now) update_now ;;
+apt-snapshot) (
+    # shellcheck disable=SC2174
+    mkdir -p -m 0700 "$STATE"
+    exec 9>"$STATE/snapshot.lock"
+    flock -w 30 9 && apt_snapshot
+) ;;
 loop)
     sleep 900
     while :; do
@@ -631,7 +673,7 @@ loop)
     done
     ;;
 *)
-    echo 'usage: maint status | run | home | thumbs | trash | update | disks | kernels | packages | firmware | scrub | blocklist' >&2
+    echo 'usage: maint status | run | home | thumbs | trash | update | disks | kernels | packages | firmware | integrity | scrub | blocklist | apt-snapshot' >&2
     exit 1
     ;;
 esac
