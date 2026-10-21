@@ -3,22 +3,25 @@
 
 do_swap() {
     step "Swap"
-    put_text /etc/sv/zramen/conf 0644 <<-EOF
-		export ZRAM_COMP_ALGORITHM=zstd
-		export ZRAM_SIZE=$ZRAM_PCT
-		export ZRAM_MAX_SIZE=$ZRAM_MIB
-		export ZRAM_PRIORITY=32767
-		exec 2>&1
-	EOF
+    local n
     grep -qw zstd /sys/block/zram0/comp_algorithm 2>/dev/null ||
         modprobe -n zram 2>/dev/null || die "the kernel has no zram module"
+    n=$(njot)
+    put_text /etc/systemd/zram-generator.conf 0644 <<-EOF
+		[zram0]
+		zram-size = min(ram * $ZRAM_PCT / 100, 16384)
+		compression-algorithm = zstd
+		swap-priority = 32767
+	EOF
+    svc_reload
+    if ((n != $(njot))); then
+        try "restart the zram swap" systemctl restart systemd-zram-setup@zram0.service dev-zram0.swap
+    fi
     save_sysctl "$REPO"/root/zram/etc/sysctl.d/*.conf
     put_tree zram
     try "sysctl -p 50-zram.conf" sysctl -p /etc/sysctl.d/50-zram.conf
-    [[ -d /etc/sv/earlyoom ]] || die "earlyoom did not install /etc/sv/earlyoom"
-    grep -q '\. \./conf' /etc/sv/earlyoom/run || die "/etc/sv/earlyoom/run does not read conf"
     svc_refresh earlyoom.service put_tree earlyoom
-    run "earlyoom conf parses" sh -n /etc/sv/earlyoom/conf
+    run "earlyoom args parse" sh -n /etc/default/earlyoom
     run "earlyoom-closed parses" sh -n /usr/local/libexec/earlyoom-closed
 }
 

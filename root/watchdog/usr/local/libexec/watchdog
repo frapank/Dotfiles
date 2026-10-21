@@ -216,13 +216,11 @@ webcam() {
     fi
 }
 
-# earlyoom-closed leaves oom.PID files with the program name
+# earlyoom-closed prints the name of what earlyoom closed, in its journal
 earlyoom() {
-    for f in "$st"/oom.*; do
-        case $f in *.tmp) continue ;; esac
-        [ -f "$f" ] || continue
-        name=$(cat "$f")
-        rm -f "$f"
+    stdbuf -oL journalctl -f -n0 -q -o cat _SYSTEMD_UNIT=earlyoom.service 2>/dev/null | while IFS= read -r line; do
+        case $line in 'closed: '*) ;; *) continue ;; esac
+        name=${line#closed: }
         notify critical  "${name:-a program}" "out of memory, closed by earlyoom" service earlyoom &
     done
 }
@@ -243,7 +241,6 @@ pstore() {
 poll() {
     while :; do
         pstore
-        earlyoom
         services
         batteries
         disks
@@ -257,6 +254,10 @@ trap 'trap - TERM; kill 0' TERM
 # journalctl -f can end: read the kernel again rather than go silent
 while :; do
     kernel
+    sleep 5
+done &
+while :; do
+    earlyoom
     sleep 5
 done &
 poll &

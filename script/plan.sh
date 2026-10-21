@@ -121,9 +121,9 @@ plan() {
 	EOF
     zram_size
     section swap "Swap in compressed RAM, earlyoom" <<-EOF
-		zramen: ${ZRAM_PCT}% of $(($(awk '/^MemTotal:/ { print $2 }' /proc/meminfo) / 1024)) MiB RAM = ${ZRAM_MIB} MiB of zstd zram (max 16 GiB).
+		zram-generator: ${ZRAM_PCT}% of $(($(awk '/^MemTotal:/ { print $2 }' /proc/meminfo) / 1024)) MiB RAM = ${ZRAM_MIB} MiB of zstd zram (max 16 GiB).
 		swappiness 180, page-cluster 0.
-		earlyoom closes the program using the most memory under 10% free RAM and 10% free swap, before the desktop freezes. Browser tabs, Steam web views and Windows games go first; g0wm, foot, PipeWire and the network last; gtklock and the runit services never. The watchdog notifies it.
+		earlyoom closes the program using the most memory under 10% free RAM and 10% free swap, before the desktop freezes. Browser tabs, Steam web views and Windows games go first; g0wm, foot, PipeWire and the network last; gtklock and systemd never. The watchdog notifies it.
 	EOF
     section maint "Maintenance: snapshots, updates, cleanup" <<-EOF
 		A service runs these hourly, catches up on missed ones and notifies failures. Needs / and /home on btrfs.
