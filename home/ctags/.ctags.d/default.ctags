@@ -1,5 +1,6 @@
 --recurse=yes
---kinds-all=+p
+--kinds-C=+p
+--kinds-C++=+p
 --fields=+iaS
 --extras=+q
 --sort=yes
@@ -9,4 +10,3 @@
 --exclude=venv
 --exclude=__pycache__
 --tag-relative=yes
---tag-file=tags

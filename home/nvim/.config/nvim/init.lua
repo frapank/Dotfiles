@@ -68,11 +68,10 @@ o.exrc = true -- per-project .nvim.lua (makeprg, :Debug args); prompts for trust
 o.listchars = { tab = "· ", trail = "·", nbsp = "␣" }
 o.laststatus = 2
 o.guicursor = "a:block"
-o.winborder = "single"
 
 o.foldmethod, o.foldlevelstart = "expr", 99
 -- Without this the default foldexpr is "0": every line evaluated, no fold
--- ever produced. LspAttach replaces it per-window wherever a server folds.
+-- ever produced.
 o.foldexpr = "v:lua.vim.treesitter.foldexpr()"
 
 if vim.fn.has("nvim-0.10") == 0 then o.termguicolors = true end
@@ -136,7 +135,7 @@ cmd("Switch", function()
     if not client then
         return vim.notify("Switch: clangd is not attached", vim.log.levels.WARN)
     end
-    client:request("textDocument/switchSourceHeader", { uri = vim.uri_from_bufnr(0) },
+    client.request("textDocument/switchSourceHeader", { uri = vim.uri_from_bufnr(0) },
         function(err, result)
             if err or not result then
                 return vim.notify("Switch: no counterpart found", vim.log.levels.WARN)

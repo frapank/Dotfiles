@@ -66,6 +66,7 @@ do_home_cli() {
     put_tree cli
     move_aside "$THOME/.vimrc"
     move_aside "$THOME/.tmux.conf"
+    move_aside "$THOME/.ctags"
     do_home "${HOME_CLI[@]}"
     # last line of the old full copies
     source_hook .bashrc "$BASHRC_LINE" '/^unset -f _setup_history / { print NR; exit }'
