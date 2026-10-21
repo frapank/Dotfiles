@@ -58,6 +58,9 @@ do_harden() {
     ssh_dir
 
     put_tree modprobe
+    # the daemons get more of the sandbox of systemd, after the next start
+    put_tree sandbox
+    svc_reload
     machine_id
     grub_words "${HARDEN_CMDLINE[@]}"
     boot_mask
