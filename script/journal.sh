@@ -68,6 +68,7 @@ rollback() {
             done
             ;;
         initramfs) cp -a -- "$BAK/boot/." /boot/ ;;
+        nmcon) nmcli connection delete -- "$a" ;;
         aaload) aa-remove-unknown && apparmor_parser -r -- /etc/apparmor.d ;;
         subvol-rm) [[ ! -e $a ]] || btrfs subvolume delete -- "$a" ;;
         subvol-swap)

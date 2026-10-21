@@ -37,7 +37,8 @@
 ## To listen to all IPv4 addresses, use `listen_addresses = ['0.0.0.0:53']`
 ## To listen to all IPv4+IPv6 addresses, use `listen_addresses = ['[::]:53']`
 
-listen_addresses = ['127.0.0.1:53']
+# the socket of dnscrypt-proxy.socket, 127.0.2.1:53
+listen_addresses = []
 
 
 ## Maximum number of simultaneous client connections to accept
@@ -50,7 +51,6 @@ max_clients = 250
 ## Note (2): this feature is not compatible with systemd socket activation.
 ## Note (3): when using -pidfile, the PID file directory must be writable by the new user
 
-user_name = 'dnscrypt_proxy'
 
 
 ###############################################################################
@@ -121,7 +121,6 @@ http3 = false
 ## solution is to reach out to these operators and encourage them to
 ## fix their servers to correctly advertise HTTP/3 support.
 
-http3_probe = false
 
 
 ## SOCKS proxy
@@ -975,94 +974,6 @@ direct_cert_fallback = false
 
 # resolver = ['[2606:4700:4700::64]:53', '[2001:4860:4860::64]:53']
 
-
-###############################################################################
-#                           IP Encryption                                      #
-###############################################################################
-
-[ip_encryption]
-
-## Encrypt client IP addresses in plugin logs using IPCrypt
-## This provides privacy for client IP addresses while maintaining
-## the ability to distinguish between different clients in logs
-
-## Encryption algorithm (default: "none")
-## - "none": No encryption (default)
-## - "ipcrypt-deterministic": Deterministic encryption (same IP always encrypts to same value) - requires 16-byte key
-## - "ipcrypt-nd": Non-deterministic encryption with 8-byte tweak - requires 16-byte key
-## - "ipcrypt-ndx": Non-deterministic encryption with 16-byte tweak (extended) - requires 32-byte key
-## - "ipcrypt-pfx": Prefix-preserving encryption (preserves network prefix relationships) - requires 32-byte key
-
-algorithm = "none"
-
-## Encryption key in hexadecimal format (required if algorithm is not "none")
-## Key size depends on algorithm:
-## - ipcrypt-deterministic: 32 hex chars (16 bytes) - Generate with: openssl rand -hex 16
-## - ipcrypt-nd: 32 hex chars (16 bytes) - Generate with: openssl rand -hex 16
-## - ipcrypt-ndx: 64 hex chars (32 bytes) - Generate with: openssl rand -hex 32
-## - ipcrypt-pfx: 64 hex chars (32 bytes) - Generate with: openssl rand -hex 32
-## Example for deterministic/nd: key = "1234567890abcdef1234567890abcdef"
-## Example for ndx: key = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-## IMPORTANT: Keep this key secret
-
-key = ""
-
-
-###############################################################################
-#                            Monitoring UI                                     #
-###############################################################################
-
-[monitoring_ui]
-
-## Enable the monitoring UI
-enabled = false
-
-## Listen address for the monitoring UI
-listen_address = "127.0.0.1:8080"
-
-## Optional username and password for basic authentication
-## To disable authentication, set username to an empty string: username = ""
-## If both username and password are empty, no authentication is required
-username = "admin"
-password = "changeme"
-
-## Optional TLS certificate and key for HTTPS
-## If both are empty, HTTP will be used
-tls_certificate = ""
-tls_key = ""
-
-## Enable query logging in the monitoring UI
-## This will show recent queries in the UI
-enable_query_log = true
-
-## Privacy level for the monitoring UI
-## 0: show all details including client IPs
-## 1: anonymize client IPs
-## 2: aggregate data only (no individual queries or domains shown) (default)
-privacy_level = 1
-
-## Maximum number of recent query log entries to keep in memory
-## Helps control memory usage on high-traffic servers
-## Default: 100
-# max_query_log_entries = 100
-
-## Maximum memory usage in MB for recent query logs
-## Automatic cleanup when limit is exceeded
-## Default: 1
-# max_memory_mb = 1
-
-## Enable Prometheus metrics endpoint
-## Default: false
-# prometheus_enabled = false
-
-## Path for Prometheus metrics endpoint
-## Default: /metrics
-# prometheus_path = "/metrics"
-
-
-###############################################################################
-#                            Static entries                                    #
-###############################################################################
 
 [static]
 
