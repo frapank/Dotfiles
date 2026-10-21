@@ -1,0 +1,289 @@
+# a setting left out keeps its default, one with no value is off
+
+look {
+	fonts "Geist Mono:size=11" "Symbols Nerd Font:size=12"
+	colors {
+		# fg bg border
+		norm #8a8a8aff #070707ff #070707ff
+		sel #e9e9e9ff #070707ff #070707ff
+		urg #e0a86aff #070707ff #070707ff
+		title #7a7a7aff #070707ff #070707ff
+		titlesel #e9e9e9ff #070707ff #070707ff
+		status #8a8a8aff #070707ff #070707ff
+		notify #e9e9e9ff #060608ff #e0a86aff
+		notifylow #e9e9e9ff #060608ff #7fa88aff
+		notifycrit #e9e9e9ff #060608ff #d8625eff
+		runner #e9e9e9ff #060608ff #060608ff
+		runnersuggest #707070ff #060608ff #060608ff
+	}
+	rootcolor #0a1224ff
+	fullscreen_bg #0a1224ff
+	# empty for none
+	wallpaper /home/user/.config/g0wm/wallpaper.jpg
+	# up to 31
+	tags 1 2 3 4 5 6
+}
+
+windows {
+	borderpx 3
+	# normal or squircle
+	cornerstyle squircle
+	cornerpx 12
+	gaps 2
+	gappx 2
+	smartgaps false
+	titlebar true
+	titlepadding 15
+	titlecenter true
+	# shown with the pointer over it
+	titleclose true
+	titleclosecolor #ff5f57ff
+	# px dragged on a title before the window moves
+	movethreshold 4
+	# px at which a moved floating window sticks, 0 off
+	movesnap 12
+}
+
+bar {
+	showbar true
+	topbar true
+	barwintitle false
+	# dots instead of the tag names
+	bartagdots true
+	barltsymbol false
+	barboxradius 2
+	barpadding 4
+	# times the font height, 0 for automatic
+	barheight 1.5
+	# one bar only, on the first monitor
+	barsinglemon false
+	showsystray true
+	systrayspacing 2
+	systraypadding 2
+	# 0 fills the bar
+	systrayiconsize 16
+	shownotifications true
+	# seconds
+	notification_timeout 5
+	notification_linewidth 4
+	notification_lineradius 2
+	notification_actionsign 
+	# shown while nothing is typed
+	runner_placeholder Run...
+}
+
+opacity {
+	opacity_enabled false
+	opacity_focus 0.82
+	opacity_unfocus 0.82
+	# bar, title bars and borders
+	opacity_deco 1
+	# normal or blur
+	opacity_type blur
+	blur_radius 15
+	blur_passes 1
+	blur_saturation 1.6
+	blur_brightness 1
+}
+
+input {
+	sloppyfocus true
+	xkb_rules {
+		rules
+		model
+		layout
+		variant
+		options
+	}
+	repeat_rate 25
+	repeat_delay 600
+	cursor_theme Bibata-Modern-Classic
+	cursor_size 20
+	hide_cursor_when_typing true
+	tap_to_click true
+	tap_and_drag true
+	drag_lock true
+	natural_scrolling false
+	disable_while_typing true
+	left_handed false
+	middle_button_emulation false
+	# none, 2fg, edge or on-button-down
+	scroll_method 2fg
+	# none, button-areas or clickfinger
+	click_method button-areas
+	# enabled, disabled or disabled-on-external-mouse
+	send_events_mode enabled
+	# none, flat or adaptive, speed from -1 to 1
+	accel_profile flat
+	accel_speed 0
+	# the same three, for touchpads
+	touchpad_natural_scrolling true
+	touchpad_accel_profile adaptive
+	touchpad_accel_speed 0
+	# held while pinching to zoom, none for off
+	pinchzoom_mod logo
+	# lrm or lmr
+	button_map lrm
+	# output names as wlr-randr shows them, none for all
+	tablet_output
+	# buttons on the right
+	tablet_left_handed false
+	# none: the one udev reports
+	touch_output
+}
+
+misc {
+	# silent, error, info or debug
+	log_level error
+	# a hidden fullscreen window keeps the screen awake
+	bypass_surface_visibility false
+	# tearing for fullscreen windows that ask for it
+	allow_tearing true
+	# VRR for fullscreen games and videos
+	auto_vrr true
+}
+
+# layout: symbol, then tile, float or tabbed
+layout "[ ]" tile
+layout "< >" float
+layout "| |" tabbed
+
+# rule: opacity 0 keeps the default, monitor -1 is the focused one
+rule {
+	id Placeholder
+	title
+	tags 0
+	isfloating true
+	opacity_focus 0
+	opacity_unfocus 0
+	monitor -1
+}
+
+# monitor: the first matching name wins
+monitor {
+	name
+	mfact 0.55
+	nmaster 1
+	scale 2
+	layout "[ ]"
+	transform normal
+	x -1
+	y -1
+	width 0
+	height 0
+	refresh 0
+}
+
+# autostart: a command, run without a shell
+autostart dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+autostart gnome-keyring-daemon --start --components=secrets
+autostart services session
+
+# key: modifiers+key, action, argument
+key logo+q spawn foot
+key logo+f spawn thunar
+key logo+b spawn librewolf
+key Print spawn screenshot
+key shift+Print spawn screenshot screen
+key ctrl+Print spawn screenshot edit
+key logo+Print spawn record
+key logo+shift+Print spawn record region
+key logo+ctrl+Print spawn record --no-audio
+key logo+equal spawn nightlight
+key logo+minus spawn awake
+key logo+n notifyscroll
+key logo+shift+n notifyopen
+key logo+ctrl+n notifynext
+key logo+alt+n notifyprev
+key logo+ctrl+shift+n notifydismissall
+key logo+a notifyactions
+key logo+c killclient
+key logo+v togglefloating
+key logo+shift+g togglegaps
+key logo+shift+t toggletitlebar
+key logo+t toggletabbed "| |"
+key logo+shift+f togglefullscreen
+key logo+shift+r reloadsettings
+key logo+r runnertoggle
+key logo+h focusstack -1
+key logo+j focusstack 1
+key logo+k focusstack -1
+key logo+l focusstack 1
+key logo+shift+h movestack -1
+key logo+shift+j movestack 1
+key logo+shift+k movestack -1
+key logo+shift+l movestack 1
+key logo+ctrl+h resizewidth -50
+key logo+ctrl+l resizewidth 50
+key logo+ctrl+k resizeheight -50
+key logo+ctrl+j resizeheight 50
+key XF86PowerOff spawn power
+key XF86AudioRaiseVolume spawn osd volume up
+key XF86AudioLowerVolume spawn osd volume down
+key XF86AudioMute spawn osd volume mute
+key XF86AudioMicMute spawn osd mic mute
+key XF86MonBrightnessUp spawn osd brightness up
+key XF86MonBrightnessDown spawn osd brightness down
+key XF86AudioNext spawn osd media next
+key XF86AudioPause spawn osd media play
+key XF86AudioPlay spawn osd media play
+key XF86AudioPrev spawn osd media prev
+key logo+Return zoom
+key logo+space setlayout
+key logo+comma focusmon 4
+key logo+period focusmon 8
+key logo+shift+less tagmon 4
+key logo+shift+greater tagmon 8
+key logo+1 view 1
+key logo+shift+exclam tag 1
+key logo+2 view 2
+key logo+shift+at tag 2
+key logo+3 view 4
+key logo+shift+numbersign tag 4
+key logo+4 view 8
+key logo+shift+dollar tag 8
+key logo+5 view 16
+key logo+shift+percent tag 16
+key logo+6 view 32
+key logo+shift+asciicircum tag 32
+key logo+shift+Escape quit
+key logo+Escape toggleinhibit
+key ctrl+alt+Terminate_Server quit
+key ctrl+alt+XF86Switch_VT_1 chvt 1
+key ctrl+alt+XF86Switch_VT_2 chvt 2
+key ctrl+alt+XF86Switch_VT_3 chvt 3
+key ctrl+alt+XF86Switch_VT_4 chvt 4
+key ctrl+alt+XF86Switch_VT_5 chvt 5
+key ctrl+alt+XF86Switch_VT_6 chvt 6
+key ctrl+alt+XF86Switch_VT_7 chvt 7
+key ctrl+alt+XF86Switch_VT_8 chvt 8
+key ctrl+alt+XF86Switch_VT_9 chvt 9
+key ctrl+alt+XF86Switch_VT_10 chvt 10
+key ctrl+alt+XF86Switch_VT_11 chvt 11
+key ctrl+alt+XF86Switch_VT_12 chvt 12
+
+# button: bar area, modifiers+button, action, argument
+button ltsymbol left setlayout "[ ]"
+button title middle zoom
+button title left notifyopen
+button title right notifydismiss
+button wintitle wheel-up focusstack -1
+button wintitle wheel-down focusstack 1
+button status middle spawn foot
+button tray left trayactivate
+button tray right traymenu
+button tagbar left view 0
+button tagbar right toggleview 0
+button tagbar logo+left tag 0
+button tagbar logo+right toggletag 0
+button tagbar wheel-up shiftview -1
+button tagbar wheel-down shiftview 1
+button client logo+left moveresize move
+button client logo+middle togglefloating
+button client logo+right moveresize resize
+
+# gesture: motion, fingers, action, argument
+gesture swipe-left 3 shiftview 1
+gesture swipe-right 3 shiftview -1
+
+# padbutton: button from 0, action, argument
