@@ -12,8 +12,8 @@ usage() {
 Usage: services [COMMAND [NAME...]]
 The programs of the g0wm session, kept running by systemd: they start with
 g0wm, come back if they crash and stop when g0wm quits. Each one is a user
-unit in $UNITS/NAME.service, the
-ones of Debian (${SYSTEM% *} and ${SYSTEM##* }) come with it.
+unit in ~/.config/systemd/user; $(echo "$SYSTEM" | sed 's/ \([^ ]*\)$/ and \1/')
+are the units of Debian.
 
   status [NAME]     what runs now and what starts at login (default);
                     with NAME: exit 0 if it runs, 3 if it does not
