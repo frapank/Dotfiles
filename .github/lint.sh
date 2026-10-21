@@ -119,12 +119,14 @@ echo "apparmor $(apparmor_parser --version | awk 'NR == 1 { print $NF }')"
 aa=$(mktemp -d)
 trap 'rm -rf "$aa"' EXIT
 cp -a /etc/apparmor.d/. root/apparmor/etc/apparmor.d/. "$aa/"
-aa_files=("$aa/usr.bin.wpa_supplicant")
+aa_files=()
 for f in root/apparmor/etc/apparmor.d/*; do
     [[ -f $f ]] && aa_files+=("$aa/${f##*/}")
 done
+# Debian's, with what local/ adds to it
+[[ ! -f $aa/usr.sbin.chronyd ]] || aa_files+=("$aa/usr.sbin.chronyd")
 if out=$(apparmor_parser --base "$aa" -QK -- "${aa_files[@]}" 2>&1); then
-    pass "$((${#aa_files[@]} - 1)) profiles compile"
+    pass "${#aa_files[@]} profiles compile"
 else
     grep -v '^Cache read/write disabled' <<<"$out"
     fail "apparmor profiles"

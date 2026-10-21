@@ -24,7 +24,6 @@ profile bluetoothd /usr/libexec/bluetooth/bluetoothd {
   /var/lib/bluetooth/ rw,
   /var/lib/bluetooth/** rwk,
   @{run}/dbus/system_bus_socket rw,
-  /etc/sv/bluetoothd/ r,
 
   /dev/uhid rw,
   /dev/uinput rw,

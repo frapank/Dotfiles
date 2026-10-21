@@ -2,7 +2,7 @@ abi <abi/4.0>,
 
 include <tunables/global>
 
-profile NetworkManager /usr/bin/NetworkManager {
+profile NetworkManager /usr/sbin/NetworkManager {
   include <abstractions/base>
   include <abstractions/nameservice>
   include <abstractions/ssl_certs>
@@ -38,19 +38,19 @@ profile NetworkManager /usr/bin/NetworkManager {
   @{run}/NetworkManager/{,**} rwk,
   @{run}/dbus/system_bus_socket rw,
   @{run}/udev/{,**} r,
-  # no /etc/machine-id here: the stable DHCP and IPv6 ids come from the dbus one
-  /var/lib/dbus/machine-id r,
+  # a new one at every boot
+  /{etc,var/lib/dbus}/machine-id r,
   @{PROC}/** r,
   @{PROC}/sys/net/** rw,
   @{sys}/** r,
   @{sys}/devices/**/net/** rw,
   /dev/rfkill rw,
   /dev/net/tun rw,
-  /etc/sv/NetworkManager/ r,
 
   /usr/libexec/nm-* ix,
-  /usr/bin/{ip,nft,iptables*,ip6tables*,sysctl} ix,
-  /usr/bin/dnsmasq Px,
+  /usr/{bin,sbin}/{ip,nft,iptables*,ip6tables*,sysctl} ix,
+  # shared connections; Debian has no dnsmasq profile unless apparmor-profiles
+  /usr/sbin/dnsmasq Pix,
 
   audit deny /home/{,**} mrwkl,
   audit deny /root/{,**} mrwkl,

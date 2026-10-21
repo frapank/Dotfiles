@@ -9,47 +9,50 @@ do_apparmor() {
     aa_on && jot aaload
     n=$(njot)
     put_tree apparmor
-    # dotfiles-repo is left by older versions
-    for f in /etc/apparmor.d/local/dotfiles-repo /etc/apparmor.d/abstractions/dotfiles/*; do
+    for f in /etc/apparmor.d/abstractions/dotfiles/*; do
         [[ -e $f && ! -e $REPO/root/apparmor$f ]] || continue
         backup "$f"
         rm -f -- "$f"
         ok "removed $f (no longer in the repo)"
     done
+    aa_disable
     for f in "$REPO"/root/apparmor/etc/apparmor.d/*; do
         [[ -f $f ]] && prof+=("/etc/apparmor.d/${f##*/}")
     done
-    run "AppArmor profiles compile" apparmor_parser -QK -- "${prof[@]}" /etc/apparmor.d/usr.bin.wpa_supplicant
+    # Debian's chrony profile, with what local/usr.sbin.chronyd adds
+    [[ ! -f /etc/apparmor.d/usr.sbin.chronyd ]] || prof+=(/etc/apparmor.d/usr.sbin.chronyd)
+    run "AppArmor profiles compile" apparmor_parser -QK -- "${prof[@]}"
     aa_wlsandbox
     aa_landlock
     aa_hmalloc
-    aa_prune
     aa_cache
     if ! aa_on; then
         ok "profiles load at the next boot (AppArmor is not running yet)"
     elif ((n == $(njot))); then
         skip "AppArmor profiles loaded"
     else
-        run "load the AppArmor profiles" apparmor_parser -r -- "${prof[@]}" /etc/apparmor.d/usr.bin.wpa_supplicant
-        run "unload the profiles removed from /etc/apparmor.d" aa-remove-unknown
+        run "load the AppArmor profiles" apparmor_parser -r -- "${prof[@]}"
+        run "unload the disabled and removed profiles" aa-remove-unknown
         try "compile the profile cache" apparmor_parser -QW -- /etc/apparmor.d
     fi
     aa_grub
 }
 
-aa_prune() {
-    local f keep=" ${AA_KEEP[*]} " n=0
-    while IFS= read -r f; do
-        [[ $f == /etc/apparmor.d/* && $f != /etc/apparmor.d/*/* && -f $f ]] || continue
-        [[ $keep == *" ${f##*/} "* || ${f##*/} == README ]] && continue
-        # the repo has its own steam
-        [[ ! -e $REPO/root/apparmor$f ]] || continue
-        backup "$f"
-        rm -f -- "$f"
-        n=$((n + 1))
-    done < <(dpkg-query -L apparmor)
-    # dpkg does not bring back a conffile that was deleted
-    if ((n)); then ok "removed $n profiles of programs not installed"; else skip "unused profiles removed"; fi
+# the profiles of Debian and of the packages for the programs confined here: they attach
+# to the same paths, or have the same name. disable/ is how Debian turns one off.
+aa_disable() {
+    local p
+    for p in "${AA_DISABLE[@]}"; do
+        [[ -f /etc/apparmor.d/$p ]] || continue
+        if [[ -L /etc/apparmor.d/disable/$p ]]; then
+            skip "AppArmor: Debian's $p disabled"
+            continue
+        fi
+        mkdirs /etc/apparmor.d/disable
+        jot remove "/etc/apparmor.d/disable/$p"
+        ln -sfn -- "../$p" "/etc/apparmor.d/disable/$p"
+        ok "AppArmor: Debian's $p disabled, the one here confines it"
+    done
 }
 
 aa_wlsandbox() {

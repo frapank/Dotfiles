@@ -440,7 +440,7 @@ verify() {
                 bad=1
             }
         done
-        grep -q pam_gnome_keyring /etc/pam.d/login || {
+        grep -q pam_gnome_keyring /etc/pam.d/login && grep -q pam_gnome_keyring /etc/pam.d/common-password || {
             warn "keyring not in /etc/pam.d/login"
             bad=1
         }
@@ -494,7 +494,7 @@ verify() {
             warn "apparmor.service not enabled"
             bad=1
         }
-        for c in librewolf foot dnscrypt-proxy abstractions/dotfiles/app; do
+        for c in dotfiles-librewolf foot dnscrypt-proxy usr.sbin.wpa_supplicant abstractions/dotfiles/app; do
             [[ -f /etc/apparmor.d/$c ]] || {
                 warn "/etc/apparmor.d/$c missing"
                 bad=1

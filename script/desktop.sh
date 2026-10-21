@@ -82,7 +82,7 @@ do_g0wm() {
     step "Desktop: g0wm"
     do_home "${HOME_DESKTOP[@]}"
     user_units
-    put_tree elogind
+    put_tree logind
 
     local wp
     wp=$(grep -o '"wallpaper": *"[^"]*"' "$THOME/.config/g0wm/settings.json" | cut -d'"' -f4 || true)
@@ -131,16 +131,9 @@ do_g0wm() {
 
 do_media() {
     step "Screen sharing and audio"
-    # services starts them
-    local f
-    for f in /etc/pipewire/pipewire.conf.d/{10-wireplumber,20-pipewire-pulse}.conf; do
-        [[ -e $f || -L $f ]] || continue
-        backup "$f"
-        rm -f -- "$f"
-        ok "removed $f"
-    done
+    # Debian's user units start them, with the session
     [[ -f /usr/share/alsa/alsa.conf.d/99-pipewire-default.conf ]] ||
-        die "alsa-pipewire did not install its ALSA config"
+        die "pipewire-alsa did not install its ALSA config"
     [[ -f /usr/share/xdg-desktop-portal/portals/wlr.portal ]] ||
         die "xdg-desktop-portal-wlr did not install wlr.portal"
     ok "PipeWire ALSA config and wlr portal present"
@@ -249,13 +242,15 @@ pam_keyring() {
 
 do_session() {
     step "Session: keyring, polkit, bluetooth"
-    [[ -f /usr/lib/security/pam_gnome_keyring.so ]] || die "pam_gnome_keyring.so missing"
-    [[ -x /usr/libexec/polkit-gnome-authentication-agent-1 ]] || die "polkit-gnome agent missing"
+    [[ -f /usr/lib/x86_64-linux-gnu/security/pam_gnome_keyring.so ]] || die "pam_gnome_keyring.so missing"
+    [[ -x /usr/libexec/polkit-mate-authentication-agent-1 ]] || die "mate-polkit agent missing"
+    # the console login: the display managers of Debian have it, login does not
     pam_keyring /etc/pam.d/login \
         'auth       optional     pam_gnome_keyring.so' \
         'session    optional     pam_gnome_keyring.so auto_start'
-    pam_keyring /etc/pam.d/passwd \
-        'password   optional     pam_gnome_keyring.so'
+    # the password change: pam-auth-update put it in common-password
+    grep -q pam_gnome_keyring /etc/pam.d/common-password ||
+        run "keyring follows password changes" pam-auth-update --package --enable gnome-keyring
     gset plugin-list "['!StatusNotifierItem', '!StatusIcon']" org.blueman.general
     bt_conf
 }

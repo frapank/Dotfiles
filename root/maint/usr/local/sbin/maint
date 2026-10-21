@@ -395,11 +395,11 @@ job_update() {
         net_postponed "$why"
         return 2
     fi
-    if ! elogind-inhibit --list >/dev/null 2>&1; then
-        log "update: cannot block sleep (elogind not running)"
+    if ! systemd-inhibit --list >/dev/null 2>&1; then
+        log "update: cannot block sleep (logind not running)"
         return 2
     fi
-    elogind-inhibit --what=sleep:shutdown:handle-lid-switch:handle-suspend-key:handle-hibernate-key \
+    systemd-inhibit --what=sleep:shutdown:handle-lid-switch:handle-suspend-key:handle-hibernate-key \
         --who=maint --why="system update" --mode=block /usr/local/sbin/maint update-now
 }
 

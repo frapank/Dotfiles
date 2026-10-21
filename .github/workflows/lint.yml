@@ -15,7 +15,7 @@ jobs:
       - name: Install tools
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends bash dash shellcheck shfmt python3 apparmor gcc libc6-dev pkgconf libwayland-dev wayland-protocols
+          apt-get install -y --no-install-recommends bash dash shellcheck shfmt python3 apparmor chrony gcc libc6-dev pkgconf libwayland-dev wayland-protocols
       - uses: actions/checkout@v4
       - name: Lint
         run: .github/lint.sh
