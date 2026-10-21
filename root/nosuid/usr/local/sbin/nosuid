@@ -1,7 +1,8 @@
 #!/bin/sh
 # Drops setuid/setgid from programs not needed with doas, and the file capabilities
 # of the ones anyone can run. -n only lists them.
-# Updates put them back: maint and the boot run this again.
+# dpkg-statoverride keeps the modes across updates; apt runs this after each run
+# for what a new package brings.
 set -u
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
 
@@ -11,11 +12,11 @@ LIST='/usr/bin/su /usr/bin/pkexec
 /usr/bin/mount /usr/bin/umount
 /usr/bin/newuidmap /usr/bin/newgidmap
 /usr/bin/fusermount
-/usr/libexec/ssh-keysign
-/usr/bin/wall /usr/bin/write
-/usr/libexec/Xorg.wrap
-/usr/libexec/qemu-bridge-helper /usr/libexec/spice-client-glib-usb-acl-helper
-/usr/bin/firejail /usr/libexec/lxc/lxc-user-nic /usr/libexec/libgtop_server2'
+/usr/lib/openssh/ssh-keysign
+/usr/bin/wall /usr/bin/write /usr/bin/write.ul
+/usr/lib/xorg/Xorg.wrap
+/usr/lib/qemu/qemu-bridge-helper /usr/libexec/spice-client-glib-usb-acl-helper
+/usr/bin/firejail /usr/libexec/lxc/lxc-user-nic'
 
 # cdrtools: dac_override, sys_admin and sys_rawio on programs with mode 0711
 CAPS='/usr/bin/cdrecord /usr/bin/readcd /usr/bin/cdda2wav'
@@ -35,7 +36,12 @@ for f in $LIST; do
     [ -f "$f" ] && [ ! -L "$f" ] || continue
     [ -u "$f" ] || [ -g "$f" ] || continue
     echo "$f"
-    [ "$check" = 1 ] || chmod ug-s -- "$f" || rc=1
+    [ "$check" = 0 ] || continue
+    # shellcheck disable=SC2046
+    set -- $(stat -c '%U %G %a' -- "$f")
+    # the override replaces one dpkg already has
+    dpkg-statoverride --quiet --list "$f" >/dev/null && dpkg-statoverride --quiet --remove "$f"
+    dpkg-statoverride --update --add "$1" "$2" "$(printf '%o' $((0$3 & 01777)))" "$f" || rc=1
 done
 command -v getcap >/dev/null && command -v setcap >/dev/null || exit "$rc"
 for f in $CAPS; do

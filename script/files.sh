@@ -210,6 +210,16 @@ svc_disable() {
     done
 }
 
+svc_mask() {
+    local u=$1
+    if [[ $(systemctl is-enabled -- "$u" 2>/dev/null) == masked ]]; then
+        skip "service $u masked"
+        return 0
+    fi
+    jot svc-unmask "$u"
+    run "mask $u" systemctl mask -- "$u"
+}
+
 svc_refresh() {
     local u=$1 n on=0
     shift

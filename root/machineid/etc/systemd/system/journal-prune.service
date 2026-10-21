@@ -1,0 +1,10 @@
+[Unit]
+Description=Remove the journals of old machine IDs over 400 MB
+After=systemd-journal-flush.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/journal-prune
+
+[Install]
+WantedBy=multi-user.target

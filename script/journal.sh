@@ -13,7 +13,7 @@ rollback() {
     [[ -s $BAK/journal ]] || return 0
     head_line "Rolling back" "$(wc -l <"$BAK/journal") change(s)" >&2
     log "=== rollback"
-    local op a b c p pk reset=0 keepdoas=0
+    local op a b c p pk m reset=0 keepdoas=0
     while IFS=$'\t' read -r op a b c; do
         log "undo: $op $a $b"
         case $op in
@@ -29,6 +29,7 @@ rollback() {
         svc-off) systemctl disable --now -- "$a" ;;
         svc-stop) systemctl stop -- "$a" ;;
         svc-on) systemctl enable --now -- "$a" ;;
+        svc-unmask) systemctl unmask -- "$a" ;;
         group)
             [[ $a == wheel ]] && ((keepdoas)) && continue
             gpasswd -d "$b" "$a"
@@ -88,6 +89,14 @@ rollback() {
         hown) chown -- "$b" "$a" ;;
         perm) chown -- "$c" "$a" && chmod -- "$b" "$a" ;;
         cap) setcap "$b" "$a" ;;
+        statov)
+            dpkg-statoverride --remove "$a"
+            if [[ -n $c ]]; then
+                read -r p pk m _ <<<"$c"
+                dpkg-statoverride --add "$p" "$pk" "$m" "$a"
+            fi
+            chmod -- "$b" "$a"
+            ;;
         pkgback)
             read -ra pk <<<"$a"
             "${APT[@]}" install "${pk[@]}"

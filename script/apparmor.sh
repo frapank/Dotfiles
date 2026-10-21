@@ -4,7 +4,8 @@
 do_apparmor() {
     step "AppArmor"
     local n f prof=()
-    [[ -f /etc/runit/core-services/09-apparmor.sh ]] || die "runit-void-apparmor did not install 09-apparmor.sh"
+    [[ -n $(systemctl list-unit-files --no-legend apparmor.service) ]] || die "apparmor did not install apparmor.service"
+    svc_enable apparmor.service
     aa_on && jot aaload
     n=$(njot)
     put_tree apparmor

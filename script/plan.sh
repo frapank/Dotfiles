@@ -42,12 +42,13 @@ plan() {
 		Blocks rarely used kernel modules with a history of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25 netrom rose x25 can ieee802154 firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2 vivid kcm rxrpc nfc nilfs2 zonefs cuse userio hci_vhci. hfsplus udf exfat ntfs3 still work.
 		Kernel command line, active after reboot: freed memory is zeroed (a few % slower), no DMA attacks over PCI and Thunderbolt, only signed modules, no /dev/mem, kexec or hibernation, no reading of kernel memory through /proc/kcore, tracing or BPF (lockdown confidentiality), no writing into a program's memory through /proc but by a debugger. The recovery entry boots without them.
 		  ${HARDEN_CMDLINE[*]}
-		New machine ID at every boot, so apps cannot track this machine by it.
+		New machine ID at every boot, so apps cannot track this machine by it: /etc/machine-id is empty on disk, systemd puts a random one over it in RAM and never saves it. The journals of the old IDs are kept up to 400 MB.
 		fstab: /boot root only and nosuid,nodev,noexec, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
 		Core dumps: a dump is the memory of the program, keys and passwords included. Only the one of g0wm is kept (~/.local/state/g0wm, for debugging it), the others are dropped (core-keep).
-		/proc, after reboot: the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, $TUSER (the polkit agent needs it).
-		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap fusermount (the old one, fusermount3 stays for the FUSE mounts of the desktop) ssh-keysign wall write firejail lxc-user-nic libgtop_server2 qemu-bridge-helper spice-client-glib-usb-acl-helper: doas does it ('doas passwd $TUSER').
-		No file capabilities on cdrecord readcd cdda2wav (dac_override and sys_admin on programs anyone can run). Updates put them back, maint and every boot take them off again (nosuid).
+		/proc, after reboot (fstab): the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, systemd-logind, $TUSER (the polkit agent needs it).
+		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap fusermount (the old one, fusermount3 stays for the FUSE mounts of the desktop) ssh-keysign wall write Xorg.wrap firejail lxc-user-nic qemu-bridge-helper spice-client-glib-usb-acl-helper: doas does it ('doas passwd $TUSER').
+		No file capabilities on cdrecord readcd cdda2wav (dac_override and sys_admin on programs anyone can run).
+		  dpkg-statoverride keeps the modes across updates; apt runs nosuid after each run, for what a new package brings.
 	EOF
     section usb "USB devices: usbguard" <<-EOF
 		The devices plugged in now are allowed. Later a new one stays blocked, and a notification asks: Allow or Block, what the device says it is and a warning when a storage or network device can also type.
@@ -91,7 +92,7 @@ plan() {
 		dracut hostonly, plymouth void-minimal, 'quiet splash' in GRUB.
 		GRUB theme minimal (tomdewildt, fixed commit): only GRUB_THEME changes in /etc/default/grub, LUKS and kernel arguments are kept and checked in grub.cfg.
 		No 'Loading Linux ...' lines after the menu (10_linux patched, redone by maint after grub updates).
-		Clean tty1 login and /etc/issue. Terminus font on every tty, larger on screens 1440 pixels tall or more.
+		Clean tty1 login and /etc/issue. Terminus font on every tty (console-setup), larger on screens 1440 pixels tall or more.
 		Rebuilds the initramfs when needed, old images restored on failure.
 	EOF
     detect_hw

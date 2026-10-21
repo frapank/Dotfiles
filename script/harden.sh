@@ -33,13 +33,7 @@ nft_apply() {
 
 do_harden() {
     step "Kernel and firewall hardening"
-    local f=/etc/sysctl.d/10-kernel-hardening.conf
-    # now 11-: 10-void.conf sorted after it and reset kptr_restrict
-    if [[ -e $f ]]; then
-        backup "$f"
-        rm -f -- "$f"
-        ok "removed $f (now 11-kernel-hardening.conf)"
-    fi
+    local f
     # core_pattern runs it: it goes in first
     put_tree cores
     run "core-keep parses" sh -n /usr/local/libexec/core-keep
@@ -64,10 +58,7 @@ do_harden() {
     ssh_dir
 
     put_tree modprobe
-    put_tree machineid
-    run "machine ID script parses" sh -n /etc/runit/core-services/06-machine-id.sh
-    # replaces lockdown=integrity of older versions
-    grub_swap lockdown=integrity lockdown=confidentiality
+    machine_id
     grub_words "${HARDEN_CMDLINE[@]}"
     boot_mask
     tmp_mount
@@ -76,10 +67,9 @@ do_harden() {
     no_suid
 }
 
+# systemd-remount-fs takes the options of /proc from fstab at boot
 hide_pids() {
-    local u
-    put_tree hidepid
-    run "hidepid script parses" sh -n /etc/runit/core-services/01-hidepid.sh
+    local u new
     if getent group proc >/dev/null; then
         skip "group proc"
     else
@@ -98,18 +88,57 @@ hide_pids() {
         gpasswd -a "$u" proc >>"$LOG" 2>&1 || die "cannot add $u to proc"
         ok "$u added to proc"
     done
+    svc_refresh systemd-logind.service put_tree hidepid
+    new=$(awk -v g="$(getent group proc | cut -d: -f3)" '
+		!/^[[:space:]]*#/ && $2 == "/proc" { next }
+		{ print }
+		END { print "proc /proc proc nosuid,nodev,noexec,hidepid=invisible,gid=" g " 0 0" }' /etc/fstab)
+    if [[ $new == "$(cat /etc/fstab)" ]]; then
+        skip "/proc hidepid=invisible in /etc/fstab"
+        return 0
+    fi
+    put_text /etc/fstab 0644 <<<"$new"
+    run "fstab is valid" findmnt --verify
+    ok "/proc hides the processes of other users after the reboot"
 }
 
+# empty: at every boot systemd puts a new random one over it, in RAM, and nothing saves it
+machine_id() {
+    local f=/etc/machine-id d=/var/lib/dbus/machine-id
+    put_tree machineid
+    run "journal-prune parses" sh -n /usr/local/libexec/journal-prune
+    if [[ -f $f && ! -L $f && ! -s $f ]] || findmnt -n "$f" >/dev/null; then
+        skip "$f empty on disk"
+    else
+        put /dev/null "$f" 0444
+    fi
+    # D-Bus reads the same one
+    if [[ -L $d && $(readlink -- "$d") == /etc/machine-id ]]; then
+        skip "$d -> /etc/machine-id"
+    else
+        backup "$d"
+        mkdirs "${d%/*}"
+        ln -sfn /etc/machine-id "$d"
+        ok "$d -> /etc/machine-id"
+    fi
+    svc_mask systemd-machine-id-commit.service
+    svc_enable journal-prune.service
+}
+
+# dpkg-statoverride: updates keep the new modes
 no_suid() {
-    local f m c n=0
+    local f m c n=0 o
     put_tree nosuid
     run "nosuid parses" sh -n /usr/local/sbin/nosuid
-    run "nosuid boot script parses" sh -n /etc/runit/core-services/05-nosuid.sh
     while IFS= read -r f; do
         if [[ -u $f || -g $f ]]; then
             m=$(stat -c '%a %u:%g' -- "$f")
-            jot perm "$f" "${m% *}" "${m#* }"
-            chmod ug-s -- "$f"
+            o=$(dpkg-statoverride --list "$f" || true)
+            jot statov "$f" "${m% *}" "$o"
+            [[ -z $o ]] || dpkg-statoverride --remove "$f" >>"$LOG" 2>&1
+            dpkg-statoverride --update --add "$(stat -c %U -- "$f")" "$(stat -c %G -- "$f")" \
+                "$(printf '%o' $((8#${m% *} & 8#1777)))" "$f" >>"$LOG" 2>&1 ||
+                die "dpkg-statoverride failed for $f"
             ok "$f ${m% *} -> $(stat -c %a -- "$f")"
         else
             c=$(getcap -- "$f" | sed 's/^[^ ]* \(= \)\{0,1\}//')

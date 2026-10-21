@@ -489,8 +489,8 @@ verify() {
         }
     fi
     if ((SEL[apparmor])); then
-        [[ -f /etc/runit/core-services/09-apparmor.sh ]] || {
-            warn "AppArmor boot script missing"
+        systemctl -q is-enabled apparmor.service || {
+            warn "apparmor.service not enabled"
             bad=1
         }
         for c in librewolf foot dnscrypt-proxy abstractions/dotfiles/app; do
