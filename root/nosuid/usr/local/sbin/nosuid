@@ -12,6 +12,7 @@ LIST='/usr/bin/su /usr/bin/pkexec
 /usr/bin/mount /usr/bin/umount
 /usr/bin/newuidmap /usr/bin/newgidmap
 /usr/bin/fusermount
+/usr/sbin/pppd
 /usr/lib/openssh/ssh-keysign
 /usr/bin/wall /usr/bin/write /usr/bin/write.ul
 /usr/lib/xorg/Xorg.wrap
