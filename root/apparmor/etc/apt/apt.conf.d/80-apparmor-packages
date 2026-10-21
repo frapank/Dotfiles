@@ -1,0 +1,2 @@
+// some postinst scripts load the disabled profiles again
+DPkg::Post-Invoke { "if [ -x /usr/local/libexec/aa-packages ]; then /usr/local/libexec/aa-packages || true; fi"; };

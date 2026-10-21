@@ -1,0 +1,36 @@
+#!/bin/sh
+# apt runs it: papers, libreoffice and vesktop load their disabled profiles again at every update
+set -u
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
+
+# as AA_DISABLE in script/config.sh
+DISABLE='usr.bin.papers usr.lib.libreoffice.program.soffice.bin steam librewolf vesktop'
+d=/etc/apparmor.d
+loaded=/sys/kernel/security/apparmor/profiles
+
+for p in $DISABLE; do
+    [ -f "$d/$p" ] && [ ! -e "$d/disable/$p" ] || continue
+    mkdir -p "$d/disable" && ln -s "../$p" "$d/disable/$p" && echo "aa-packages: $p disabled"
+done
+[ -r "$loaded" ] && command -v apparmor_parser >/dev/null || exit 0
+
+rc=0
+for link in "$d"/disable/*; do
+    f=$d/${link##*/}
+    [ -f "$f" ] || continue
+    # the parser skips a file in disable/
+    for n in $(apparmor_parser -N <"$f" 2>/dev/null); do
+        mode=$(awk -v n="$n" 'substr($0, 1, length(n) + 2) == n " (" {
+			sub(/.* \(/, ""); sub(/\)$/, ""); print; exit }' "$loaded")
+        [ -n "$mode" ] || continue
+        own=
+        case $n in /*) ;; *) own=$(grep -lsE "^profile \"?$n\"? " "$d"/* | grep -vxF "$f" | head -n1) ;; esac
+        if [ -z "$own" ]; then
+            apparmor_parser -R <"$f" >/dev/null 2>&1 && echo "aa-packages: ${f##*/} unloaded" || rc=1
+            break
+        fi
+        [ "$mode" = unconfined ] || continue
+        apparmor_parser -r "$own" >/dev/null 2>&1 && echo "aa-packages: ${own##*/} loaded over ${f##*/}" || rc=1
+    done
+done
+exit "$rc"
