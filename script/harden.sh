@@ -77,7 +77,7 @@ hide_pids() {
         groupadd -r proc >>"$LOG" 2>&1 || die "cannot create the group proc"
         ok "group proc created"
     fi
-    # need to see other users' processes; $TUSER for the polkit agent (elogind)
+    # need to see other users' processes; $TUSER for the polkit agent
     for u in polkitd rtkit "$TUSER"; do
         getent passwd "$u" >/dev/null || continue
         if [[ " $(id -nG -- "$u") " == *" proc "* ]]; then

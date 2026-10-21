@@ -153,7 +153,7 @@ plan() {
 		Empty unused standard folders go to ~/_backup/$TS, others stay.
 	EOF
     section desktop "Desktop: g0wm" <<-EOF
-		Session: dbus elogind polkit pipewire xwayland (elogind replaces acpid).
+		Session: systemd-logind, polkit, the user bus (dbus-user-session), pipewire, xwayland.
 		The power key opens a menu (sleep, reboot, shut down) instead of turning off the PC, the lid suspends. No hibernation.
 		Apps: foot Thunar grim slurp swappy swayidle gtklock brightnessctl playerctl.
 		Adds $TUSER to ${USER_GROUPS[*]}. Copies home/{$(join , "${HOME_DESKTOP[@]}")} with the default wallpaper.
@@ -182,7 +182,7 @@ plan() {
 		Steam and Lutris are not installed. Once you install them AppArmor confines them (apparmor) and ~/Games and ~/.local/share/Steam stay out of the snapshots (maint).
 	EOF
     section session "Keyring, polkit, network and bluetooth" <<-EOF
-		The keyring unlocks with your login password. Polkit agent in g0wm.
+		The keyring unlocks with your login password (pam_gnome_keyring in /etc/pam.d/login). Polkit agent in g0wm (mate-polkit: Debian 13 has no polkit-gnome).
 		No tray icons: 'wifi' and 'bluetooth' open their managers.
 		Bluetooth is off at every boot: 'bluetooth on' or 'bluetooth off'.
 		Bluetooth shows itself as 'Computer' instead of the hostname, uses a random address that changes (Privacy=device) and stays discoverable 30 seconds.

@@ -440,7 +440,7 @@ verify() {
                 bad=1
             }
         done
-        grep -q pam_gnome_keyring /etc/pam.d/login || {
+        grep -q pam_gnome_keyring /etc/pam.d/login && grep -q pam_gnome_keyring /etc/pam.d/common-password || {
             warn "keyring not in /etc/pam.d/login"
             bad=1
         }
