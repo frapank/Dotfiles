@@ -37,25 +37,18 @@ do_apparmor() {
 }
 
 aa_prune() {
-    local f keep=" ${AA_KEEP[*]} " noext=() n=0
+    local f keep=" ${AA_KEEP[*]} " n=0
     while IFS= read -r f; do
-        f=${f%% -> *}
-        [[ $f == /etc/apparmor.d/* && $f != /etc/apparmor.d/*/* ]] || continue
+        [[ $f == /etc/apparmor.d/* && $f != /etc/apparmor.d/*/* && -f $f ]] || continue
         [[ $keep == *" ${f##*/} "* || ${f##*/} == README ]] && continue
         # the repo has its own steam
         [[ ! -e $REPO/root/apparmor$f ]] || continue
-        noext+=("noextract=$f")
-        [[ -e $f ]] || continue
         backup "$f"
         rm -f -- "$f"
         n=$((n + 1))
-    done < <(xbps-query -f apparmor)
-    ((${#noext[@]})) || die "no profiles listed for the apparmor package"
-    for f in "$REPO"/root/apparmor/etc/apparmor.d/*; do
-        [[ -f $f ]] && noext+=("noextract=/etc/apparmor.d/${f##*/}")
-    done
+    done < <(dpkg-query -L apparmor)
+    # dpkg does not bring back a conffile that was deleted
     if ((n)); then ok "removed $n profiles of programs not installed"; else skip "unused profiles removed"; fi
-    put_text /etc/xbps.d/30-apparmor-noextract.conf 0644 < <(printf '%s\n' "${noext[@]}")
 }
 
 aa_wlsandbox() {

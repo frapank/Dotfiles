@@ -10,20 +10,22 @@ section() {
 }
 
 plan() {
-    say "${C_B}Void post-install${C_0}"
+    say "${C_B}Debian post-install${C_0}"
     say "   user  $TUSER ($THOME)"
     say "   repo  $REPO"
+    say "   apt   ${SOURCES##*/}: $COMPONENTS; packages without their Recommends"
     say "   ${C_D}Nothing changes until you confirm the plan at the end.${C_0}"
 
     section update "System upgrade" <<-EOF
-		Upgrades the whole system (xbps-install -Su). Recommended.
+		Upgrades the whole system (apt-get full-upgrade). Recommended.
 		On btrfs it first takes a read-only snapshot of / in /.snapshots, like maint does, so a bad upgrade can be booted away from GRUB.
 	EOF
     section locale "English everywhere" <<-EOF
-		LANG=en_US.UTF-8 and LC_COLLATE=C in /etc/locale.conf, generates the locale.
+		LANG=en_US.UTF-8 and LC_COLLATE=C in /etc/default/locale, generates the locale.
 	EOF
     section cli "Shell and editors" <<-EOF
 		Installs ${PKG_CLI[*]}
+		fd and bat in /usr/local/bin: Debian names them fdfind and batcat.
 		Copies home/{$(join , "${HOME_CLI[@]}")}, login shell bash.
 		~/.bashrc and ~/.bash_profile get one line on top that sources ~/.bashrc_dotfile and ~/.bash_profile_dotfile, what programs add under it stays.
 		Files in the way, ~/.vimrc and ~/.tmux.conf go to ~/_backup/$TS.
@@ -31,6 +33,7 @@ plan() {
 	EOF
     section lsp "Language servers for nvim" <<-EOF
 		Installs ${PKG_LSP[*]}
+		taplo, zls, bash-language-server and yaml-language-server are not in Debian: nvim uses them once they are in PATH.
 	EOF
     section harden "Kernel and firewall hardening" <<-EOF
 		sysctl: /etc/sysctl.d/{11,20,30,40}-*.conf, TCP timestamps off.
@@ -95,7 +98,6 @@ plan() {
     section hw "Hardware: microcode, GPU drivers, firmware updates" <<-EOF
 		Found: $(join , "${HW_DESC[@]}")
 		Installs $(printf '%s\n' "${HW_PKGS[@]}" | sort -u | tr '\n' ' ')fwupd
-		$( ((NONFREE)) && echo "Adds the Void nonfree repo for intel-ucode.")
 		Microcode goes into the initramfs. Firmware: 'fwupdmgr get-updates'.
 		The airplane mode key does nothing (udev rule).
 	EOF
@@ -129,7 +131,7 @@ plan() {
 		Daily: system update while you are logged in, with battery over 20% and 10% free on /. Flatpak apps too, if there are any.
 		  Downloads first, snapshots / (last 3 kept), then installs. Sleep and shutdown wait for it. Notifies every stage.
 		  Waits for a good connection: postponed when requests to the mirror fail or hang, under 100 KB/s, or when the download would take over 30 minutes. A notification after 3 days, 'doas maint update' updates anyway.
-		  The snapshots of / are in the GRUB menu (grub-btrfs, 'Snapshots before updates'), the daily ones of /home are not.
+		  The snapshots of / are in the GRUB menu (grub-btrfs from its repository at a fixed commit, Debian has no package; 'Snapshots before updates'), the daily ones of /home are not.
 		  A snapshot boots with a throwaway overlay in RAM (dracut overlayfs): changes are lost, /home is the live one.
 		  Pick its kernel in the menu: /boot is not in the snapshot, the kernels it was taken with are kept while it exists.
 		Daily: deletes thumbnails of deleted files and what has been in the trash for 30 days, updates the DNS blocklist.
@@ -152,6 +154,7 @@ plan() {
 		Apps: foot Thunar grim slurp swappy swayidle gtklock brightnessctl playerctl.
 		Adds $TUSER to ${USER_GROUPS[*]}. Copies home/{$(join , "${HOME_DESKTOP[@]}")} with the default wallpaper.
 		Builds, tests and installs g0wm into ~/.local/bin, again only on new commits. A g0wm built elsewhere is left alone.
+		  Debian 13 has wlroots 0.18: wlroots 0.20.2 is built into $WLR_PREFIX at fixed commits, with the wayland, libdrm, xkbcommon and wayland-protocols it needs. Only g0wm uses them (rpath), the system keeps its own.
 		Log in on tty1 and g0wm starts.
 		'services': runit keeps PipeWire, ssh-agent, the polkit agent, Thunar, the idle lock and the nightlight running while g0wm runs.
 	EOF
@@ -160,7 +163,7 @@ plan() {
 		Screen sharing via the wlr portal, pick the output with slurp.
 	EOF
     section apps "Apps, Thunar, default apps, shortcuts" <<-EOF
-		librewolf (own repo, signing key pinned), Loupe, Showtime, Papers, LibreOffice, Thunar, xarchiver, pavucontrol and CLI tools. unrar comes from the Void nonfree repo.
+		librewolf (own repo, signing key pinned), Loupe, Showtime, Papers, LibreOffice, Thunar, xarchiver, pavucontrol and CLI tools. unrar comes from non-free.
 		~/.local/bin: photo video pdf office browser files audio wifi bluetooth screenshot record osd indicator nightlight awake extract compress open metadata-remover privacy-check traces conns isolate dotfiles.
 		Thunar: side pane with only home, Desktop, Trash, Random, Pictures, Videos, Music, Games, Private and File System. 'Open Terminal Here', automount, Remove and Show Metadata (camera, GPS, author data; runs offline in a sandbox), Restore a Previous Version and Delete from the Snapshots.
 		Print: region, Shift: screen, Ctrl: edit in swappy. Saved to Pictures and the clipboard.
@@ -186,9 +189,8 @@ plan() {
 		AdwaitaLegacy $ICONS_TAG for full color icons in pavucontrol and Thunar.
 	EOF
     section fonts "Fonts: Geist and Geist Mono" <<-EOF
-		Geist for text, Geist Mono for terminal, code and g0wm, from the v1.7.2 release (sha256 checked). Nerd symbols, emoji and CJK as fallback.
+		Geist for text, Geist Mono for terminal, code and g0wm, from the v1.7.2 release (sha256 checked). Nerd symbols (v3.4.0 release, sha256 checked: Debian has no package), emoji and CJK as fallback.
 		Removes SF Mono and SF Pro from /usr/local/share/fonts.
-		Removes the full Nerd Fonts (about 8 GB).
 	EOF
     section doas "doas instead of sudo" <<-EOF
 		'permit :wheel', adds $TUSER to wheel, removes and blocks sudo.

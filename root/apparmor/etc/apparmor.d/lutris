@@ -22,7 +22,7 @@ profile lutris /usr/bin/lutris flags=(attach_disconnected) {
   pivot_root,
 
   # links open in librewolf under its own profile
-  /usr/lib/librewolf/librewolf Px,
+  /usr/share/librewolf/{librewolf,librewolf-bin} Px,
 
   include if exists <local/lutris>
 }

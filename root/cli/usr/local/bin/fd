@@ -1,0 +1,3 @@
+#!/bin/sh
+# Debian calls it fdfind
+exec /usr/bin/fdfind "$@"

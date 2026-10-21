@@ -94,7 +94,7 @@ usage() {
     cat <<-EOF
 		usage: doas ${0##*/} [-y] [-u USER]
 
-		Turns a fresh Void Linux install into this dotfiles setup: asks what to
+		Turns a fresh Debian install into this dotfiles setup: asks what to
 		apply, then does it, and rolls everything back if a step fails.
 
 		  -y, --yes      answer yes to every question
@@ -105,7 +105,7 @@ usage() {
 		  pull the repo and run this again: what is already in place is left
 		  alone, wrong owners and modes are fixed, changed files are replaced
 		  after the old copy goes to ~/_backup/<date>.
-		Log in /var/log/void-postinstall-*.log, backups in /var/backups/void-postinstall.
+		Log in /var/log/debian-postinstall-*.log, backups in /var/backups/debian-postinstall.
 	EOF
     exit "${1:-0}"
 }

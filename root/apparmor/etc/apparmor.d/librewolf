@@ -2,7 +2,7 @@ abi <abi/4.0>,
 
 include <tunables/global>
 
-profile librewolf /usr/lib/librewolf/librewolf flags=(attach_disconnected) {
+profile librewolf /usr/share/librewolf/{librewolf,librewolf-bin} flags=(attach_disconnected) {
   include <abstractions/dotfiles/app>
 
   # the only app with the network: no ~/Private, uploads go through ~/Get
@@ -27,8 +27,7 @@ profile librewolf /usr/lib/librewolf/librewolf flags=(attach_disconnected) {
   /dev/media* rw,
   /dev/hidraw* rw,
 
-  /usr/lib/librewolf/librewolf ix,
-  /usr/lib/librewolf/gfxtest ix,
+  /usr/share/librewolf/** ix,
   /usr/{bin,lib,libexec,local/bin}/** ix,
   owner @{run}/user/@{uid}/.dbus-filter/librewolf/* rw,
 

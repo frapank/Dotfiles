@@ -40,11 +40,11 @@ rollback() {
                 [[ $p == opendoas ]] && ((keepdoas)) && continue
                 installed "$p" && pk+=("$p")
             done
-            ((${#pk[@]} == 0)) || xbps-remove -Ry -- "${pk[@]}"
+            ((${#pk[@]} == 0)) || "${APT[@]}" purge --autoremove "${pk[@]}"
             ;;
         sudo)
             for p in 1 2 3; do
-                xbps-install -Sy sudo && break
+                "${APT[@]}" install sudo && break
                 sleep 5
             done
             installed sudo || {
@@ -89,11 +89,11 @@ rollback() {
         cap) setcap "$b" "$a" ;;
         pkgback)
             read -ra pk <<<"$a"
-            xbps-install -y -- "${pk[@]}"
+            "${APT[@]}" install "${pk[@]}"
             ;;
         pkgauto)
             read -ra pk <<<"$a"
-            xbps-pkgdb -m auto "${pk[@]}"
+            apt-mark auto "${pk[@]}"
             ;;
         gset) as_user dbus-run-session gsettings set "${c:-org.gnome.desktop.interface}" "$a" "$b" ;;
         esac >>"$LOG" 2>&1 || printf '   %s! could not undo: %s %s%s\n' "$C_Y" "$op" "$a" "$C_0" >&2

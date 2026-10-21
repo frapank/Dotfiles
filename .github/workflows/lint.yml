@@ -10,12 +10,12 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    container: ghcr.io/void-linux/void-glibc-full:latest
+    container: debian:trixie
     steps:
       - name: Install tools
         run: |
-          xbps-install -Syu xbps
-          xbps-install -Sy bash dash shellcheck shfmt python3 apparmor gcc pkg-config wayland-devel wayland-protocols
+          apt-get update
+          apt-get install -y --no-install-recommends bash dash shellcheck shfmt python3 apparmor gcc libc6-dev pkgconf libwayland-dev wayland-protocols
       - uses: actions/checkout@v4
       - name: Lint
         run: .github/lint.sh
