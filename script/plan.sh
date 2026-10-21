@@ -146,6 +146,7 @@ plan() {
 		Weekly: checks for firmware updates (fwupd) and notifies, installing is 'doas fwupdmgr update'.
 		  fwupd never sends reports on failed or successful updates (the report address is emptied).
 		Weekly: disk health with smartmontools (SMART, NVMe wear and media errors), notifies what got worse since last week. Errors as they happen come from the logs notifications.
+		Weekly: debsums checks the files of every package against what dpkg installed, and notifies the ones that changed since last week (conffiles are yours to change).
 		Monthly: btrfs scrub, on AC power only.
 		'snap FILE' lists the versions of a file in the snapshots of /home, 'snap -r DATE FILE' copies one back, 'snap -d DATE' lists what changed in your home since then.
 		'forget FILE' deletes a file from all the snapshots of /home, 'traces -cs' does it for histories and recent files.
