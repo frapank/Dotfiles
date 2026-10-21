@@ -80,10 +80,11 @@ plan() {
 		Installs ${PKG_NET[*]}
 		NetworkManager: random MAC on wifi and ethernet, no hostname over DHCP, IPv6 temporary addresses, no DHCP identifier fixed across networks.
 		  Wi-Fi turns off while a cable is connected and back on when it goes: an idle card keeps scanning, and its scans can be recognized even with a random MAC.
-		DNS: dnscrypt-proxy on 127.0.0.1, DNSSEC, no-log servers, always via an Anonymized DNS relay: no server sees both your IP and your queries.
+		DNS: dnscrypt-proxy on 127.0.2.1 (the socket of Debian's unit, it runs as _dnscrypt-proxy), DNSSEC, no-log servers, always via an Anonymized DNS relay: no server sees both your IP and your queries.
 		  Bootstrap through Quad9. HaGeZi Multi PRO blocklist, updated daily with maint.
 		  With harden, any other DNS (ports 53 and 853) is blocked. Captive portal: 'doas nft delete table inet dns' until the next boot.
-		Time: chrony with NTS, no UDP command port. Replaces dhcpcd, wpa_supplicant and ntpd.
+		Time: chrony with NTS, no UDP command port, its seccomp filter (-F 1 in Debian). Replaces systemd-timesyncd.
+		NetworkManager takes over the interfaces the Debian installer set in /etc/network/interfaces: their lines are commented out, the Wi-Fi network goes into NetworkManager.
 		No connectivity check: NetworkManager never calls a fixed URL that tells which system this is.
 		Runs near the end, the network may drop for a moment.
 	EOF
