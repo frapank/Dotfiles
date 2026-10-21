@@ -25,6 +25,7 @@ plan() {
 	EOF
     section cli "Shell and editors" <<-EOF
 		Installs ${PKG_CLI[*]}
+		fd and bat in /usr/local/bin: Debian names them fdfind and batcat.
 		Copies home/{$(join , "${HOME_CLI[@]}")}, login shell bash.
 		~/.bashrc and ~/.bash_profile get one line on top that sources ~/.bashrc_dotfile and ~/.bash_profile_dotfile, what programs add under it stays.
 		Files in the way, ~/.vimrc and ~/.tmux.conf go to ~/_backup/$TS.

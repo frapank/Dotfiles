@@ -289,7 +289,7 @@ verify() {
     step "Final check"
     local bad=0 c
     if ((SEL[cli])); then
-        for c in vim nvim tmux fzf rg; do
+        for c in vim nvim tmux fzf rg fd bat; do
             command -v "$c" >/dev/null || {
                 warn "$c missing"
                 bad=1
