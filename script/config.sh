@@ -16,81 +16,86 @@ readonly CURSOR_SIZE=20
 readonly GRUB_THEME_URL=https://github.com/tomdewildt/minimal-grub-theme.git
 readonly GRUB_THEME_REV=1f3fe66561f5e1f88e1467e0eb189117fd09e79c
 readonly GRUB_THEME_DIR=/boot/grub/themes/minimal
-readonly GRUB_QUIET_MARK='# void-postinstall: no Loading messages'
+readonly GRUB_QUIET_MARK='# debian-postinstall: no Loading messages'
 readonly HMALLOC_URL=https://github.com/GrapheneOS/hardened_malloc.git
 readonly HMALLOC_REV=01df350c62441e163a8b9324fb7e156acdad2c1e
 readonly HMALLOC_LIB=/usr/local/lib/libhardened_malloc-light.so
 readonly TS=$(date +%Y%m%d-%H%M%S)
-readonly LOG=/var/log/void-postinstall-$TS.log
-readonly BAK=/var/backups/void-postinstall/$TS
-readonly LOCK=/run/void-postinstall.lock
+readonly LOG=/var/log/debian-postinstall-$TS.log
+readonly BAK=/var/backups/debian-postinstall/$TS
+readonly LOCK=/run/debian-postinstall.lock
 readonly SVDIR=/var/service
-readonly STATE=/var/lib/void-postinstall
+readonly STATE=/var/lib/debian-postinstall
 readonly BASHRC_LINE='[ -f "$HOME/.bashrc_dotfile" ] && . "$HOME/.bashrc_dotfile"'
 readonly PROFILE_LINE='[ -f "$HOME/.bash_profile_dotfile" ] && . "$HOME/.bash_profile_dotfile"'
+readonly SOURCES=/etc/apt/sources.list.d/debian.sources
+readonly COMPONENTS='main contrib non-free non-free-firmware'
+# conffiles keep the local copy, the rest takes the package default
+APT=(env DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l apt-get -y -q
+    -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold -o APT::Install-Recommends=false)
 
-PKG_CORE=(git base-devel)
-PKG_CLI=(bash bash-completion vim-huge neovim tmux ctags fzf fd ripgrep bat
-    xxd lesspipe binutils gdb ncurses-term wl-clipboard)
-PKG_LSP=(clang-tools-extra rust-analyzer taplo zls bash-language-server
-    yaml-language-server)
-PKG_HARDEN=(nftables openssh)
-PKG_USB=(usbguard libnotify)
+PKG_CORE=(git build-essential ca-certificates)
+PKG_CLI=(bash bash-completion vim-nox neovim tmux universal-ctags fzf fd-find ripgrep bat
+    xxd less binutils gdb ncurses-term wl-clipboard)
+# taplo, zls, bash-language-server and yaml-language-server are not in Debian
+PKG_LSP=(clangd rust-analyzer)
+PKG_HARDEN=(nftables openssh-client)
+PKG_USB=(usbguard libnotify-bin)
 HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
     randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
     efi=disable_early_pci_dma lockdown=confidentiality module.sig_enforce=1 proc_mem.force_override=ptrace)
-PKG_APPARMOR=(apparmor runit-void-apparmor xdg-dbus-proxy bubblewrap python3-gobject
-    wayland-devel wayland-protocols pkg-config)
+PKG_APPARMOR=(apparmor apparmor-utils xdg-dbus-proxy bubblewrap python3-gi gir1.2-glib-2.0
+    libwayland-dev wayland-protocols pkgconf)
 AA_KEEP=(bin.ping unix-chkpwd usr.bin.wpa_supplicant usr.sbin.dnsmasq zgrep loupe chromium cam
     libcamerify usr.bin.dhcpcd usr.sbin.ntpd usr.sbin.traceroute usr.bin.uuidd)
-PKG_NET=(NetworkManager dnscrypt-proxy chrony dbus curl)
-PKG_BOOT=(dracut plymouth plymouth-data terminus-font)
+PKG_NET=(network-manager wpasupplicant wireless-regdb dnscrypt-proxy chrony dbus curl)
+PKG_BOOT=(plymouth plymouth-themes console-setup)
 PKG_DESKTOP=(
     # g0wm build
-    pkg-config wlroots0.20-devel wayland-devel wayland-protocols
-    libxkbcommon-devel libinput-devel pixman-devel fcft-devel tllist
-    dbus-devel libxcb-devel xcb-util-wm-devel gdk-pixbuf-devel
+    pkgconf libwayland-dev wayland-protocols
+    libxkbcommon-dev libinput-dev libpixman-1-dev libfcft-dev libtllist-dev
+    libdbus-1-dev libxcb1-dev libxcb-icccm4-dev libgdk-pixbuf-2.0-dev
     # session
-    dbus elogind polkit mesa-dri xorg-server-xwayland pipewire wireplumber
+    dbus dbus-user-session libpam-systemd polkitd libgl1-mesa-dri xwayland pipewire wireplumber
     xdg-utils xdg-user-dirs fontconfig
     # settings.json monitors
     python3
     # apps
-    foot Thunar grim slurp swappy swayidle gtklock
-    brightnessctl playerctl dejavu-fonts-ttf adwaita-icon-theme
+    foot thunar grim slurp swappy swayidle gtklock
+    brightnessctl playerctl fonts-dejavu-core adwaita-icon-theme
 )
-PKG_MEDIA=(pipewire wireplumber alsa-pipewire xdg-desktop-portal
-    xdg-desktop-portal-wlr xdg-desktop-portal-gtk slurp dbus)
+PKG_MEDIA=(pipewire pipewire-pulse pipewire-alsa wireplumber rtkit xdg-desktop-portal
+    xdg-desktop-portal-wlr xdg-desktop-portal-gtk librsvg2-common slurp dbus)
 PKG_APPS=(
     librewolf foot gtklock swayidle pavucontrol
-    loupe showtime papers libreoffice qt6-wayland
+    loupe showtime papers libreoffice-writer libreoffice-calc libreoffice-impress libreoffice-gtk3 qt6-wayland
     # thunar
-    Thunar thunar-volman thunar-archive-plugin tumbler ffmpegthumbnailer
-    gvfs gvfs-mtp udisks2 xarchiver
+    thunar thunar-volman thunar-archive-plugin tumbler ffmpegthumbnailer
+    gvfs gvfs-backends udisks2 xarchiver
     # default apps
-    xdg-utils gtk+3 desktop-file-utils shared-mime-info gsettings-desktop-schemas dconf
+    xdg-utils libgtk-3-bin gtk-update-icon-cache desktop-file-utils shared-mime-info
+    gsettings-desktop-schemas dconf-gsettings-backend dconf-service libglib2.0-bin librsvg2-common
     # screenshots, screen recording, night light
-    grim slurp swappy wl-clipboard wf-recorder libnotify wlsunset
+    grim slurp swappy wl-clipboard wf-recorder libnotify-bin wlsunset
     # terminal tools
     tree bat htop unzip zip 7zip wget curl rsync jq file lsof strace psmisc
     ncdu fastfetch
     # archives
-    tar gzip bzip2 xz zstd lz4 lzip bsdtar cpio unrar gnupg age
+    tar gzip bzip2 xz-utils zstd lz4 lzip libarchive-tools cpio unrar gnupg age
     # metadata-remover
-    mat2 exiftool ffmpeg bubblewrap
+    mat2 libimage-exiftool-perl ffmpeg bubblewrap
 )
-PKG_SESSION=(gnome-keyring libsecret polkit-gnome network-manager-applet
-    bluez blueman libspa-bluetooth)
-PKG_THEME=(gnome-themes-extra gnome-themes-extra-gtk adwaita-icon-theme gsettings-desktop-schemas
-    dconf glib kvantum qt6ct git gtk+3 librsvg curl tar xz python3)
-PKG_FONTS=(fontconfig curl unzip nerd-fonts-symbols-ttf noto-fonts-ttf noto-fonts-emoji noto-fonts-cjk)
-NERD_FULL=(nerd-fonts nerd-fonts-ttf nerd-fonts-otf)
-PKG_LOCALE=(glibc-locales)
-PKG_HW=(fwupd)
+PKG_SESSION=(gnome-keyring libsecret-1-0 libpam-gnome-keyring mate-polkit network-manager-gnome
+    bluez blueman libspa-0.2-bluetooth)
+PKG_THEME=(gnome-themes-extra adwaita-icon-theme gsettings-desktop-schemas dconf-gsettings-backend
+    libglib2.0-bin qt-style-kvantum qt6ct git libgtk-3-bin gtk-update-icon-cache librsvg2-bin curl tar xz-utils python3)
+PKG_FONTS=(fontconfig curl unzip fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk)
+PKG_LOCALE=(locales)
+PKG_HW=(fwupd fwupd-amd64-signed)
 PKG_POWER=(power-profiles-daemon)
-PKG_LOGS=(socklog-void pulseaudio-utils gawk less)
+PKG_LOGS=(pulseaudio-utils gawk less)
 PKG_DIRS=(xdg-user-dirs)
-PKG_SWAP=(zramen earlyoom)
+PKG_SWAP=(systemd-zram-generator earlyoom)
 PKG_MAINT=(btrfs-progs util-linux python3 smartmontools curl)
 PKG_SNAPBOOT=(grub-btrfs)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
@@ -101,7 +106,7 @@ HOME_THEME=(gtk qt)
 HOME_FONTS=(fontconfig)
 HOME_MEDIA=(portal)
 HOME_DIRS=(xdg)
-USER_GROUPS=(wheel video network)
+USER_GROUPS=(wheel video)
 SECTIONS=(update locale cli lsp harden usb apparmor net boot hw power logs swap maint dirs desktop media apps games session theme fonts doas)
 GEIST_DIR=/usr/local/share/fonts/Geist
 GEIST_MONO_DIR=/usr/local/share/fonts/GeistMono
@@ -247,5 +252,5 @@ MIME_DEFAULTS=(
 
 YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
-HW_PKGS=() HW_DESC=() NONFREE=0 NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0 GRUB_STALE=0 USB_NEW=0
+HW_PKGS=() HW_DESC=() NEW_PKGS=() REGEN=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0 GRUB_STALE=0 USB_NEW=0
 declare -A SEL=() BACKED=()

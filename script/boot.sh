@@ -173,8 +173,9 @@ grub_quiet() {
         warn "no $f, GRUB keeps its Loading messages"
         return 0
     }
-    src=$(printf '%s\n' "$f".new-* | sort -V | tail -n1)
-    [[ -f $src ]] || src=$f
+    # dpkg keeps the edited one and leaves the new one of a grub update next to it
+    src=$f
+    [[ ! -f $f.dpkg-dist ]] || src=$f.dpkg-dist
     tmp=$(mktemp -p "$BAK")
     sed -E -e '/^[[:space:]]*echo[[:space:]].*"\$message" \| grub_quote/d' \
         -e "/^$GRUB_QUIET_MARK\$/d" -e "1a $GRUB_QUIET_MARK" -- "$src" >"$tmp"
@@ -186,11 +187,10 @@ grub_quiet() {
     n=$(njot)
     put "$tmp" "$f" 0755
     rm -f -- "$tmp"
-    for src in "$f".new-*; do
-        [[ -f $src ]] || continue
-        backup "$src"
-        rm -f -- "$src"
-    done
+    if [[ -f $f.dpkg-dist ]]; then
+        backup "$f.dpkg-dist"
+        rm -f -- "$f.dpkg-dist"
+    fi
     ((n == $(njot))) || GRUB_STALE=1
     if grep -qx "$GRUB_QUIET_MARK" "$f" && grep -q '^[[:space:]]*echo.*Loading' /boot/grub/grub.cfg 2>/dev/null; then
         GRUB_STALE=1

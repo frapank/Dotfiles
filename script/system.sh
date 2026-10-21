@@ -3,24 +3,36 @@
 
 do_repos() {
     step "Repositories"
-    ((SEL[apps])) && put_tree librewolf
-    run "sync repository index (network check)" xbps-install -S
-    try "update xbps itself" xbps-install -uy xbps
-    if ((SEL[hw] && NONFREE || SEL[apps])); then
-        if installed void-repo-nonfree; then
-            skip "nonfree repo"
-        else
-            jot pkgs void-repo-nonfree
-            run "add the nonfree repo" xbps-install -y void-repo-nonfree
-            run "sync the nonfree index" xbps-install -S
-        fi
+    local codename
+    codename=$(. /etc/os-release && echo "${VERSION_CODENAME:-}")
+    [[ -n $codename ]] || die "no VERSION_CODENAME in /etc/os-release"
+    # microcode, firmware and unrar are in contrib, non-free and non-free-firmware
+    put_text "$SOURCES" 0644 <<-EOF
+		Types: deb
+		URIs: http://deb.debian.org/debian
+		Suites: $codename $codename-updates
+		Components: $COMPONENTS
+		Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+		Types: deb
+		URIs: http://security.debian.org/debian-security
+		Suites: $codename-security
+		Components: $COMPONENTS
+		Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+	EOF
+    # the lines of the installer, now in debian.sources
+    if grep -qE '^[[:space:]]*deb(-src)?[[:space:]].*(debian\.org|/debian(-security)?/?[[:space:]]|cdrom:)' /etc/apt/sources.list 2>/dev/null; then
+        put_text /etc/apt/sources.list 0644 < <(
+            sed -E 's,^([[:space:]]*deb(-src)?[[:space:]].*(debian\.org|/debian(-security)?/?[[:space:]]|cdrom:)),# \1,' /etc/apt/sources.list
+        )
     fi
+    run "sync repository index (network check)" "${APT[@]}" update
 }
 
 do_update() {
     step "System upgrade"
     root_snapshot
-    run "update the system" xbps-install -Suy
+    run "update the system" "${APT[@]}" full-upgrade
 }
 
 # the same read-only snapshot of / that maint takes before its updates, listed in the GRUB menu
@@ -49,21 +61,13 @@ root_snapshot() {
 
 do_packages() {
     step "Packages"
-    local want=("${PKG_CORE[@]}") new=() old=() auto=() p
+    local want=("${PKG_CORE[@]}") new=() old=() auto=() p showauto
     if ((SEL[power])); then
         for p in tlp-rdw tlp; do installed "$p" && old+=("$p"); done
         if ((${#old[@]})); then
             sv_disable tlp
             jot pkgback "${old[*]}"
-            run "remove ${old[*]}" xbps-remove -y -- "${old[@]}"
-        fi
-    fi
-    if ((SEL[fonts])); then
-        old=()
-        for p in "${NERD_FULL[@]}"; do installed "$p" && old+=("$p"); done
-        if ((${#old[@]})); then
-            jot pkgback "${old[*]}"
-            run "remove the full Nerd Fonts set: ${old[*]}" xbps-remove -y -- "${old[@]}"
+            run "remove ${old[*]}" "${APT[@]}" remove "${old[@]}"
         fi
     fi
     ((SEL[cli])) && want+=("${PKG_CLI[@]}")
@@ -88,17 +92,18 @@ do_packages() {
     ((SEL[maint])) && [[ -f /etc/default/grub ]] && want+=("${PKG_SNAPBOOT[@]}")
     ((SEL[fonts])) && want+=("${PKG_FONTS[@]}")
     ((SEL[doas])) && want+=(opendoas)
+    showauto=" $(apt-mark showauto | tr '\n' ' ') "
     for p in $(printf '%s\n' "${want[@]}" | sort -u); do
         if ! installed "$p"; then
             new+=("$p")
-        elif [[ $(xbps-query -p automatic-install "$p") == yes ]]; then
+        elif [[ $showauto == *" $p "* ]]; then
             auto+=("$p")
         fi
     done
     if ((${#auto[@]})); then
         jot pkgauto "${auto[*]}"
         log "manual: ${auto[*]}"
-        run "mark ${#auto[@]} packages manual" xbps-pkgdb -m manual "${auto[@]}"
+        run "mark ${#auto[@]} packages manual" apt-mark manual "${auto[@]}"
     fi
     if ((${#new[@]} == 0)); then
         skip "all ${#want[@]} packages installed"
@@ -107,22 +112,22 @@ do_packages() {
     NEW_PKGS=("${new[@]}")
     jot pkgs "${new[*]}"
     log "new: ${new[*]}"
-    run "install ${#new[@]} packages" xbps-install -y -- "${new[@]}"
+    run "install ${#new[@]} packages" "${APT[@]}" install "${new[@]}"
     for p in "${new[@]}"; do
-        installed "$p" || die "$p is not installed after xbps-install"
+        installed "$p" || die "$p is not installed after apt-get install"
     done
 }
 
 do_locale() {
     step "Locale"
-    local f=/etc/default/libc-locales
+    local f=/etc/locale.gen
     put_tree locale
     if grep -qE '^en_US\.UTF-8 UTF-8' "$f"; then
         skip "en_US.UTF-8 enabled"
     else
         grep -qE '^#[[:space:]]*en_US\.UTF-8 UTF-8' "$f" || die "en_US.UTF-8 is not listed in $f"
         put_text "$f" 0644 < <(sed -E 's/^#[[:space:]]*(en_US\.UTF-8 UTF-8)/\1/' "$f")
-        run "generate locales" xbps-reconfigure -f glibc-locales
+        run "generate locales" locale-gen
     fi
     [[ $(locale -a 2>/dev/null) == *en_US.utf8* ]] || die "en_US.UTF-8 locale not available"
     ok "en_US.UTF-8 available"
@@ -137,6 +142,12 @@ do_groups() {
     ((SEL[logs])) && groups+=(socklog)
     ((${#groups[@]})) || return 0
     for g in $(printf '%s\n' "${groups[@]}" | sort -u); do
+        # Debian has no wheel: doas and polkit use it here
+        if [[ $g == wheel ]] && ! getent group wheel >/dev/null; then
+            jot grpdel wheel
+            groupadd -r wheel >>"$LOG" 2>&1 || die "cannot create the group wheel"
+            ok "group wheel created"
+        fi
         getent group "$g" >/dev/null || {
             warn "group $g does not exist"
             continue
@@ -240,21 +251,27 @@ do_doas() {
         die "doas.conf does not let $TUSER in, keeping sudo"
     fi
 
-    if grep -rhsqE '^[[:space:]]*ignorepkg[[:space:]]*=[[:space:]]*sudo[[:space:]]*$' /etc/xbps.d; then
-        skip "xbps ignores sudo"
-    else
-        put_text /etc/xbps.d/90-ignore-sudo.conf 0644 <<-'EOF'
-			ignorepkg=sudo
-		EOF
-    fi
+    # admin password prompts of polkit: wheel, not the sudo group of Debian
+    put_text /etc/polkit-1/rules.d/30-wheel.rules 0644 <<-'EOF'
+		polkit.addAdminRule(function(action, subject) {
+		    return ["unix-group:wheel"];
+		});
+	EOF
 
+    # dpkg refuses when another package needs it, apt would remove that too
     if installed sudo; then
         jot sudo
-        run "remove sudo" xbps-remove -y sudo
+        run "remove sudo" dpkg --purge sudo
     else
         skip "sudo not installed"
     fi
-    for f in /etc/sudoers /etc/sudoers.d /etc/sudoers.new-*; do
+    # after the removal: a rollback takes the pin away before it installs sudo again
+    put_text /etc/apt/preferences.d/90-no-sudo 0644 <<-'EOF'
+		Package: sudo sudo-ldap sudo-rs
+		Pin: release *
+		Pin-Priority: -1
+	EOF
+    for f in /etc/sudoers /etc/sudoers.d /etc/sudoers.dpkg-*; do
         [[ -e $f ]] || continue
         backup "$f"
         rm -rf -- "$f"
