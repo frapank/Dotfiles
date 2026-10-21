@@ -26,6 +26,8 @@ profile wireplumber /usr/bin/wireplumber flags=(attach_disconnected) {
   owner @{run}/user/@{uid}/pipewire-0{,-manager} rw,
   owner @{HOME}/.local/state/wireplumber/{,**} rwk,
   owner @{HOME}/.{config,local/share}/wireplumber/{,**} r,
+  # the logind module
+  @{run}/systemd/{users,sessions,seats}/{,*} r,
 
   /usr/{lib,libexec}/** ix,
 

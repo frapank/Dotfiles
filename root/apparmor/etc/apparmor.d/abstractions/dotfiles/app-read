@@ -39,7 +39,10 @@
 
   # hidden files: only what GTK, Qt, fonts and Vulkan read
   owner @{HOME}/.{cache,config,local,local/share}/ r,
-  owner @{HOME}/.cache/{fontconfig,mesa_shader_cache*,radv_builtin_shaders*,nvidia,gtk-4.0,gstreamer-1.0,thumbnails}/{,**} rwk,
+  owner @{HOME}/.cache/{mesa_shader_cache*,radv_builtin_shaders*,nvidia,gtk-4.0,gstreamer-1.0,thumbnails}/{,**} rwk,
+  # fontconfig locks by link and tries to chmod the system cache
+  owner @{HOME}/.cache/fontconfig/{,**} rwkl,
+  deny /var/cache/fontconfig/{,**} w,
   owner @{HOME}/.cache/event-sound-cache.tdb.* rwk,
   owner @{HOME}/.config/{fontconfig,gtk-3.0,gtk-4.0,dconf,xkb,vulkan,Kvantum,qt5ct,qt6ct,enchant}/{,**} r,
   # libpulse locks its cookie while it reads it

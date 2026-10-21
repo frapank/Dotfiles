@@ -34,6 +34,7 @@ profile fwupd /usr/libexec/fwupd/fwupd {
   @{sys}/firmware/efi/efivars/** rw,
   /dev/** rw,
   /boot/{,**} rw,
+  @{run}/motd.d/{,**} rw,
   # the other disks' ESPs, which fwupd has udisks mount to look for capsules
   @{run}/media/root/{,**} r,
 
