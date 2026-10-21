@@ -187,7 +187,7 @@ plan() {
 		AdwaitaLegacy $ICONS_TAG for full color icons in pavucontrol and Thunar.
 	EOF
     section fonts "Fonts: Geist and Geist Mono" <<-EOF
-		Geist for text, Geist Mono for terminal, code and g0wm, from the v1.7.2 release (sha256 checked). Nerd symbols, emoji and CJK as fallback.
+		Geist for text, Geist Mono for terminal, code and g0wm, from the v1.7.2 release (sha256 checked). Nerd symbols (v3.4.0 release, sha256 checked: Debian has no package), emoji and CJK as fallback.
 		Removes SF Mono and SF Pro from /usr/local/share/fonts.
 	EOF
     section doas "doas instead of sudo" <<-EOF

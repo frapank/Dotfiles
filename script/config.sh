@@ -4,6 +4,8 @@
 readonly G0WM_URL=https://github.com/frapank/g0wm.git
 readonly GEIST_URL=https://github.com/vercel/geist-font/releases/download/v1.7.2/geist-font-v1.7.2.zip
 readonly GEIST_SHA256=7fc800d2ac6b92844895196e5041aca55d814c15db70c44f79b3b83ab82b04e2
+readonly NERD_URL=https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/NerdFontsSymbolsOnly.tar.xz
+readonly NERD_SHA256=7f8c090da3b0eaa7108646bf34cbbb6ed13d5358a72460522108b06c7ecd716a
 readonly ICONS_URL=https://gitlab.gnome.org/GNOME/adwaita-icon-theme-legacy.git
 readonly ICONS_TAG=46.2
 readonly ICONS_REV=7642b102c4a7c4088f170f548ae37960f2443522
@@ -89,7 +91,7 @@ PKG_SESSION=(gnome-keyring libsecret-1-0 libpam-gnome-keyring mate-polkit networ
     bluez blueman libspa-0.2-bluetooth)
 PKG_THEME=(gnome-themes-extra adwaita-icon-theme gsettings-desktop-schemas dconf-gsettings-backend
     libglib2.0-bin qt-style-kvantum qt6ct git libgtk-3-bin gtk-update-icon-cache librsvg2-bin curl tar xz-utils python3)
-PKG_FONTS=(fontconfig curl unzip fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk)
+PKG_FONTS=(fontconfig curl unzip xz-utils fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk)
 PKG_LOCALE=(locales)
 PKG_HW=(fwupd fwupd-amd64-signed)
 PKG_POWER=(power-profiles-daemon)
@@ -110,6 +112,7 @@ USER_GROUPS=(wheel video)
 SECTIONS=(update locale cli lsp harden usb apparmor net boot hw power logs swap maint dirs desktop media apps games session theme fonts doas)
 GEIST_DIR=/usr/local/share/fonts/Geist
 GEIST_MONO_DIR=/usr/local/share/fonts/GeistMono
+NERD_DIR=/usr/local/share/fonts/NerdFontsSymbolsOnly
 OLD_FONT_DIRS=(/usr/local/share/fonts/SF-Mono /usr/local/share/fonts/SF-Pro)
 # Thunar side pane: only home, Desktop, Trash, the bookmarks and File System
 THUNAR_HIDDEN=(computer:/// recent:/// network:///)

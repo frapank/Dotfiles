@@ -18,13 +18,13 @@ git_at() {
 }
 
 font_dir() {
-    local src=$1 dir=$2 f n=0
+    local src=$1 dir=$2 ext=${3:-otf} f n=0
     [[ -d $dir && ! -L $dir ]] && fix_perm "$dir" 0755
     while IFS= read -r -d '' f; do
         put "$f" "$dir/${f##*/}" 0644
         n=$((n + 1))
-    done < <(find "$src" -maxdepth 1 -type f -name '*.otf' -print0 | sort -z)
-    ((n)) || die "no font files in ${GEIST_URL##*/}: ${src##*/geist-font/}"
+    done < <(find "$src" -maxdepth 1 -type f -name "*.$ext" -print0 | sort -z)
+    ((n)) || die "no .$ext font files in ${src##*/}"
 }
 
 geist() {
@@ -44,6 +44,27 @@ geist() {
     rm -rf -- "$tmp"
     ((j == $(njot))) || FONTS_NEW=1
     put_text "$mark" 0644 <<<"$GEIST_SHA256"
+}
+
+# not in Debian: the symbols only build of the Nerd Fonts release
+nerd_symbols() {
+    local tmp j mark=$STATE/fonts-nerd-symbols
+    if fonts_ok "$NERD_DIR" && [[ $(cat -- "$mark" 2>/dev/null) == "$NERD_SHA256" ]]; then
+        skip "Nerd Font symbols"
+        return 0
+    fi
+    tmp=$(mktemp -d)
+    run "download ${NERD_URL##*/}" curl -fsSLo "$tmp/nerd.tar.xz" "$NERD_URL"
+    [[ $(sha256sum -- "$tmp/nerd.tar.xz" | cut -d' ' -f1) == "$NERD_SHA256" ]] ||
+        die "${NERD_URL##*/} does not match its sha256"
+    install -d -m 0700 "$tmp/nerd"
+    run "unpack ${NERD_URL##*/}" tar -xJf "$tmp/nerd.tar.xz" -C "$tmp/nerd" --no-same-owner --no-same-permissions \
+        SymbolsNerdFont-Regular.ttf SymbolsNerdFontMono-Regular.ttf
+    j=$(njot)
+    font_dir "$tmp/nerd" "$NERD_DIR" ttf
+    rm -rf -- "$tmp"
+    ((j == $(njot))) || FONTS_NEW=1
+    put_text "$mark" 0644 <<<"$NERD_SHA256"
 }
 
 old_fonts() {
@@ -68,6 +89,7 @@ font_is() {
 do_fonts() {
     step "Fonts"
     geist
+    nerd_symbols
     old_fonts
     if ((FONTS_NEW)); then
         run "refresh the font cache" fc-cache -f
