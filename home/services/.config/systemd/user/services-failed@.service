@@ -1,0 +1,6 @@
+[Unit]
+Description=Tell that %i failed
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/services failed %i

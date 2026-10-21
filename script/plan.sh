@@ -157,7 +157,7 @@ plan() {
 		Builds, tests and installs g0wm into ~/.local/bin, again only on new commits. A g0wm built elsewhere is left alone.
 		  Debian 13 has wlroots 0.18: wlroots 0.20.2 is built into $WLR_PREFIX at fixed commits, with the wayland, libdrm, xkbcommon and wayland-protocols it needs. Only g0wm uses them (rpath), the system keeps its own.
 		Log in on tty1 and g0wm starts.
-		'services': runit keeps PipeWire, ssh-agent, the polkit agent, Thunar, the idle lock and the nightlight running while g0wm runs.
+		'services': systemd user units keep the polkit agent, Thunar, the idle lock and the nightlight running while g0wm runs (g0wm-session.target), with the PipeWire and ssh-agent units of Debian. g0wm uses the user bus of dbus-user-session.
 	EOF
     section media "Screen sharing and audio" <<-EOF
 		PipeWire with wireplumber and pipewire-pulse, ALSA through PipeWire. The services command runs them.

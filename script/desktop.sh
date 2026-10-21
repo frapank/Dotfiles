@@ -60,9 +60,28 @@ wlroots_build() {
     WLR_NEW=1
 }
 
+# what systemctl --user enable does, also when the user manager is not running
+user_units() {
+    local n w=$THOME/.config/systemd/user/g0wm-session.target.wants
+    umkdir "$w"
+    for n in "${USER_UNITS[@]}"; do
+        if [[ -L $w/$n.service ]]; then
+            skip "user unit $n enabled"
+            continue
+        fi
+        [[ -e $w/$n.service ]] && move_aside "$w/$n.service"
+        jot hremove "$w/$n.service"
+        as_user ln -s -- "../$n.service" "$w/$n.service"
+        ok "user unit $n starts with g0wm"
+    done
+    [[ ! -S /run/user/$(id -u -- "$TUSER")/systemd/private ]] ||
+        try "the user manager reads the units" as_user env XDG_RUNTIME_DIR="/run/user/$(id -u -- "$TUSER")" systemctl --user daemon-reload
+}
+
 do_g0wm() {
     step "Desktop: g0wm"
     do_home "${HOME_DESKTOP[@]}"
+    user_units
     put_tree elogind
 
     local wp
