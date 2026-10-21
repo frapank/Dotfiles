@@ -6,12 +6,36 @@ export LC_ALL=C
 # run from /: children (update-initramfs via zgrep, kernel hooks) are confined and cannot enter the user's 0700 home
 [[ $PWD == / ]] || exec env -C / -u PWD "$(readlink -f -- "$0")" "$@"
 
+# a group no one but UID is in: Debian gives each user one, with umask 002
+solo_group() {
+    local gid=$1 uid=$2 members
+    IFS=: read -r _ _ _ members < <(getent group "$gid") || return 1
+    [[ -z $members || $members == "$(id -nu -- "$uid")" ]] || return 1
+    [[ -z $(getent passwd | awk -F: -v g="$gid" -v u="$uid" '$4 == g && $3 != u') ]]
+}
+
+# print the first of the files in DIR... that someone other than UID and root can change
+unsafe() {
+    local uid=$1 gid w=(-perm /020)
+    shift
+    gid=$(id -g -- "$uid")
+    if solo_group "$gid" "$uid"; then w+=(! -gid "$gid"); fi
+    find "$@" \( -perm /002 -o \( "${w[@]}" \) -o \( ! -user root ! -uid "$uid" \) \) -print -quit
+}
+
 # root sources the files next to this one: refuse them if someone else can change them
 HERE=$(dirname -- "$(readlink -f -- "$0")")
-if [[ -n $(find "$HERE" \( -perm /022 -o -type l -o \( ! -user root ! -uid "$(stat -c %u -- "$HERE")" \) \) -print -quit) ]]; then
-    echo "error: files in $HERE are writable by others, owned by someone else or symlinks" >&2
+bad=$(find "$HERE" -type l -print -quit)
+[[ -z $bad ]] || {
+    echo "error: symlink in $HERE, refusing: $bad" >&2
     exit 1
-fi
+}
+bad=$(unsafe "$(stat -c %u -- "$HERE")" "$HERE")
+[[ -z $bad ]] || {
+    echo "error: $bad can be changed by someone else (fix: chmod -R go-w '${HERE%/*}')" >&2
+    exit 1
+}
+unset bad
 for f in config ui journal files checks plan system harden apparmor net boot maint home desktop theme; do
     # shellcheck source=/dev/null
     . "$HERE/$f.sh"

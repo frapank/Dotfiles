@@ -308,7 +308,7 @@ verify() {
             warn "wlroots 0.20 missing from $WLR_PREFIX"
             bad=1
         }
-        [[ -f $THOME/.config/g0wm/settings.json && ! -L $THOME/.config/g0wm/settings.json ]] ||
+        [[ -f $THOME/.config/g0wm/config && ! -L $THOME/.config/g0wm/config ]] ||
             {
                 warn "g0wm settings not installed"
                 bad=1

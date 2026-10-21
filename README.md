@@ -19,7 +19,7 @@ Debian from the netinst image, in the text installer:
 
 Then on tty1, from the cloned repo: `doas ./install.sh`, or `sudo ./install.sh` the first time. It asks what to apply, shows the plan and rolls everything back if a step fails.
 
-What Debian does not have is built or downloaded at fixed commits and checksums: wlroots 0.20 with the newer wayland, libdrm, xkbcommon and wayland-protocols it needs, in /usr/local/lib/wlroots-0.20 (only g0wm uses them, by its rpath), grub-btrfs, hardened_malloc, the Geist and Nerd symbols fonts, the cursor and icon themes. LibreWolf comes from its own repository, with the key Debian's extrepo lists for it.
+What Debian does not have is built or downloaded at fixed commits and checksums: wlroots 0.20 with the newer wayland, libdrm, xkbcommon, wayland-protocols and pixman it needs and libscfg for the g0wm config, in /usr/local/lib/wlroots-0.20 (only g0wm uses them, by its rpath), grub-btrfs, hardened_malloc, the Geist and Nerd symbols fonts, the cursor and icon themes. LibreWolf comes from its own repository, with the key Debian's extrepo lists for it.
 
 ## Maint
 

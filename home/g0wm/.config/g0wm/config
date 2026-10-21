@@ -19,7 +19,7 @@ look {
 	rootcolor #0a1224ff
 	fullscreen_bg #0a1224ff
 	# empty for none
-	wallpaper /home/user/.config/g0wm/wallpaper.jpg
+	wallpaper @HOME@/.config/g0wm/wallpaper.jpg
 	# up to 31
 	tags 1 2 3 4 5 6
 }
