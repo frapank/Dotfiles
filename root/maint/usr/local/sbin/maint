@@ -105,6 +105,11 @@ prune() {
 }
 
 job_home() {
+    # the installer moved /home into a subvolume: what was left open then is gone with the reboot
+    old=/home.pi-old
+    if [ -d "$old" ] && [ ! -L "$old" ] && [ "$(stat -c %Z "$old")" -lt "$(awk '/^btime/ { print $2 }' /proc/stat)" ]; then
+        rm -rf -- "$old" && log "home: deleted $old, the copy from before the subvolume"
+    fi
     if [ "$(stat -f -c %T /home)" != btrfs ] || ! btrfs subvolume show /home >/dev/null 2>&1; then
         log "home: /home is not a btrfs subvolume"
         return 1

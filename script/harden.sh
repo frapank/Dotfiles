@@ -151,29 +151,38 @@ no_suid() {
     ((n)) || skip "no setuid on su pkexec passwd and the others"
 }
 
+# Debian has an ext4 /boot and a vfat /boot/efi: no device, setuid or program files on
+# either, and /boot readable by root only
 boot_mask() {
-    local mnt new
-    mnt=$(awk '$3 == "vfat" && ($2 == "/boot" || $2 == "/boot/efi") { print $2; exit }' /etc/fstab)
-    if [[ -z $mnt ]]; then
-        skip "no vfat /boot in /etc/fstab"
-        return 0
-    fi
-    new=$(awk -v m="$mnt" '
-		!/^[[:space:]]*#/ && $2 == m && $3 == "vfat" {
+    local new m t
+    new=$(awk '
+		!/^[[:space:]]*#/ && ($2 == "/boot" || $2 == "/boot/efi") {
 			n = split($4, o, ","); $4 = ""
 			for (i = 1; i <= n; i++)
-				if (o[i] !~ /^(fmask|dmask|umask|nosuid|nodev|noexec|exec|suid|dev)(=|$)/) $4 = $4 o[i] ","
-			$4 = $4 "nosuid,nodev,noexec,fmask=0077,dmask=0077"
+				if (o[i] !~ /^(fmask|dmask|umask|nosuid|nodev|noexec|exec|suid|dev|defaults)(=|$)/) $4 = $4 o[i] ","
+			$4 = $4 "nosuid,nodev,noexec"
+			if ($3 == "vfat") $4 = $4 ",fmask=0077,dmask=0077"
 		}
 		{ print }' /etc/fstab)
     if [[ $new == "$(cat /etc/fstab)" ]]; then
-        skip "$mnt nosuid,nodev,noexec,fmask=0077,dmask=0077"
+        skip "/boot nosuid,nodev,noexec in /etc/fstab"
+    else
+        put_text /etc/fstab 0644 <<<"$new"
+        run "fstab is valid" findmnt --verify
+        for t in /boot /boot/efi; do
+            findmnt -n "$t" >/dev/null || continue
+            try "remount $t" mount -o remount "$t"
+        done
+    fi
+    [[ $(stat -f -c %T /boot) != msdos ]] || return 0
+    m=$(stat -c '%a %u:%g' /boot)
+    if [[ ${m% *} == 700 ]]; then
+        skip "/boot (700)"
         return 0
     fi
-    put_text /etc/fstab 0644 <<<"$new"
-    run "fstab is valid" findmnt --verify
-    try "remount $mnt" mount -o remount "$mnt"
-    [[ $(stat -c %a -- "$mnt") == 700 ]] || warn "$mnt is readable by everyone until the reboot"
+    jot perm /boot "${m% *}" "${m#* }"
+    chmod 0700 /boot
+    ok "/boot ${m% *} -> 700"
 }
 
 tmp_mount() {

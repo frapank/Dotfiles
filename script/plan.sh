@@ -43,7 +43,7 @@ plan() {
 		Kernel command line, active after reboot: freed memory is zeroed (a few % slower), no DMA attacks over PCI and Thunderbolt, only signed modules, no /dev/mem, kexec or hibernation, no reading of kernel memory through /proc/kcore, tracing or BPF (lockdown confidentiality), no writing into a program's memory through /proc but by a debugger. The recovery entry boots without them.
 		  ${HARDEN_CMDLINE[*]}
 		New machine ID at every boot, so apps cannot track this machine by it: /etc/machine-id is empty on disk, systemd puts a random one over it in RAM and never saves it. The journals of the old IDs are kept up to 400 MB.
-		fstab: /boot root only and nosuid,nodev,noexec, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
+		fstab: /boot and /boot/efi nosuid,nodev,noexec and readable by root only, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
 		Core dumps: a dump is the memory of the program, keys and passwords included. Only the one of g0wm is kept (~/.local/state/g0wm, for debugging it), the others are dropped (core-keep).
 		/proc, after reboot (fstab): the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, systemd-logind, $TUSER (the polkit agent needs it).
 		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap fusermount (the old one, fusermount3 stays for the FUSE mounts of the desktop) ssh-keysign wall write Xorg.wrap firejail lxc-user-nic qemu-bridge-helper spice-client-glib-usb-acl-helper: doas does it ('doas passwd $TUSER').
@@ -89,9 +89,10 @@ plan() {
 	EOF
     section boot "Boot: initramfs, splash, login screen" <<-EOF
 		Installs ${PKG_BOOT[*]}
-		dracut hostonly, plymouth void-minimal, 'quiet splash' in GRUB.
-		GRUB theme minimal (tomdewildt, fixed commit): only GRUB_THEME changes in /etc/default/grub, LUKS and kernel arguments are kept and checked in grub.cfg.
-		No 'Loading Linux ...' lines after the menu (10_linux patched, redone by maint after grub updates).
+		initramfs-tools with MODULES=dep, plymouth g0wm, 'quiet splash' in GRUB.
+		Kernel arguments go in /etc/default/grub.d, /etc/default/grub stays as it is. / on LUKS: checked that cryptsetup-initramfs and /etc/crypttab unlock it, an initramfs without it is not kept.
+		GRUB theme minimal (tomdewildt, fixed commit): GRUB_THEME in /etc/default/grub.d, the arguments the system booted with (root, subvolume, resume) are checked in grub.cfg.
+		No 'Loading Linux ...' lines after the menu (10_linux patched; dpkg keeps it and leaves the new one of a grub update as 10_linux.dpkg-dist, maint patches that and puts it in place).
 		Clean tty1 login and /etc/issue. Terminus font on every tty (console-setup), larger on screens 1440 pixels tall or more.
 		Rebuilds the initramfs when needed, old images restored on failure.
 	EOF
@@ -127,13 +128,14 @@ plan() {
 	EOF
     section maint "Maintenance: snapshots, updates, cleanup" <<-EOF
 		A service runs these hourly, catches up on missed ones and notifies failures. Needs / and /home on btrfs.
+		  The Debian installer leaves /home in the subvolume of /: it becomes a subvolume of its own (reflinks, no extra space), out of the snapshots of /.
 		Daily: read-only snapshot of /home, last 14 kept (3 under 10% free). Same disk, not a backup.
 		  Downloads, ~/Private, ~/.cache, ~/Games, ~/.local/share/Steam and the librewolf profile are left out: what you delete there is gone.
 		Daily: system update while you are logged in, with battery over 20% and 10% free on /. Flatpak apps too, if there are any.
 		  Downloads first, snapshots / (last 3 kept), then installs. Sleep and shutdown wait for it. Notifies every stage.
 		  Waits for a good connection: postponed when requests to the mirror fail or hang, under 100 KB/s, or when the download would take over 30 minutes. A notification after 3 days, 'doas maint update' updates anyway.
 		  The snapshots of / are in the GRUB menu (grub-btrfs from its repository at a fixed commit, Debian has no package; 'Snapshots before updates'), the daily ones of /home are not.
-		  A snapshot boots with a throwaway overlay in RAM (dracut overlayfs): changes are lost, /home is the live one.
+		  A snapshot boots with a throwaway overlay in RAM (overlayroot): changes are lost, /home is the live one.
 		  Pick its kernel in the menu: /boot is not in the snapshot, the kernels it was taken with are kept while it exists.
 		Daily: deletes thumbnails of deleted files and what has been in the trash for 30 days, updates the DNS blocklist.
 		Weekly: old kernels (never the running one or one of a snapshot of /), orphans, package cache. Packages installed here are never orphans.
@@ -201,10 +203,12 @@ plan() {
 
     if ((SEL[maint])); then
         [[ $(stat -f -c %T /) == btrfs ]] || die "maint: / is not btrfs"
-        [[ $(stat -f -c %T /home) == btrfs && $(stat -c %i /home) == 256 ]] ||
-            die "maint: /home is not a btrfs subvolume, it cannot be snapshotted"
-        compgen -G '/usr/lib/dracut/modules.d/[0-9]*overlayfs/module-setup.sh' >/dev/null ||
-            die "maint: dracut has no overlayfs module, snapshots of / could not boot"
+        if [[ $(stat -c %i /home) != 256 ]]; then
+            [[ $(stat -f -c %T /home) == btrfs && $(findmnt -no TARGET -T /home) == / ]] ||
+                die "maint: /home is not a btrfs subvolume, it cannot be snapshotted"
+            ! pgrep -u "$TUSER" -x g0wm >/dev/null || die "maint: /home moves into a subvolume of its own, log out of g0wm and run this from a tty"
+            note "/home becomes a subvolume of its own (maint)"
+        fi
     fi
     if ((SEL[doas])); then
         local st

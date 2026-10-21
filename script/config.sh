@@ -43,6 +43,7 @@ readonly STATE=/var/lib/debian-postinstall
 readonly BASHRC_LINE='[ -f "$HOME/.bashrc_dotfile" ] && . "$HOME/.bashrc_dotfile"'
 readonly PROFILE_LINE='[ -f "$HOME/.bash_profile_dotfile" ] && . "$HOME/.bash_profile_dotfile"'
 readonly SOURCES=/etc/apt/sources.list.d/debian.sources
+readonly GRUB_D=/etc/default/grub.d
 readonly COMPONENTS='main contrib non-free non-free-firmware'
 # conffiles keep the local copy, the rest takes the package default
 APT=(env DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l apt-get -y -q
@@ -116,6 +117,8 @@ PKG_LOGS=(pulseaudio-utils gawk less)
 PKG_DIRS=(xdg-user-dirs)
 PKG_SWAP=(systemd-zram-generator earlyoom)
 PKG_MAINT=(btrfs-progs util-linux python3 smartmontools curl)
+# the snapshots of / boot with a throwaway overlay in RAM
+PKG_SNAPBOOT=(overlayroot)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
 HOME_CLI=(bash ctags nvim vim tmux ripgrep fetch)
 HOME_DESKTOP=(foot g0wm gtklock services)
