@@ -1,0 +1,8 @@
+// the methods that download run under a seccomp filter
+APT::Sandbox::Seccomp "true";
+// never from a repository without a signature, or one that lost it
+Acquire::AllowInsecureRepositories "false";
+Acquire::AllowDowngradeToInsecureRepositories "false";
+APT::Get::AllowUnauthenticated "false";
+// no translations: fewer downloads that tell the mirror the language
+Acquire::Languages "none";

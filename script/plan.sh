@@ -13,7 +13,8 @@ plan() {
     say "${C_B}Debian post-install${C_0}"
     say "   user  $TUSER ($THOME)"
     say "   repo  $REPO"
-    say "   apt   ${SOURCES##*/}: $COMPONENTS; packages without their Recommends"
+    say "   apt   ${SOURCES##*/}: $COMPONENTS over https; packages without their Recommends"
+    say "         downloads under seccomp, never from an unsigned repository, no translations"
     say "   ${C_D}Nothing changes until you confirm the plan at the end.${C_0}"
 
     section update "System upgrade" <<-EOF
@@ -39,9 +40,10 @@ plan() {
 		sysctl: /etc/sysctl.d/5{1..5}-*.conf, after the 50-default.conf of Debian that would undo some, TCP timestamps off.
 		Firewall (nftables): drops input and forward, allows output. ICMP only errors, rate limited ping from the LAN only (the internet cannot see the machine is up, IPv6 included), neighbor discovery, router adverts, MLD. Nothing goes out that announces the machine on the LAN (mDNS, LLMNR, SSDP, NetBIOS, WS-Discovery, Steam).
 		SSH client: offers only configured keys, hashed known_hosts, no agent forwarding, keys stay in the agent for an hour. ~/.ssh gets mode 0700, no keys are generated.
-		Blocks rarely used kernel modules with a history of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25 netrom rose x25 can ieee802154 firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2 vivid kcm rxrpc nfc nilfs2 zonefs cuse userio hci_vhci. hfsplus udf exfat ntfs3 still work.
-		Kernel command line, active after reboot: freed memory is zeroed (a few % slower), no DMA attacks over PCI and Thunderbolt, only signed modules, no /dev/mem, kexec or hibernation, no reading of kernel memory through /proc/kcore, tracing or BPF (lockdown confidentiality), no writing into a program's memory through /proc but by a debugger. The recovery entry boots without them.
+		Blocks rarely used kernel modules with a history of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25 netrom rose x25 can ieee802154 firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2 vivid kcm rxrpc nfc nilfs2 zonefs cuse userio hci_vhci, and from the list of Kicksecure dccp decnet econet ipx ksmbd affs afs ceph coda ecryptfs freevxfs jffs2 minix orangefs reiserfs romfs sysv ubifs gnss and others; no PC speaker. hfsplus udf exfat ntfs3 cifs nfs thunderbolt joydev still work.
+		Kernel command line, active after reboot: freed memory is zeroed (a few % slower), no DMA attacks over PCI and Thunderbolt, only signed modules, no /dev/mem, kexec or hibernation, no reading of kernel memory through /proc/kcore, tracing or BPF (lockdown confidentiality), no writing into a program's memory through /proc but by a debugger; from Kicksecure no IOMMU passthrough, KFENCE sampling heap bugs, the random pool not credited by the CPU or the bootloader alone. The recovery entry boots without them.
 		  ${HARDEN_CMDLINE[*]}
+		systemd sandbox on top of Debian's units: NetworkManager (no new privileges, private /tmp, no clock or kernel log), dnscrypt-proxy (no capabilities, read-only system, private devices, system call filter), bluetoothd (no kernel modules, only bluetooth sockets), and the watchdog, usbguard-notify and journal-prune of the dotfiles.
 		New machine ID at every boot, so apps cannot track this machine by it: /etc/machine-id is empty on disk, systemd puts a random one over it in RAM and never saves it. The journals of the old IDs are kept up to 400 MB.
 		fstab: /boot and /boot/efi nosuid,nodev,noexec and readable by root only, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
 		Core dumps: a dump is the memory of the program, keys and passwords included. Only the one of g0wm is kept (~/.local/state/g0wm, for debugging it), the others are dropped (core-keep).
