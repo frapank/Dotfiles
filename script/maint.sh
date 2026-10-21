@@ -24,15 +24,12 @@ do_swap() {
 
 do_logs() {
     step "System logs"
-    local d=/var/log/socklog
-    [[ -d $d/everything && -d $d/kernel && -d $d/secure ]] || die "socklog-void did not create $d"
     svc_refresh systemd-journald.service put_tree logs
     # watchdog needs it
     put_tree session
-    fix_perm "$d/secure" 2700
     run "logs parses" sh -n /usr/local/bin/logs
-    run "pstore script parses" sh -n /etc/runit/core-services/07-pstore.sh
     if [[ -d /sys/firmware/efi ]]; then
+        svc_enable systemd-pstore.service
         grub_words efi_pstore.pstore_disable=0
     else
         warn "booted without UEFI: no pstore, a kernel panic leaves no log"

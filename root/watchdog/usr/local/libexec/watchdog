@@ -42,9 +42,10 @@ every() {
     [ $((now - t)) -ge "$2" ] && echo "$now" >"$st/$1"
 }
 
+# the kernel log, and the AppArmor blocks journald takes from it when it reads the audit socket
 kernel() {
-    stdbuf -oL dmesg -W -k --color=never 2>/dev/null | while IFS= read -r line; do
-        msg=${line#*] } raw=$msg u=normal icon=
+    stdbuf -oL journalctl -f -n0 -q -o cat _TRANSPORT=kernel _TRANSPORT=audit 2>/dev/null | while IFS= read -r line; do
+        msg=$line raw=$msg u=normal icon=
         case $msg in
         *"segfault at"*) prog=${msg%%\[*} why="segmentation fault" last=$prog ;;
         traps:*)
@@ -138,7 +139,7 @@ kernel() {
             ;;
         *) continue ;;
         esac
-        notify "$u" "$icon" "$prog" "$why" around "$raw" kernel &
+        notify "$u" "$icon" "$prog" "$why" around "$raw" &
     done
 }
 
@@ -226,11 +227,17 @@ earlyoom() {
     done
 }
 
+# systemd-pstore saved it at boot
 pstore() {
-    [ -e /run/pstore-new ] || return 0
+    [ ! -e /run/pstore-notified ] || return 0
     as_user true || return 0
-    notify critical  Kernel "crashed during the last boot, click to see why" panics &
-    rm -f /run/pstore-new
+    boot=$(awk '/^btime/ { print $2 }' /proc/stat)
+    for d in /var/lib/systemd/pstore/*; do
+        [ -e "$d" ] && [ "$(stat -c %Y -- "$d")" -ge "$boot" ] || continue
+        : >/run/pstore-notified
+        notify critical  Kernel "crashed during the last boot, click to see why" panics &
+        return 0
+    done
 }
 
 poll() {
@@ -247,7 +254,7 @@ poll() {
 }
 
 trap 'trap - TERM; kill 0' TERM
-# dmesg -W can end: read the kernel again rather than go silent
+# journalctl -f can end: read the kernel again rather than go silent
 while :; do
     kernel
     sleep 5

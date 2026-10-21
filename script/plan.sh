@@ -106,16 +106,16 @@ plan() {
 		Change it with 'powerprofilesctl set performance'.
 	EOF
     section logs "System logs, crash reports, the logs command" <<-EOF
-		socklog in /var/log/socklog, one folder per kind, more history but capped (60 MB everything and kernel, 20 MB the rest).
-		Login and doas messages readable by root only. Adds $TUSER to socklog.
+		The journal on disk, capped at 200 MB, every boot also with another machine ID: logs reads them all. Nothing goes on to a syslog daemon, emergencies are not written on the terminals (ForwardToWall).
+		Adds $TUSER to systemd-journal: the journal, login and doas messages included, reads without doas.
 		logs             live           logs errors    since boot
 		logs boot        this boot      logs crashes   segfaults, OOM
 		logs since 2h    or today, 3d   logs apparmor  blocks per app
 		logs service X   one service    logs firewall  drops per source
 		logs grep RE     search all     logs auth      logins, doas
 		logs status      disk, history  logs panics    kernel crashes
-		Kernel panics are kept by UEFI pstore and saved at the next boot. After a panic or an oops it reboots in 10 seconds.
-		Notifications for crashes, kernel bugs and lockups, GPU hangs, CPU and RAM errors, disks not answering, filesystem errors, overheating, USB events, looping services, battery at 20% and 10%, disks over 90%, mic and webcam in use, AppArmor blocks, a kernel crash last boot.
+		Kernel panics are kept by UEFI pstore and saved at the next boot (systemd-pstore). After a panic or an oops it reboots in 10 seconds.
+		Notifications for crashes, kernel bugs and lockups, GPU hangs, CPU and RAM errors, disks not answering, filesystem errors, overheating, USB events, failed services, battery at 20% and 10%, disks over 90%, mic and webcam in use, AppArmor blocks, a kernel crash last boot.
 		No core dumps from setuid programs.
 	EOF
     zram_size

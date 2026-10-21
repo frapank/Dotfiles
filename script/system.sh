@@ -140,7 +140,7 @@ do_groups() {
     ((SEL[desktop])) && groups+=("${USER_GROUPS[@]}")
     ((SEL[doas])) && groups+=(wheel)
     ((SEL[session])) && groups+=(bluetooth)
-    ((SEL[logs])) && groups+=(socklog)
+    ((SEL[logs])) && groups+=(systemd-journal)
     ((${#groups[@]})) || return 0
     for g in $(printf '%s\n' "${groups[@]}" | sort -u); do
         # Debian has no wheel: doas and polkit use it here
@@ -423,13 +423,12 @@ verify() {
             warn "/usr/local/bin/logs missing"
             bad=1
         }
-        [[ $(stat -c '%a %U %G' /var/log/socklog/secure) == '2700 root root' ]] ||
-            {
-                warn "/var/log/socklog/secure is readable by others"
-                bad=1
-            }
-        grep -qx s4000000 /var/log/socklog/everything/config || {
-            warn "socklog keeps the default history"
+        [[ $(systemd-analyze cat-config systemd/journald.conf 2>/dev/null | grep -E '^Storage=' | tail -n1) == Storage=persistent ]] || {
+            warn "the journal is not kept on disk"
+            bad=1
+        }
+        [[ ! -d /sys/firmware/efi ]] || systemctl -q is-enabled systemd-pstore.service || {
+            warn "systemd-pstore not enabled: a kernel panic leaves no log"
             bad=1
         }
     fi
