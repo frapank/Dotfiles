@@ -23,6 +23,9 @@ XML = """<node><interface name="org.dotfiles.Open">
 <method name="Open"><arg type="s" direction="in"/><arg type="as" direction="in"/></method>
 </interface></node>"""
 IDLE = 60
+# libnotify 0.8.6 of Debian 13 has no --activation-token-fd
+TOKEN_FD = b"--activation-token-fd" in subprocess.run(["notify-send", "--help"], stdin=subprocess.DEVNULL,
+                                                      capture_output=True).stdout
 
 loop = GLib.MainLoop()
 timer = 0
@@ -105,9 +108,9 @@ def confirm(who, app, args, urls):
 
     def wait():
         rfd, wfd = os.pipe()
+        token_arg = [f"--activation-token-fd={wfd}"] if TOKEN_FD else []
         r = subprocess.run(["notify-send", "-a", f"\uf132 {who}", "-h", f"string:desktop-entry:{who}",
-                            "-u", "critical", "-A", "default=Open", "-A", "copy=Copy link",
-                            f"--activation-token-fd={wfd}",
+                            "-u", "critical", "-A", "default=Open", "-A", "copy=Copy link", *token_arg,
                             f"{who} wants to open a link", GLib.markup_escape_text("\n".join(urls))],
                            env=environ(), stdin=subprocess.DEVNULL, capture_output=True, text=True,
                            pass_fds=(wfd,))

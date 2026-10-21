@@ -1,0 +1,36 @@
+abi <abi/4.0>,
+
+include <tunables/global>
+
+# the package's own librewolf profile, unconfined, is disabled
+profile librewolf /usr/share/librewolf/{librewolf,librewolf-bin} flags=(attach_disconnected) {
+  include <abstractions/dotfiles/app>
+
+  # the only app with the network: no ~/Private, uploads go through ~/Get
+  audit deny @{HOME}/Private/{,**} mrwkl,
+
+  userns,
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  owner @{PROC}/@{pid}/{uid_map,gid_map,setgroups,oom_score_adj} rw,
+
+  network inet,
+  network inet6,
+  network netlink raw,
+
+  owner @{HOME}/.{librewolf,config/librewolf}/** rwlkm,
+  owner @{HOME}/.cache/librewolf/{,**} rwk,
+  # password manager extensions
+  owner @{HOME}/.mozilla/native-messaging-hosts/{,**} r,
+  /dev/snd/{,**} rw,
+  /dev/video* rw,
+  /dev/media* rw,
+  /dev/hidraw* rw,
+
+  /usr/share/librewolf/** ix,
+  /usr/{bin,lib,libexec,local/bin}/** ix,
+  owner @{run}/user/@{uid}/.dbus-filter/librewolf/* rw,
+
+  include if exists <local/librewolf>
+}

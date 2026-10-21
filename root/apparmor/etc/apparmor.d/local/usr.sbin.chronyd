@@ -1,0 +1,3 @@
+  # NTS checks the certificates of the time servers
+  include <abstractions/ssl_certs>
+  include <abstractions/dotfiles/root-secrets>

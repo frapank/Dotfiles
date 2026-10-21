@@ -39,7 +39,7 @@ done
 ((bad)) || pass "${#bash_files[@]} bash, ${#sh_files[@]} sh, ${#py_files[@]} python"
 
 # shell files without a shebang
-fmt_files=(.github/lint.sh root/logs/usr/local/share/bash-completion/completions/logs root/agetty/etc/sv/agetty-tty1/conf root/*/etc/runit/core-services/*.sh)
+fmt_files=(.github/lint.sh root/*/usr/local/share/bash-completion/completions/*)
 echo "shfmt $(shfmt --version)"
 if shfmt -d -- "${bash_files[@]}" "${sh_files[@]}" "${fmt_files[@]}"; then
     pass "formatted"
@@ -84,7 +84,7 @@ echo "files"
 while IFS= read -r -d '' f; do
     python3 -m json.tool -- "$f" >/dev/null || fail "$f is not valid JSON"
 done < <(find home root -type f -name '*.json' -print0)
-for f in script/install.sh install.sh home/*/.local/bin/* root/*/etc/sv/*/run root/*/etc/sv/*/*/run root/*/usr/local/sbin/* root/*/usr/local/bin/* root/*/usr/local/libexec/*; do
+for f in script/install.sh install.sh home/*/.local/bin/* root/*/etc/NetworkManager/dispatcher.d/* root/*/usr/local/sbin/* root/*/usr/local/bin/* root/*/usr/local/libexec/*; do
     [[ -x $f ]] || fail "$f is not executable"
 done
 l=$(find script home root src -type l)
@@ -119,12 +119,14 @@ echo "apparmor $(apparmor_parser --version | awk 'NR == 1 { print $NF }')"
 aa=$(mktemp -d)
 trap 'rm -rf "$aa"' EXIT
 cp -a /etc/apparmor.d/. root/apparmor/etc/apparmor.d/. "$aa/"
-aa_files=("$aa/usr.bin.wpa_supplicant")
+aa_files=()
 for f in root/apparmor/etc/apparmor.d/*; do
     [[ -f $f ]] && aa_files+=("$aa/${f##*/}")
 done
+# Debian's, with what local/ adds to it
+[[ ! -f $aa/usr.sbin.chronyd ]] || aa_files+=("$aa/usr.sbin.chronyd")
 if out=$(apparmor_parser --base "$aa" -QK -- "${aa_files[@]}" 2>&1); then
-    pass "$((${#aa_files[@]} - 1)) profiles compile"
+    pass "${#aa_files[@]} profiles compile"
 else
     grep -v '^Cache read/write disabled' <<<"$out"
     fail "apparmor profiles"

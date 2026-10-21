@@ -1,28 +1,27 @@
 # shellcheck shell=bash
 # boot, grub, initramfs, hardware
 
+# Debian's drop-ins: /etc/default/grub stays the package's and the installer's,
+# GRUB_CMDLINE_LINUX_DEFAULT leaves the recovery entry without them
 grub_words() {
-    local line w add=() stale=0
+    local f=$GRUB_D/40_debian-postinstall.cfg base have w add=() stale=0
     if [[ ! -f /etc/default/grub ]]; then
         warn "no /etc/default/grub: add '$*' to the kernel command line yourself"
         return 0
     fi
-    if grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qv '^GRUB_CMDLINE_LINUX_DEFAULT="[^"]*"[[:space:]]*$'; then
-        die "GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub is not a plain \"...\" value, add '$*' to it yourself"
-    fi
-    line=$(grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub || true)
+    base=$(grep -hE '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub || true)
+    have=$(sed -n 's/^GRUB_CMDLINE_LINUX_DEFAULT="\$GRUB_CMDLINE_LINUX_DEFAULT \(.*\)"$/\1/p' "$f" 2>/dev/null)
     for w in "$@"; do
-        [[ " $line " =~ [\"\'[:space:]]"$w"[\"\'[:space:]] ]] || add+=("$w")
         grep -qsF -- "$w" /boot/grub/grub.cfg || stale=1
+        [[ " $have " == *" $w "* || " $base " =~ [\"\'[:space:]]"$w"[\"\'[:space:]] ]] && continue
+        add+=("$w")
+        have="${have:+$have }$w"
     done
     if ((${#add[@]})); then
-        backup /etc/default/grub
-        if grep -q '^GRUB_CMDLINE_LINUX_DEFAULT="' /etc/default/grub; then
-            sed -i -E "s/^(GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*)\"/\1 ${add[*]}\"/" /etc/default/grub
-        else
-            echo "GRUB_CMDLINE_LINUX_DEFAULT=\"${add[*]}\"" >>/etc/default/grub
-        fi
-        grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qF -- "${add[-1]}\"" || die "could not edit GRUB_CMDLINE_LINUX_DEFAULT"
+        put_text "$f" 0644 <<-EOF
+			# the kernel arguments of the dotfiles, the recovery entry boots without them
+			GRUB_CMDLINE_LINUX_DEFAULT="\$GRUB_CMDLINE_LINUX_DEFAULT $have"
+		EOF
         ok "GRUB: added ${add[*]}"
         stale=1
     else
@@ -32,18 +31,6 @@ grub_words() {
     return 0
 }
 
-# the kernel argument $1 becomes $2 in /etc/default/grub, when it is there
-grub_swap() {
-    local old=$1 new=$2
-    [[ -f /etc/default/grub ]] || return 0
-    grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub | grep -qE "[\"'[:space:]]${old}[\"'[:space:]]" || return 0
-    backup /etc/default/grub
-    sed -i -E "/^GRUB_CMDLINE_LINUX(_DEFAULT)?=/ s/([\"'[:space:]])${old}([\"'[:space:]])/\1${new}\2/" /etc/default/grub
-    grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub | grep -qF -- "$new" || die "could not change $old to $new in /etc/default/grub"
-    ok "GRUB: $old -> $new"
-    GRUB_STALE=1
-}
-
 grub_update() {
     [[ -f /boot/grub/grub.cfg ]] && backup /boot/grub/grub.cfg
     run "update-grub" update-grub
@@ -51,20 +38,43 @@ grub_update() {
     GRUB_STALE=0
 }
 
+# Debian has no package: 41_snapshots-btrfs from the repository, at a fixed commit
+grub_btrfs() {
+    local tmp mark=$STATE/grub-btrfs f=/etc/grub.d/41_snapshots-btrfs
+    if [[ -x $f && $(cat -- "$mark" 2>/dev/null) == "$GRUB_BTRFS_REV" ]]; then
+        skip "grub-btrfs ${GRUB_BTRFS_REV:0:12}"
+        return 0
+    fi
+    tmp=$(mktemp -d)
+    git_at "$tmp/src" "$GRUB_BTRFS_URL" "$GRUB_BTRFS_REV"
+    [[ -f $tmp/src/41_snapshots-btrfs ]] || die "unexpected layout in $GRUB_BTRFS_URL"
+    run "41_snapshots-btrfs parses" bash -n "$tmp/src/41_snapshots-btrfs"
+    put "$tmp/src/41_snapshots-btrfs" "$f" 0755
+    rm -rf -- "$tmp"
+    put_text "$mark" 0644 <<<"$GRUB_BTRFS_REV"
+    GRUB_STALE=1
+}
+
 grub_snaps() {
-    local home
+    local home= n
     if [[ ! -f /etc/default/grub ]] || ! command -v update-grub >/dev/null; then
         warn "no GRUB here, the snapshots of / are not in the boot menu"
         return 0
     fi
-    [[ -x /etc/grub.d/41_snapshots-btrfs ]] || die "grub-btrfs did not install /etc/grub.d/41_snapshots-btrfs"
-    # /etc/default/grub-btrfs/config is not a conf file for xbps, 41_snapshots-btrfs reads /etc/default/grub after it
-    grub_set GRUB_BTRFS_SUBMENUNAME "Snapshots before updates"
-    grub_set GRUB_BTRFS_SNAPSHOT_KERNEL_PARAMETERS rd.overlay=1
+    grub_btrfs
     if [[ $(findmnt -no UUID -T /home) == "$(findmnt -no UUID -T /)" ]]; then
         home=$(btrfs subvolume show /home | head -n1)
-        [[ -z $home || $home == / ]] || grub_set GRUB_BTRFS_IGNORE_PREFIX_PATH "$home"
+        [[ $home != / ]] || home=
     fi
+    # no package owns it: the whole file is this script's
+    n=$(njot)
+    put_text /etc/default/grub-btrfs/config 0644 <<-EOF
+		GRUB_BTRFS_SUBMENUNAME="Snapshots before updates"
+		GRUB_BTRFS_SNAPSHOT_KERNEL_PARAMETERS="overlayroot=tmpfs:recurse=0"
+		GRUB_BTRFS_IGNORE_SPECIFIC_PATH=("@")
+		GRUB_BTRFS_IGNORE_PREFIX_PATH=("var/lib/docker" "@var/lib/docker" "@/var/lib/docker" "var/lib/containers" "@var/lib/containers" "@/var/lib/containers"${home:+ \"$home\"})
+	EOF
+    ((n == $(njot))) || GRUB_STALE=1
     grep -qs snapshots-btrfs /boot/grub/grub.cfg || GRUB_STALE=1
     if ((GRUB_STALE)); then
         grub_update
@@ -75,7 +85,7 @@ grub_snaps() {
 
 grub_check() {
     local need root a l n=0 bad=0
-    need=$(tr ' ' '\n' </proc/cmdline | grep -E '^(root|rootflags|rootfstype|rd\.luks\.[a-z.]+|rd\.lvm\.[a-z.]+|rd\.md\.[a-z.]+|cryptdevice|cryptkey|resume|resume_offset)=' | sort -u || true)
+    need=$(tr ' ' '\n' </proc/cmdline | grep -E '^(root|rootflags|rootfstype|cryptopts|rd\.luks\.[a-z.]+|resume|resume_offset)=' | sort -u || true)
     root=$(grep -m1 '^root=' <<<"$need" || true)
     [[ -n $root ]] || {
         warn "no root= on /proc/cmdline, grub.cfg not checked"
@@ -96,25 +106,16 @@ grub_check() {
 }
 
 grub_set() {
-    local k=$1 v=$2 n
-    grep -qxF -- "$k=\"$v\"" /etc/default/grub && return 0
-    n=$(grep -c "^$k=" /etc/default/grub || true)
-    ((n <= 1)) || die "$n $k= lines in /etc/default/grub, keep one"
-    backup /etc/default/grub
-    if ((n)); then
-        sed -i "s|^$k=.*|$k=\"$v\"|" /etc/default/grub
-    else
-        [[ -z $(tail -c1 /etc/default/grub) ]] || echo >>/etc/default/grub
-        printf '%s="%s"\n' "$k" "$v" >>/etc/default/grub
-    fi
-    grep -qxF -- "$k=\"$v\"" /etc/default/grub || die "could not set $k in /etc/default/grub"
-    ok "GRUB: $k=\"$v\""
-    GRUB_STALE=1
+    local k=$1 v=$2 n f=$GRUB_D/41_debian-postinstall-${1#GRUB_}.cfg
+    f=${f,,}
+    n=$(njot)
+    put_text "$f" 0644 <<<"$k=\"$v\""
+    ((n == $(njot))) || GRUB_STALE=1
 }
 
 grub_gfx() {
     local out
-    out=$(sed -nE 's/^GRUB_TERMINAL=//p; s/^GRUB_TERMINAL_OUTPUT=//p' /etc/default/grub | tail -n1 | tr -d "\"'")
+    out=$(sed -nE 's/^GRUB_TERMINAL=//p; s/^GRUB_TERMINAL_OUTPUT=//p' /etc/default/grub "$GRUB_D"/*.cfg 2>/dev/null | tail -n1 | tr -d "\"'")
     [[ -z $out || $out == *gfxterm* ]]
 }
 
@@ -133,7 +134,7 @@ grub_theme() {
     else
         tmp=$(mktemp -d)
         git_at "$tmp/src" "$GRUB_THEME_URL" "$GRUB_THEME_REV"
-        [[ -f $tmp/src/minimal/theme.txt && -f $tmp/src/minimal/icons/void.png ]] ||
+        [[ -f $tmp/src/minimal/theme.txt && -f $tmp/src/minimal/icons/debian.png ]] ||
             die "unexpected layout in $GRUB_THEME_URL"
         find "$tmp/src/minimal" -type d -exec chmod 0755 {} +
         find "$tmp/src/minimal" -type f -exec chmod 0644 {} +
@@ -161,7 +162,7 @@ grub_theme() {
     fi
     grub_set GRUB_THEME "$dir/theme.txt"
     if ! grub_gfx; then
-        warn "GRUB_TERMINAL_OUTPUT in /etc/default/grub is not gfxterm, the GRUB theme stays hidden"
+        warn "GRUB_TERMINAL_OUTPUT is not gfxterm, the GRUB theme stays hidden"
     elif ! grep -qE '^[[:space:]]*set theme=' /boot/grub/grub.cfg 2>/dev/null; then
         GRUB_STALE=1
     fi
@@ -173,8 +174,9 @@ grub_quiet() {
         warn "no $f, GRUB keeps its Loading messages"
         return 0
     }
-    src=$(printf '%s\n' "$f".new-* | sort -V | tail -n1)
-    [[ -f $src ]] || src=$f
+    # dpkg keeps the edited one and leaves the new one of a grub update next to it
+    src=$f
+    [[ ! -f $f.dpkg-dist ]] || src=$f.dpkg-dist
     tmp=$(mktemp -p "$BAK")
     sed -E -e '/^[[:space:]]*echo[[:space:]].*"\$message" \| grub_quote/d' \
         -e "/^$GRUB_QUIET_MARK\$/d" -e "1a $GRUB_QUIET_MARK" -- "$src" >"$tmp"
@@ -186,11 +188,10 @@ grub_quiet() {
     n=$(njot)
     put "$tmp" "$f" 0755
     rm -f -- "$tmp"
-    for src in "$f".new-*; do
-        [[ -f $src ]] || continue
-        backup "$src"
-        rm -f -- "$src"
-    done
+    if [[ -f $f.dpkg-dist ]]; then
+        backup "$f.dpkg-dist"
+        rm -f -- "$f.dpkg-dist"
+    fi
     ((n == $(njot))) || GRUB_STALE=1
     if grep -qx "$GRUB_QUIET_MARK" "$f" && grep -q '^[[:space:]]*echo.*Loading' /boot/grub/grub.cfg 2>/dev/null; then
         GRUB_STALE=1
@@ -202,7 +203,7 @@ do_boot() {
     step "Boot"
     local n p
     n=$(njot)
-    put_tree dracut
+    put_tree initramfs
     put_tree plymouth
     ((n == $(njot))) || REGEN=1
     for p in "${PKG_BOOT[@]}"; do
@@ -210,18 +211,16 @@ do_boot() {
     done
     initramfs_stale && REGEN=1
     put_tree agetty
-    run "agetty run script parses" sh -n /etc/sv/agetty-generic/run
-    put_tree console
-    run "console font script parses" sh -n /etc/runit/core-services/04-console-font.sh
-    [[ -f /usr/share/kbd/consolefonts/ter-v16n.psf.gz && -f /usr/share/kbd/consolefonts/ter-v32n.psf.gz ]] ||
-        die "terminus-font did not install ter-v16n and ter-v32n"
-    [[ -f /usr/lib/plymouth/two-step.so ]] || die "plymouth two-step module missing"
-    [[ $(plymouth-set-default-theme) == void-minimal ]] || die "plymouth does not pick void-minimal"
-    ok "plymouth theme void-minimal"
+    svc_reload
+    console_font
+    [[ -f $(plymouth --get-splash-plugin-path)two-step.so ]] || die "plymouth two-step module missing (plymouth-themes)"
+    [[ $(plymouth-set-default-theme) == g0wm ]] || die "plymouth does not pick the g0wm theme"
+    ok "plymouth theme g0wm"
 
     grub_theme
     grub_quiet
     grub_words quiet splash
+    luks_check
 
     if ((REGEN)); then
         regen_initramfs
@@ -230,39 +229,59 @@ do_boot() {
     fi
 }
 
+# Debian unlocks the root in the initramfs from /etc/crypttab (cryptsetup-initramfs),
+# not from rd.luks arguments; GRUB reads /boot, unencrypted unless it is told otherwise
+luks_check() {
+    local src
+    src=$(findmnt -no SOURCE / | sed 's/\[.*//')
+    lsblk -no TYPE -s -- "$src" 2>/dev/null | grep -qx crypt || return 0
+    installed cryptsetup-initramfs || die "/ is on LUKS but cryptsetup-initramfs is not installed: the initramfs could not unlock it"
+    grep -qE '^[[:space:]]*[^#[:space:]]' /etc/crypttab 2>/dev/null || die "/ is on LUKS but /etc/crypttab is empty"
+    if [[ $(findmnt -no SOURCE -T /boot | sed 's/\[.*//') == "$src" ]] &&
+        ! grep -hqsE '^GRUB_ENABLE_CRYPTODISK=["]?y' /etc/default/grub "$GRUB_D"/*.cfg; then
+        warn "/boot is on the encrypted /, and GRUB_ENABLE_CRYPTODISK is not set: GRUB cannot read it"
+    fi
+    ok "/ on LUKS: unlocked by the initramfs from /etc/crypttab"
+}
+
 initramfs_stale() {
     local k img
     for k in /usr/lib/modules/*/modules.dep; do
         [[ -e $k ]] || continue
         k=${k%/modules.dep}
-        compgen -G "/boot/vmlinu[xz]-${k##*/}" >/dev/null || continue
-        img=/boot/initramfs-${k##*/}.img
+        [[ -e /boot/vmlinuz-${k##*/} ]] || continue
+        img=/boot/initrd.img-${k##*/}
         [[ -s $img ]] || return 0
-        if command -v lsinitrd >/dev/null; then
-            lsinitrd "$img" 2>/dev/null | grep plymouth >/dev/null || return 0
-        fi
+        lsinitramfs "$img" 2>/dev/null | grep plymouth >/dev/null || return 0
     done
     return 1
 }
 
 regen_initramfs() {
     ((REGEN < 2)) || return 0
-    local kvers=() k
+    local kvers=() k crypt=0
     for k in /usr/lib/modules/*/modules.dep; do
         [[ -e $k ]] || continue
         k=${k%/modules.dep}
-        compgen -G "/boot/vmlinu[xz]-${k##*/}" >/dev/null || continue
+        [[ -e /boot/vmlinuz-${k##*/} ]] || continue
         kvers+=("${k##*/}")
     done
     ((${#kvers[@]})) || die "no kernel in /usr/lib/modules with a /boot/vmlinuz"
     install -d -m 0700 -- "$BAK/boot"
-    if compgen -G '/boot/initramfs-*.img' >/dev/null; then
-        cp -a /boot/initramfs-*.img "$BAK/boot/" || die "cannot back up /boot/initramfs-*.img (disk full?)"
+    if compgen -G '/boot/initrd.img-*' >/dev/null; then
+        cp -a /boot/initrd.img-* "$BAK/boot/" || die "cannot back up /boot/initrd.img-* (disk full?)"
     fi
     jot initramfs
+    lsblk -no TYPE -s -- "$(findmnt -no SOURCE / | sed 's/\[.*//')" 2>/dev/null | grep -qx crypt && crypt=1
     for k in "${kvers[@]}"; do
-        run "initramfs for $k" dracut -q --force "/boot/initramfs-$k.img" "$k"
-        [[ -s /boot/initramfs-$k.img ]] || die "/boot/initramfs-$k.img is empty"
+        if [[ -e /boot/initrd.img-$k ]]; then
+            run "initramfs for $k" update-initramfs -u -k "$k"
+        else
+            run "initramfs for $k" update-initramfs -c -k "$k"
+        fi
+        [[ -s /boot/initrd.img-$k ]] || die "/boot/initrd.img-$k is empty"
+        ((crypt == 0)) || lsinitramfs "/boot/initrd.img-$k" | grep -qx 'cryptroot/crypttab' ||
+            die "/boot/initrd.img-$k cannot unlock the LUKS root, the old one is restored on rollback"
     done
     REGEN=2
 }
@@ -270,7 +289,7 @@ regen_initramfs() {
 do_hw() {
     step "Hardware"
     local p
-    for p in intel-ucode linux-firmware-amd; do
+    for p in intel-microcode amd64-microcode; do
         [[ " ${NEW_PKGS[*]} " == *" $p "* ]] && REGEN=1
     done
     ((REGEN)) && ok "new microcode: the initramfs gets rebuilt" || skip "microcode in the initramfs"

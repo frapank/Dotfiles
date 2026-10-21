@@ -8,23 +8,25 @@ fonts_ok() {
         -type f ! -perm 0644 -o -type d ! -perm 0755 \) -print -quit) ]]
 }
 
+# $4 links: symlinks are fine, the tree is only built
 git_at() {
     run "download ${2##*/} at ${3:0:12}" env GIT_TERMINAL_PROMPT=0 sh -c '
 		git init -q "$1" && cd "$1" &&
 		git fetch -q --depth 1 -- "$2" "$3" &&
 		git -c advice.detachedHead=false checkout -q FETCH_HEAD' _ "$1" "$2" "$3"
     [[ $(git -C "$1" rev-parse HEAD) == "$3" ]] || die "$2 did not give commit $3"
-    [[ -z $(find "$1" -path "$1/.git" -prune -o -type l -print -quit) ]] || die "symlinks in $2, refusing"
+    [[ ${4:-} == links || -z $(find "$1" -path "$1/.git" -prune -o -type l -print -quit) ]] ||
+        die "symlinks in $2, refusing"
 }
 
 font_dir() {
-    local src=$1 dir=$2 f n=0
+    local src=$1 dir=$2 ext=${3:-otf} f n=0
     [[ -d $dir && ! -L $dir ]] && fix_perm "$dir" 0755
     while IFS= read -r -d '' f; do
         put "$f" "$dir/${f##*/}" 0644
         n=$((n + 1))
-    done < <(find "$src" -maxdepth 1 -type f -name '*.otf' -print0 | sort -z)
-    ((n)) || die "no font files in ${GEIST_URL##*/}: ${src##*/geist-font/}"
+    done < <(find "$src" -maxdepth 1 -type f -name "*.$ext" -print0 | sort -z)
+    ((n)) || die "no .$ext font files in ${src##*/}"
 }
 
 geist() {
@@ -44,6 +46,27 @@ geist() {
     rm -rf -- "$tmp"
     ((j == $(njot))) || FONTS_NEW=1
     put_text "$mark" 0644 <<<"$GEIST_SHA256"
+}
+
+# not in Debian: the symbols only build of the Nerd Fonts release
+nerd_symbols() {
+    local tmp j mark=$STATE/fonts-nerd-symbols
+    if fonts_ok "$NERD_DIR" && [[ $(cat -- "$mark" 2>/dev/null) == "$NERD_SHA256" ]]; then
+        skip "Nerd Font symbols"
+        return 0
+    fi
+    tmp=$(mktemp -d)
+    run "download ${NERD_URL##*/}" curl -fsSLo "$tmp/nerd.tar.xz" "$NERD_URL"
+    [[ $(sha256sum -- "$tmp/nerd.tar.xz" | cut -d' ' -f1) == "$NERD_SHA256" ]] ||
+        die "${NERD_URL##*/} does not match its sha256"
+    install -d -m 0700 "$tmp/nerd"
+    run "unpack ${NERD_URL##*/}" tar -xJf "$tmp/nerd.tar.xz" -C "$tmp/nerd" --no-same-owner --no-same-permissions \
+        SymbolsNerdFont-Regular.ttf SymbolsNerdFontMono-Regular.ttf
+    j=$(njot)
+    font_dir "$tmp/nerd" "$NERD_DIR" ttf
+    rm -rf -- "$tmp"
+    ((j == $(njot))) || FONTS_NEW=1
+    put_text "$mark" 0644 <<<"$NERD_SHA256"
 }
 
 old_fonts() {
@@ -68,6 +91,7 @@ font_is() {
 do_fonts() {
     step "Fonts"
     geist
+    nerd_symbols
     old_fonts
     if ((FONTS_NEW)); then
         run "refresh the font cache" fc-cache -f
@@ -169,13 +193,13 @@ do_theme() {
     cursor_theme
     do_home "${HOME_THEME[@]}"
     [[ -d /usr/share/themes/Adwaita-dark/gtk-2.0 ]] ||
-        die "Adwaita-dark for GTK 2 missing (gnome-themes-extra, -gtk)"
+        die "Adwaita-dark for GTK 2 missing (gnome-themes-extra)"
     [[ -f $THOME/.local/share/themes/G0wm/gtk-3.0/gtk.css && -f $THOME/.local/share/themes/G0wm/gtk-4.0/gtk.css ]] ||
         die "G0wm GTK theme missing in ~/.local/share/themes"
-    [[ -f /usr/lib/qt6/plugins/styles/libkvantum.so && -f /usr/lib/qt5/plugins/styles/libkvantum.so ]] ||
+    [[ -f /usr/lib/x86_64-linux-gnu/qt6/plugins/styles/libkvantum.so && -f /usr/lib/x86_64-linux-gnu/qt5/plugins/styles/libkvantum.so ]] ||
         die "Kvantum style plugins missing (kvantum)"
     [[ -f $THOME/.config/Kvantum/G0wm/G0wm.svg ]] || die "G0wm Kvantum theme missing in ~/.config/Kvantum"
-    [[ -f /usr/lib/qt6/plugins/platformthemes/libqt6ct.so ]] || die "qt6ct platform theme missing (qt6ct)"
+    [[ -f /usr/lib/x86_64-linux-gnu/qt6/plugins/platformthemes/libqt6ct.so ]] || die "qt6ct platform theme missing (qt6ct)"
     as_user dbus-run-session gsettings get org.gnome.desktop.interface color-scheme >/dev/null 2>&1 ||
         die "gsettings cannot read org.gnome.desktop.interface"
     gset color-scheme "'prefer-dark'"

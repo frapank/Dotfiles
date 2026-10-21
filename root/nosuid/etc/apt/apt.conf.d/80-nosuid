@@ -1,0 +1,2 @@
+// a new package can bring a setuid program of the nosuid list
+DPkg::Post-Invoke { "if [ -x /usr/local/sbin/nosuid ]; then /usr/local/sbin/nosuid >/dev/null || true; fi"; };

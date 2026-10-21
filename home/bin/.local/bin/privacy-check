@@ -136,14 +136,16 @@ if [ "$public" = 1 ]; then
 fi
 
 section DNS
-if [ "$(grep -E '^[[:space:]]*nameserver' /etc/resolv.conf | awk '{print $2}' | sort -u)" = 127.0.0.1 ]; then
-    ok "/etc/resolv.conf uses only 127.0.0.1"
+# the socket of Debian's dnscrypt-proxy.socket
+resolver=127.0.2.1
+if [ "$(grep -E '^[[:space:]]*nameserver' /etc/resolv.conf | awk '{print $2}' | sort -u)" = "$resolver" ]; then
+    ok "/etc/resolv.conf uses only $resolver"
 else
     warn "/etc/resolv.conf has other nameservers: $(grep -E '^[[:space:]]*nameserver' /etc/resolv.conf | awk '{print $2}' | tr '\n' ' ')"
 fi
-running -xu dnscrypt_proxy dnscrypt-proxy
+running -xu _dnscrypt-proxy dnscrypt-proxy
 case $? in
-0) ok "dnscrypt-proxy running as dnscrypt_proxy" ;;
+0) ok "dnscrypt-proxy running as _dnscrypt-proxy" ;;
 2) info "dnscrypt-proxy hidden by hidepid, the queries below test it" ;;
 *) warn "dnscrypt-proxy is not running" ;;
 esac
@@ -165,7 +167,7 @@ else
 fi
 
 dns=$(
-    python3 - "$probe" <<'EOF'
+    python3 - "$resolver" "$probe" <<'EOF'
 import errno, random, socket, struct, sys
 
 def query(server, name, qtype, port=53, timeout=3, tries=1):
@@ -218,7 +220,7 @@ def say(level, msg):
     print(level + '\t' + msg)
 
 try:
-    info = [txt(d) for t, d in query('127.0.0.1', 'resolver.dnscrypt.info', 16, tries=2) if t == 16]
+    info = [txt(d) for t, d in query(sys.argv[1], 'resolver.dnscrypt.info', 16, tries=2) if t == 16]
     ip = next((l.split(': ', 1)[1] for l in info if l.startswith('Resolver IP')), '?')
     say('ok', 'local resolver answers, upstream resolver ' + ip)
     if any('DNSSEC OK' in l for l in info):
@@ -228,13 +230,13 @@ try:
 except OSError as e:
     say('warn', 'local resolver does not answer: ' + str(e))
 
-if sys.argv[1]:
+if sys.argv[2]:
     try:
-        a = query('127.0.0.1', sys.argv[1], 1, tries=2)
+        a = query(sys.argv[1], sys.argv[2], 1, tries=2)
         if any(t == 1 for t, _ in a):
-            say('warn', 'blocklist not applied: ' + sys.argv[1] + ' resolves')
+            say('warn', 'blocklist not applied: ' + sys.argv[2] + ' resolves')
         else:
-            say('ok', 'blocklist applied (' + sys.argv[1] + ' is blocked)')
+            say('ok', 'blocklist applied (' + sys.argv[2] + ' is blocked)')
     except OSError as e:
         say('warn', 'blocklist check failed: ' + str(e))
 
@@ -266,7 +268,7 @@ running -x chronyd
 r=$?
 if [ "$r" != 1 ]; then
     [ "$r" = 2 ] || ok "chronyd running"
-    if grep -E '^[[:space:]]*(server|pool)' /etc/chrony.conf | grep -qvw nts; then
+    if grep -E '^[[:space:]]*(server|pool)' /etc/chrony/chrony.conf | grep -qvw nts; then
         warn "some time servers are not authenticated with NTS"
     else
         ok "all time servers use NTS"
@@ -310,7 +312,7 @@ else
 fi
 if awk '$2 == "/proc" && $4 ~ /hidepid=/ { f = 1 } END { exit !f }' /proc/self/mounts; then
     ok "/proc hides processes from the daemons' users (hidepid)"
-elif [ -r /etc/runit/core-services/01-hidepid.sh ]; then
+elif awk '!/^[[:space:]]*#/ && $2 == "/proc" && $4 ~ /hidepid=/ { f = 1 } END { exit !f }' /etc/fstab; then
     warn "/proc shows every process: hidepid is on after a reboot"
 else
     info "/proc shows the processes of every user"
@@ -319,7 +321,7 @@ if [ -x /usr/local/sbin/nosuid ]; then
     s=$(/usr/local/sbin/nosuid -n | sed 's,.*/,,' | tr '\n' ' ')
     s=${s% }
     if [ -n "$s" ]; then
-        warn "setuid or file capabilities back after an update: $s ('doas nosuid' or the next boot removes them)"
+        warn "setuid or file capabilities back after an update: $s ('doas nosuid' removes them, apt runs it after each run)"
     else
         ok "no setuid on su, pkexec, passwd and the others"
     fi
@@ -358,13 +360,11 @@ if [ -d /home/.snapshots ]; then
 fi
 
 section System
-id=/var/lib/dbus/machine-id
-if [ -r /etc/runit/core-services/06-machine-id.sh ]; then
-    if [ "$(stat -c %Y "$id" 2>/dev/null || echo 0)" -ge "$(($(date +%s) - $(cut -d. -f1 /proc/uptime)))" ]; then
-        ok "machine ID new since this boot"
-    else
-        warn "machine ID not regenerated at this boot"
-    fi
+# empty on disk: systemd mounts a random one over it at boot
+if findmnt -n /etc/machine-id >/dev/null 2>&1; then
+    ok "machine ID new at every boot, only in RAM"
+elif [ "$(systemctl is-enabled systemd-machine-id-commit.service 2>/dev/null)" = masked ]; then
+    warn "machine ID fixed: /etc/machine-id is not empty on disk"
 else
     info "machine ID fixed: apps can use it to recognize this machine"
 fi

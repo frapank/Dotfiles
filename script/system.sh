@@ -3,24 +3,45 @@
 
 do_repos() {
     step "Repositories"
-    ((SEL[apps])) && put_tree librewolf
-    run "sync repository index (network check)" xbps-install -S
-    try "update xbps itself" xbps-install -uy xbps
-    if ((SEL[hw] && NONFREE || SEL[apps])); then
-        if installed void-repo-nonfree; then
-            skip "nonfree repo"
-        else
-            jot pkgs void-repo-nonfree
-            run "add the nonfree repo" xbps-install -y void-repo-nonfree
-            run "sync the nonfree index" xbps-install -S
-        fi
+    local codename
+    codename=$(. /etc/os-release && echo "${VERSION_CODENAME:-}")
+    [[ -n $codename ]] || die "no VERSION_CODENAME in /etc/os-release"
+    # microcode, firmware and unrar are in contrib, non-free and non-free-firmware
+    # https needs the certificates, the installer's list can bring them
+    if ! installed ca-certificates; then
+        run "sync repository index" "${APT[@]}" update
+        jot pkgs ca-certificates
+        run "install ca-certificates, for https" "${APT[@]}" install ca-certificates
     fi
+    put_tree apt
+    put_text "$SOURCES" 0644 <<-EOF
+		Types: deb
+		URIs: https://deb.debian.org/debian
+		Suites: $codename $codename-updates
+		Components: $COMPONENTS
+		Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+		Types: deb
+		URIs: https://security.debian.org/debian-security
+		Suites: $codename-security
+		Components: $COMPONENTS
+		Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+	EOF
+    # the lines of the installer, now in debian.sources
+    if grep -qE '^[[:space:]]*deb(-src)?[[:space:]].*(debian\.org|/debian(-security)?/?[[:space:]]|cdrom:)' /etc/apt/sources.list 2>/dev/null; then
+        put_text /etc/apt/sources.list 0644 < <(
+            sed -E 's,^([[:space:]]*deb(-src)?[[:space:]].*(debian\.org|/debian(-security)?/?[[:space:]]|cdrom:)),# \1,' /etc/apt/sources.list
+        )
+    fi
+    # LibreWolf: its own repository, the key is the one Debian's extrepo lists for it
+    ((SEL[apps])) && put_tree librewolf
+    run "sync repository index (network check)" "${APT[@]}" update
 }
 
 do_update() {
     step "System upgrade"
     root_snapshot
-    run "update the system" xbps-install -Suy
+    run "update the system" "${APT[@]}" full-upgrade
 }
 
 # the same read-only snapshot of / that maint takes before its updates, listed in the GRUB menu
@@ -49,21 +70,13 @@ root_snapshot() {
 
 do_packages() {
     step "Packages"
-    local want=("${PKG_CORE[@]}") new=() old=() auto=() p
+    local want=("${PKG_CORE[@]}") new=() old=() auto=() p showauto
     if ((SEL[power])); then
         for p in tlp-rdw tlp; do installed "$p" && old+=("$p"); done
         if ((${#old[@]})); then
-            sv_disable tlp
+            svc_disable tlp.service
             jot pkgback "${old[*]}"
-            run "remove ${old[*]}" xbps-remove -y -- "${old[@]}"
-        fi
-    fi
-    if ((SEL[fonts])); then
-        old=()
-        for p in "${NERD_FULL[@]}"; do installed "$p" && old+=("$p"); done
-        if ((${#old[@]})); then
-            jot pkgback "${old[*]}"
-            run "remove the full Nerd Fonts set: ${old[*]}" xbps-remove -y -- "${old[@]}"
+            run "remove ${old[*]}" "${APT[@]}" remove "${old[@]}"
         fi
     fi
     ((SEL[cli])) && want+=("${PKG_CLI[@]}")
@@ -88,17 +101,18 @@ do_packages() {
     ((SEL[maint])) && [[ -f /etc/default/grub ]] && want+=("${PKG_SNAPBOOT[@]}")
     ((SEL[fonts])) && want+=("${PKG_FONTS[@]}")
     ((SEL[doas])) && want+=(opendoas)
+    showauto=" $(apt-mark showauto | tr '\n' ' ') "
     for p in $(printf '%s\n' "${want[@]}" | sort -u); do
         if ! installed "$p"; then
             new+=("$p")
-        elif [[ $(xbps-query -p automatic-install "$p") == yes ]]; then
+        elif [[ $showauto == *" $p "* ]]; then
             auto+=("$p")
         fi
     done
     if ((${#auto[@]})); then
         jot pkgauto "${auto[*]}"
         log "manual: ${auto[*]}"
-        run "mark ${#auto[@]} packages manual" xbps-pkgdb -m manual "${auto[@]}"
+        run "mark ${#auto[@]} packages manual" apt-mark manual "${auto[@]}"
     fi
     if ((${#new[@]} == 0)); then
         skip "all ${#want[@]} packages installed"
@@ -107,22 +121,22 @@ do_packages() {
     NEW_PKGS=("${new[@]}")
     jot pkgs "${new[*]}"
     log "new: ${new[*]}"
-    run "install ${#new[@]} packages" xbps-install -y -- "${new[@]}"
+    run "install ${#new[@]} packages" "${APT[@]}" install "${new[@]}"
     for p in "${new[@]}"; do
-        installed "$p" || die "$p is not installed after xbps-install"
+        installed "$p" || die "$p is not installed after apt-get install"
     done
 }
 
 do_locale() {
     step "Locale"
-    local f=/etc/default/libc-locales
+    local f=/etc/locale.gen
     put_tree locale
     if grep -qE '^en_US\.UTF-8 UTF-8' "$f"; then
         skip "en_US.UTF-8 enabled"
     else
         grep -qE '^#[[:space:]]*en_US\.UTF-8 UTF-8' "$f" || die "en_US.UTF-8 is not listed in $f"
         put_text "$f" 0644 < <(sed -E 's/^#[[:space:]]*(en_US\.UTF-8 UTF-8)/\1/' "$f")
-        run "generate locales" xbps-reconfigure -f glibc-locales
+        run "generate locales" locale-gen
     fi
     [[ $(locale -a 2>/dev/null) == *en_US.utf8* ]] || die "en_US.UTF-8 locale not available"
     ok "en_US.UTF-8 available"
@@ -134,9 +148,15 @@ do_groups() {
     ((SEL[desktop])) && groups+=("${USER_GROUPS[@]}")
     ((SEL[doas])) && groups+=(wheel)
     ((SEL[session])) && groups+=(bluetooth)
-    ((SEL[logs])) && groups+=(socklog)
+    ((SEL[logs])) && groups+=(systemd-journal)
     ((${#groups[@]})) || return 0
     for g in $(printf '%s\n' "${groups[@]}" | sort -u); do
+        # Debian has no wheel: doas and polkit use it here
+        if [[ $g == wheel ]] && ! getent group wheel >/dev/null; then
+            jot grpdel wheel
+            groupadd -r wheel >>"$LOG" 2>&1 || die "cannot create the group wheel"
+            ok "group wheel created"
+        fi
         getent group "$g" >/dev/null || {
             warn "group $g does not exist"
             continue
@@ -153,40 +173,23 @@ do_groups() {
 
 do_services() {
     step "Services"
-    [[ -d $SVDIR ]] || die "$SVDIR does not exist, is this system running runit?"
-    if ((SEL[desktop] || SEL[session] || SEL[power] || SEL[hw] || SEL[media])); then
-        sv_enable dbus
-    fi
-    if ((SEL[desktop])); then
-        sv_disable acpid
-        sv_enable elogind
-        sv_enable polkitd
-        [[ -L $SVDIR/seatd ]] && warn "seatd and elogind are both enabled, consider: rm $SVDIR/seatd"
-    fi
-    ((SEL[harden])) && sv_enable nftables
+    ((SEL[harden])) && svc_enable nftables.service
     if ((SEL[usb])); then
-        [[ -L $SVDIR/usbguard ]] || {
-            USB_NEW=1
-            jot usbopen
-        }
-        sv_enable usbguard
-        sv_enable usbguard-notify
+        svc_enable usbguard.service
+        svc_enable usbguard-notify.service
     fi
-    ((SEL[session])) && sv_enable bluetoothd
+    ((SEL[session])) && svc_enable bluetooth.service
     if ((SEL[power])); then
-        sv_disable tlp
-        sv_enable power-profiles-daemon
+        svc_disable tlp.service
+        svc_enable power-profiles-daemon.service
     fi
-    ((SEL[swap])) && sv_enable zramen
-    ((SEL[swap])) && sv_enable earlyoom
-    ((SEL[maint])) && sv_enable maint
+    ((SEL[swap])) && svc_enable earlyoom.service
+    ((SEL[maint])) && svc_enable maint.service
     if ((SEL[logs])); then
-        sv_enable socklog-unix
-        sv_enable nanoklogd
         save_sysctl "$REPO"/root/watchdog/etc/sysctl.d/*.conf
-        sv_refresh watchdog put_tree watchdog
+        svc_refresh watchdog.service put_tree watchdog
         try "sysctl -p 60-watchdog.conf" sysctl -p /etc/sysctl.d/60-watchdog.conf
-        sv_enable watchdog
+        svc_enable watchdog.service
     fi
     return 0
 }
@@ -209,7 +212,7 @@ do_post() {
             grep -q '^/dev/zram' /proc/swaps && break
             sleep 1
         done
-        if grep -q '^/dev/zram' /proc/swaps; then ok "zram swap active"; else warn "zram swap not up yet, check 'sv status zramen'"; fi
+        if grep -q '^/dev/zram' /proc/swaps; then ok "zram swap active"; else warn "zram swap not up yet, check 'systemctl status systemd-zram-setup@zram0'"; fi
     fi
     ((SEL[usb] == 0)) || usb_up
     if ((REGEN == 1)); then
@@ -240,21 +243,27 @@ do_doas() {
         die "doas.conf does not let $TUSER in, keeping sudo"
     fi
 
-    if grep -rhsqE '^[[:space:]]*ignorepkg[[:space:]]*=[[:space:]]*sudo[[:space:]]*$' /etc/xbps.d; then
-        skip "xbps ignores sudo"
-    else
-        put_text /etc/xbps.d/90-ignore-sudo.conf 0644 <<-'EOF'
-			ignorepkg=sudo
-		EOF
-    fi
+    # admin password prompts of polkit: wheel, not the sudo group of Debian
+    put_text /etc/polkit-1/rules.d/30-wheel.rules 0644 <<-'EOF'
+		polkit.addAdminRule(function(action, subject) {
+		    return ["unix-group:wheel"];
+		});
+	EOF
 
+    # dpkg refuses when another package needs it, apt would remove that too
     if installed sudo; then
         jot sudo
-        run "remove sudo" xbps-remove -y sudo
+        run "remove sudo" dpkg --purge sudo
     else
         skip "sudo not installed"
     fi
-    for f in /etc/sudoers /etc/sudoers.d /etc/sudoers.new-*; do
+    # after the removal: a rollback takes the pin away before it installs sudo again
+    put_text /etc/apt/preferences.d/90-no-sudo 0644 <<-'EOF'
+		Package: sudo sudo-ldap sudo-rs
+		Pin: release *
+		Pin-Priority: -1
+	EOF
+    for f in /etc/sudoers /etc/sudoers.d /etc/sudoers.dpkg-*; do
         [[ -e $f ]] || continue
         backup "$f"
         rm -rf -- "$f"
@@ -271,7 +280,7 @@ verify() {
     step "Final check"
     local bad=0 c
     if ((SEL[cli])); then
-        for c in vim nvim tmux fzf rg; do
+        for c in vim nvim tmux fzf rg fd bat; do
             command -v "$c" >/dev/null || {
                 warn "$c missing"
                 bad=1
@@ -293,6 +302,10 @@ verify() {
     if ((SEL[desktop])); then
         g0wm_where >/dev/null || {
             warn "g0wm or start-g0wm missing from $TUSER's PATH"
+            bad=1
+        }
+        [[ -f $WLR_PREFIX/lib/libwlroots-0.20.so ]] || {
+            warn "wlroots 0.20 missing from $WLR_PREFIX"
             bad=1
         }
         [[ -f $THOME/.config/g0wm/settings.json && ! -L $THOME/.config/g0wm/settings.json ]] ||
@@ -318,17 +331,17 @@ verify() {
             warn "tlp still installed"
             bad=1
         }
-        [[ -L $SVDIR/power-profiles-daemon ]] || {
+        systemctl -q is-enabled power-profiles-daemon.service || {
             warn "power-profiles-daemon not enabled"
             bad=1
         }
     fi
     if ((SEL[swap])); then
-        [[ -L $SVDIR/zramen ]] || {
-            warn "zramen not enabled"
+        [[ -f /etc/systemd/zram-generator.conf ]] || {
+            warn "zram-generator not configured"
             bad=1
         }
-        [[ -L $SVDIR/earlyoom ]] || {
+        systemctl -q is-enabled earlyoom.service || {
             warn "earlyoom not enabled"
             bad=1
         }
@@ -344,7 +357,7 @@ verify() {
         }
     fi
     if ((SEL[maint])); then
-        [[ -L $SVDIR/maint ]] || {
+        systemctl -q is-enabled maint.service || {
             warn "maint not enabled"
             bad=1
         }
@@ -384,7 +397,7 @@ verify() {
         }
     fi
     if ((SEL[usb])); then
-        [[ -L $SVDIR/usbguard && -L $SVDIR/usbguard-notify ]] || {
+        systemctl -q is-enabled usbguard.service && systemctl -q is-enabled usbguard-notify.service || {
             warn "usbguard or usbguard-notify not enabled"
             bad=1
         }
@@ -406,11 +419,7 @@ verify() {
         }
     fi
     if ((SEL[logs])); then
-        [[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || {
-            warn "socklog not enabled"
-            bad=1
-        }
-        [[ -L $SVDIR/watchdog ]] || {
+        systemctl -q is-enabled watchdog.service || {
             warn "watchdog not enabled"
             bad=1
         }
@@ -422,13 +431,12 @@ verify() {
             warn "/usr/local/bin/logs missing"
             bad=1
         }
-        [[ $(stat -c '%a %U %G' /var/log/socklog/secure) == '2700 root root' ]] ||
-            {
-                warn "/var/log/socklog/secure is readable by others"
-                bad=1
-            }
-        grep -qx s4000000 /var/log/socklog/everything/config || {
-            warn "socklog keeps the default history"
+        [[ $(systemd-analyze cat-config systemd/journald.conf 2>/dev/null | grep -E '^Storage=' | tail -n1) == Storage=persistent ]] || {
+            warn "the journal is not kept on disk"
+            bad=1
+        }
+        [[ ! -d /sys/firmware/efi ]] || systemctl -q is-enabled systemd-pstore.service || {
+            warn "systemd-pstore not enabled: a kernel panic leaves no log"
             bad=1
         }
     fi
@@ -439,7 +447,7 @@ verify() {
                 bad=1
             }
         done
-        grep -q pam_gnome_keyring /etc/pam.d/login || {
+        grep -q pam_gnome_keyring /etc/pam.d/login && grep -q pam_gnome_keyring /etc/pam.d/common-password || {
             warn "keyring not in /etc/pam.d/login"
             bad=1
         }
@@ -489,11 +497,11 @@ verify() {
         }
     fi
     if ((SEL[apparmor])); then
-        [[ -f /etc/runit/core-services/09-apparmor.sh ]] || {
-            warn "AppArmor boot script missing"
+        systemctl -q is-enabled apparmor.service || {
+            warn "apparmor.service not enabled"
             bad=1
         }
-        for c in librewolf foot dnscrypt-proxy abstractions/dotfiles/app; do
+        for c in dotfiles-librewolf foot dnscrypt-proxy usr.sbin.wpa_supplicant abstractions/dotfiles/app; do
             [[ -f /etc/apparmor.d/$c ]] || {
                 warn "/etc/apparmor.d/$c missing"
                 bad=1
@@ -521,12 +529,12 @@ verify() {
 usb_up() {
     local i bad
     for ((i = 0; i < 15; i++)); do
-        usbguard list-rules >/dev/null 2>&1 && [[ $(sv status usbguard-notify 2>/dev/null) == run:* ]] && break
+        usbguard list-rules >/dev/null 2>&1 && systemctl -q is-active usbguard-notify.service && break
         sleep 1
     done
     usbguard list-rules >/dev/null 2>&1 || die "usbguard did not start, see 'logs service usbguard'"
     ok "usbguard running"
-    [[ $(sv status usbguard-notify 2>/dev/null) == run:* ]] ||
+    systemctl -q is-active usbguard-notify.service ||
         warn "usbguard-notify is not running, nothing asks about new devices: 'logs service usbguard-notify'"
     ((USB_NEW)) || return 0
     bad=$(usbguard list-devices -b | grep -E ' with-interface .*03:01:0[12]' |

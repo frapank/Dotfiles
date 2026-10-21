@@ -37,6 +37,7 @@ put() {
     backup "$dst"
     install -o root -g root -m "$mode" -- "$src" "$dst.pi-new"
     mv -f -- "$dst.pi-new" "$dst"
+    [[ $dst != /etc/systemd/* ]] || SD_RELOAD=1
     ok "$dst ($mode)"
 }
 
@@ -114,7 +115,7 @@ ini_set() {
 mode_for() {
     case $1 in
     /etc/nftables/* | /etc/sysctl.d/* | /etc/usbguard/*) echo 0600 ;;
-    /etc/sv/*/run | /etc/sv/*/finish | /etc/NetworkManager/dispatcher.d/* | /usr/local/sbin/* | /usr/local/bin/* | /usr/local/libexec/*) echo 0755 ;;
+    /etc/NetworkManager/dispatcher.d/* | /usr/local/sbin/* | /usr/local/bin/* | /usr/local/libexec/*) echo 0755 ;;
     *) echo 0644 ;;
     esac
 }
@@ -128,7 +129,7 @@ put_tree() {
     while IFS= read -r -d '' src; do
         dst=/${src#"$REPO/root/$1/"}
         case $dst in
-        /etc/sv/?* | /usr/share/plymouth/themes/?*) fix_perm "$dst" 0755 ;;
+        /usr/share/plymouth/themes/?*) fix_perm "$dst" 0755 ;;
         esac
     done < <(find "$REPO/root/$1" -mindepth 1 -type d -print0 | sort -z)
 }
@@ -179,39 +180,53 @@ umkdir() {
 
 # services
 
-sv_enable() {
-    [[ -d /etc/sv/$1 ]] || die "service $1 not found in /etc/sv"
-    if [[ -L $SVDIR/$1 && $(readlink -f -- "$SVDIR/$1") == "$(readlink -f -- "/etc/sv/$1")" ]] ||
-        [[ -d $SVDIR/$1 && ! -L $SVDIR/$1 ]]; then
-        skip "service $1"
-        return 0
-    fi
-    if [[ -L $SVDIR/$1 ]]; then
-        jot sv-on "$1" "$(readlink -- "$SVDIR/$1")"
-        rm -f -- "$SVDIR/$1"
-        warn "service $1 pointed elsewhere, relinked to /etc/sv/$1"
-    fi
-    jot sv-off "$1"
-    ln -s -- "/etc/sv/$1" "$SVDIR/$1"
-    ok "service $1 enabled"
+svc_reload() {
+    ((SD_RELOAD)) || return 0
+    run "systemd reads the changed units" systemctl daemon-reload
+    SD_RELOAD=0
 }
 
-sv_disable() {
-    local s
-    for s in "$@"; do
-        [[ -L $SVDIR/$s ]] || continue
-        jot sv-on "$s" "$(readlink -- "$SVDIR/$s")"
-        rm -f -- "$SVDIR/$s"
-        ok "service $s disabled"
+svc_enable() {
+    local u=$1
+    svc_reload
+    [[ -n $(systemctl list-unit-files --no-legend -- "$u" 2>/dev/null) ]] || die "unit $u not found"
+    if systemctl -q is-enabled -- "$u" 2>/dev/null; then
+        skip "service $u"
+    else
+        jot svc-off "$u"
+        run "enable $u" systemctl enable -- "$u"
+    fi
+    systemctl -q is-active -- "$u" && return 0
+    jot svc-stop "$u"
+    try "start $u" systemctl start -- "$u"
+}
+
+svc_disable() {
+    local u
+    for u in "$@"; do
+        systemctl -q is-enabled -- "$u" 2>/dev/null || systemctl -q is-active -- "$u" || continue
+        jot svc-on "$u"
+        run "disable $u" systemctl disable --now -- "$u"
     done
 }
 
-sv_refresh() {
-    local s=$1 n on=0
+svc_mask() {
+    local u=$1
+    if [[ $(systemctl is-enabled -- "$u" 2>/dev/null) == masked ]]; then
+        skip "service $u masked"
+        return 0
+    fi
+    jot svc-unmask "$u"
+    run "mask $u" systemctl mask -- "$u"
+}
+
+svc_refresh() {
+    local u=$1 n on=0
     shift
-    [[ $(sv status "$s" 2>/dev/null) == run:* ]] && on=1 && jot svr "$s"
+    systemctl -q is-active -- "$u" && on=1 && jot svr "$u"
     n=$(njot)
     "$@"
+    svc_reload
     ((on && n != $(njot))) || return 0
-    try "restart $s (files changed)" sv restart "$s"
+    try "restart $u (files changed)" systemctl restart -- "$u"
 }

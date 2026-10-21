@@ -63,6 +63,7 @@ do_home() {
 
 do_home_cli() {
     step "Home: shell and editors"
+    put_tree cli
     move_aside "$THOME/.vimrc"
     move_aside "$THOME/.tmux.conf"
     do_home "${HOME_CLI[@]}"

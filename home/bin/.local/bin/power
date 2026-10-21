@@ -1,7 +1,7 @@
 #!/bin/sh
 set -u
 
-# the power key opens this menu, elogind no longer turns off the PC
+# the power key opens this menu, logind no longer turns off the PC
 run=${XDG_RUNTIME_DIR:-/tmp}
 exec 9>"$run/power.lock"
 flock -n 9 || exit 0

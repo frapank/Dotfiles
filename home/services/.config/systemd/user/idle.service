@@ -1,0 +1,17 @@
+[Unit]
+Description=lock the screen after 5 minutes and before sleep
+PartOf=graphical-session.target
+After=graphical-session.target
+# systemd gives up after 4 exits in 30 seconds, services tells it
+OnFailure=services-failed@%n.service
+StartLimitIntervalSec=30
+StartLimitBurst=4
+
+[Service]
+ExecStart=%h/.config/services/idle/run
+ExecStopPost=%h/.config/services/idle/finish
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=g0wm-session.target

@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # checks
 
-installed() { xbps-query -- "$1" >/dev/null 2>&1; }
+installed() { [[ $(dpkg-query -W -f='${db:Status-Status}' -- "$1" 2>/dev/null) == installed ]]; }
 in_group() { [[ " $(id -nG -- "$TUSER") " == *" $1 "* ]]; }
 join() {
     local IFS=$1
@@ -17,12 +17,16 @@ preflight() {
         exit 1
     }
 
-    local id=
-    [[ -r /etc/os-release ]] && id=$(. /etc/os-release && echo "${ID:-}")
-    if [[ $id != void ]] || ! command -v xbps-install >/dev/null; then
-        echo "error: this script is for Void Linux only" >&2
+    local id= ver=
+    [[ -r /etc/os-release ]] && read -r id ver < <(. /etc/os-release && echo "${ID:-} ${VERSION_ID:-0}")
+    if [[ $id != debian ]] || ! command -v apt-get >/dev/null; then
+        echo "error: this script is for Debian only" >&2
         exit 1
     fi
+    ((${ver%%.*} >= 13)) 2>/dev/null || {
+        echo "error: Debian 13 (trixie) or newer needed" >&2
+        exit 1
+    }
 
     if ((EUID != 0)); then
         local self
@@ -104,12 +108,11 @@ detect_hw() {
     case $cpu in
     GenuineIntel)
         HW_DESC+=("Intel CPU")
-        HW_PKGS+=(intel-ucode)
-        NONFREE=1
+        HW_PKGS+=(intel-microcode)
         ;;
     AuthenticAMD)
         HW_DESC+=("AMD CPU")
-        HW_PKGS+=(linux-firmware-amd)
+        HW_PKGS+=(amd64-microcode)
         ;;
     *) HW_DESC+=("CPU ${cpu:-unknown}: no microcode") ;;
     esac
@@ -120,24 +123,24 @@ detect_hw() {
         case $ven in
         0x8086)
             HW_DESC+=("Intel GPU")
-            HW_PKGS+=(mesa-dri vulkan-loader mesa-vulkan-intel intel-media-driver
-                libva-intel-driver linux-firmware-intel)
+            HW_PKGS+=(libgl1-mesa-dri mesa-vulkan-drivers intel-media-va-driver
+                i965-va-driver firmware-intel-graphics)
             ;;
         0x1002)
             HW_DESC+=("AMD GPU")
-            HW_PKGS+=(mesa-dri vulkan-loader mesa-vulkan-radeon mesa-vaapi linux-firmware-amd)
+            HW_PKGS+=(libgl1-mesa-dri mesa-vulkan-drivers mesa-va-drivers firmware-amd-graphics)
             ;;
         0x10de)
             HW_DESC+=("NVIDIA GPU (nouveau; the proprietary driver is not set up)")
-            HW_PKGS+=(mesa-dri vulkan-loader mesa-vulkan-nouveau mesa-vaapi linux-firmware-nvidia)
+            HW_PKGS+=(libgl1-mesa-dri mesa-vulkan-drivers mesa-va-drivers firmware-nvidia-graphics)
             ;;
         *)
             HW_DESC+=("GPU vendor $ven (virtual or unknown): generic mesa")
-            HW_PKGS+=(mesa-dri)
+            HW_PKGS+=(libgl1-mesa-dri)
             ;;
         esac
     done
-    HW_PKGS+=(libva-utils)
+    HW_PKGS+=(vainfo)
 }
 
 zram_size() {
@@ -177,34 +180,30 @@ aa_lsm() {
     [[ -r /sys/kernel/security/lsm ]] && l=$(</sys/kernel/security/lsm)
     [[ -n $l ]] || l=landlock,lockdown,yama,integrity,bpf
     l=,$l,
-    l=${l//,capability,/,}
-    l=${l//,apparmor,/,}
+    # TOMOYO is in the Debian list, unused
+    for x in capability apparmor selinux smack tomoyo; do l=${l//,$x,/,}; done
     l=${l#,}
     l=${l%,}
     echo "lsm=${l:+$l,}apparmor"
 }
 
+# an lsm= of the user goes before the drop-in's, the last one wins
 aa_check() {
-    local line w lsm= n=0 bad
-    bad=$(grep -oE '(^|,)(selinux|smack|tomoyo)(,|$)' /sys/kernel/security/lsm 2>/dev/null | tr -d , || true)
+    local line w bad
+    bad=$(grep -oE '(^|,)(selinux|smack)(,|$)' /sys/kernel/security/lsm 2>/dev/null | tr -d , || true)
     [[ -z $bad ]] || die "apparmor: $bad is running, it cannot run next to AppArmor"
     [[ -f /etc/default/grub ]] || return 0
-    line=$(grep -E '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub || true)
-    for w in $(grep -oE '(^|["[:space:]])(lsm|security|apparmor)=[^"[:space:]]*' <<<"$line" | tr -d '"' || true); do
+    line=$(grep -hE '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub "$GRUB_D"/*.cfg 2>/dev/null || true)
+    for w in $(grep -oE '(^|["[:space:]])(security|apparmor)=[^"[:space:]]*' <<<"$line" | tr -d '"' || true); do
         case $w in
         apparmor=1 | security=apparmor) ;;
-        lsm=*) lsm=$w n=$((n + 1)) ;;
-        *) die "apparmor: $w in /etc/default/grub, remove it first" ;;
+        *) die "apparmor: $w on the kernel command line (/etc/default/grub), remove it first" ;;
         esac
     done
-    ((n <= 1)) || die "apparmor: $n lsm= in /etc/default/grub, keep one"
-    [[ -z $lsm || ,${lsm#lsm=}, == *,apparmor,* ]] && return 0
-    grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | grep -qE "[\"[:space:]]${lsm}[\"[:space:]]" ||
-        die "apparmor: $lsm is in GRUB_CMDLINE_LINUX, add ',apparmor' to it yourself"
 }
 
 usb_check() {
-    [[ ! -L $SVDIR/usbguard ]] || return 0
+    [[ ! -e $STATE/usbguard ]] || return 0
     local kbd ptr miss
     read -r kbd ptr < <(awk '
 		/^H: Handlers=/ {

@@ -1,0 +1,12 @@
+# Read by earlyoom.service. Closes the program using the most memory before
+# zram fills up and the desktop freezes, the kernel OOM killer acts much
+# later. The watchdog notifies through earlyoom-closed.
+#   -m 10 -s 10   SIGTERM under 10% available RAM and 10% free swap, both,
+#                 SIGKILL under half of them
+#   -r 0          no memory reports in the log
+# Regexes match /proc/PID/comm, 15 bytes at most. The value is split at the
+# spaces: no spaces (. instead) and no backslashes in it.
+#   --ignore      never closed: the lock screen and systemd
+#   --avoid       closed last: the session would go with them
+#   --prefer      closed first: browser tabs, Steam's web views, Windows games
+EARLYOOM_ARGS="-m 10 -s 10 -r 0 -N /usr/local/libexec/earlyoom-closed --ignore ^(gtklock|systemd|systemd-journal|systemd-logind|systemd-udevd|earlyoom|watchdog)$ --avoid ^(g0wm|Xwayland|foot|pipewire|pipewire-pulse|wireplumber|dbus-daemon|NetworkManager|wpa_supplicant|dnscrypt-proxy|swayidle|polkitd)$ --prefer ^(Web.Content|Isolated.Web.Co|steamwebhelper)$|[.]exe$"

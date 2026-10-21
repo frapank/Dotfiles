@@ -31,4 +31,5 @@ fi
 chmod 0644 "$tmp"
 mv -f "$tmp" "$LIST"
 echo "dns-blocklist: $n domains"
-sv hup dnscrypt-proxy >/dev/null 2>&1 || true
+# the socket stays open: queries wait for the restart
+systemctl try-restart dnscrypt-proxy.service >/dev/null 2>&1 || true

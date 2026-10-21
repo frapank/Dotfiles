@@ -1,0 +1,54 @@
+[Plymouth Theme]
+Name=g0wm
+Description=Minimal theme: g0wm black background, gtklock-style password box, a spinning ring, crisp procedurally-drawn assets for high-DPI displays. The initramfs hook of Debian adds its logo above when desktop-base is installed.
+ModuleName=two-step
+
+[two-step]
+Font=Sans 12
+TitleFont=Sans 30
+ImageDir=/usr/share/plymouth/themes/g0wm
+DialogHorizontalAlignment=.5
+DialogVerticalAlignment=.64
+TitleHorizontalAlignment=.5
+TitleVerticalAlignment=.64
+HorizontalAlignment=.5
+VerticalAlignment=.65
+WatermarkHorizontalAlignment=.5
+WatermarkVerticalAlignment=.36
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=0x070707
+BackgroundEndColor=0x070707
+ProgressBarBackgroundColor=0x070707
+ProgressBarForegroundColor=0xffffff
+MessageBelowAnimation=true
+
+[boot-up]
+UseEndAnimation=false
+
+[shutdown]
+UseEndAnimation=false
+
+[reboot]
+UseEndAnimation=false
+
+[updates]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Installing Updates...
+SubTitle=Do not turn off your computer
+
+[system-upgrade]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Upgrading System...
+SubTitle=Do not turn off your computer
+
+[firmware-upgrade]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Upgrading Firmware...
+SubTitle=Do not turn off your computer

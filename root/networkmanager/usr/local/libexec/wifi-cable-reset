@@ -1,0 +1,8 @@
+#!/bin/sh
+# Wi-Fi turned off by NetworkManager/dispatcher.d/50-wifi-cable: on again
+# before NetworkManager starts, the cable may be gone
+m=/var/lib/NetworkManager/wifi-off-by-cable
+s=/var/lib/NetworkManager/NetworkManager.state
+[ -e "$m" ] || exit 0
+[ ! -f "$s" ] || sed -i 's/^WirelessEnabled=false$/WirelessEnabled=true/' "$s"
+rm -f "$m"

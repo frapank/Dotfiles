@@ -1,16 +1,15 @@
 _logs() {
-    local cur=${COMP_WORDS[COMP_CWORD]} cmd= at=0 i names
+    local cur=${COMP_WORDS[COMP_CWORD]} cmd= at=0 i names='everything kernel errors daemon user debug'
     for ((i = 1; i < COMP_CWORD; i++)); do
         [[ ${COMP_WORDS[i]} == -* ]] && continue
         cmd=${COMP_WORDS[i]} at=$i
         break
     done
-    names=$(cd /var/log/socklog 2>/dev/null && printf '%s\n' */ | tr -d /)
     local when='boot today yesterday 30m 1h 6h 1d 7d'
     case $cmd in
     '')
-        COMPREPLY=($(compgen -W "$(printf '%s\n' follow show since boot errors grep around service crashes \
-            apparmor firewall usb auth panics session status list help -u -n -p $names | sort -u)" -- "$cur"))
+        COMPREPLY=($(compgen -W "follow show since boot errors grep around service crashes \
+            apparmor firewall usb auth panics session status list help -u -n -p $names" -- "$cur"))
         ;;
     follow | show | boot) COMPREPLY=($(compgen -W "$names" -- "$cur")) ;;
     since)
@@ -23,8 +22,9 @@ _logs() {
     grep | around) ((COMP_CWORD == at + 1)) || COMPREPLY=($(compgen -W "$names" -- "$cur")) ;;
     service)
         if ((COMP_CWORD == at + 1)); then
-            COMPREPLY=($(compgen -W "$(cd /var/service 2>/dev/null && printf '%s\n' *)
-                $(cd "${XDG_STATE_HOME:-$HOME/.local/state}/services/log" 2>/dev/null && printf '%s\n' *)" -- "$cur"))
+            COMPREPLY=($(compgen -W "$({ systemctl list-unit-files --type=service --no-legend
+                systemctl --user list-unit-files --type=service --no-legend; } 2>/dev/null |
+                awk '{ sub(/\.service$/, "", $1); if ($1 !~ /@$/) print $1 }')" -- "$cur"))
         elif ((COMP_CWORD == at + 2)); then
             COMPREPLY=($(compgen -W "$when" -- "$cur"))
         fi

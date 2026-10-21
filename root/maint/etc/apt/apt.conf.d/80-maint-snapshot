@@ -1,0 +1,3 @@
+// a read-only snapshot of / before dpkg changes anything, also when apt runs by hand:
+// bootable from GRUB > Snapshots before updates
+DPkg::Pre-Invoke { "if [ -x /usr/local/sbin/maint ]; then /usr/local/sbin/maint apt-snapshot || true; fi"; };

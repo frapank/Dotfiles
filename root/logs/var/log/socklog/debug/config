@@ -1,5 +1,0 @@
-!syslog-stripdate
--*
-+*.debug:*
--auth.*
--authpriv.*

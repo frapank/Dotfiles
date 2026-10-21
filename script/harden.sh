@@ -16,7 +16,7 @@ save_sysctl() {
 
 nft_apply() {
     local nft_on=0 n f
-    [[ $(sv status nftables 2>/dev/null) == run:* ]] && nft_on=1 && jot nft
+    systemctl -q is-active nftables.service && nft_on=1 && jot nft
     n=$(njot)
     "$@"
     put_text /etc/nftables.conf 0600 < <(
@@ -33,13 +33,7 @@ nft_apply() {
 
 do_harden() {
     step "Kernel and firewall hardening"
-    local f=/etc/sysctl.d/10-kernel-hardening.conf
-    # now 11-: 10-void.conf sorted after it and reset kptr_restrict
-    if [[ -e $f ]]; then
-        backup "$f"
-        rm -f -- "$f"
-        ok "removed $f (now 11-kernel-hardening.conf)"
-    fi
+    local f
     # core_pattern runs it: it goes in first
     put_tree cores
     run "core-keep parses" sh -n /usr/local/libexec/core-keep
@@ -64,10 +58,10 @@ do_harden() {
     ssh_dir
 
     put_tree modprobe
-    put_tree machineid
-    run "machine ID script parses" sh -n /etc/runit/core-services/06-machine-id.sh
-    # replaces lockdown=integrity of older versions
-    grub_swap lockdown=integrity lockdown=confidentiality
+    # the daemons get more of the sandbox of systemd, after the next start
+    put_tree sandbox
+    svc_reload
+    machine_id
     grub_words "${HARDEN_CMDLINE[@]}"
     boot_mask
     tmp_mount
@@ -76,10 +70,9 @@ do_harden() {
     no_suid
 }
 
+# systemd-remount-fs takes the options of /proc from fstab at boot
 hide_pids() {
-    local u
-    put_tree hidepid
-    run "hidepid script parses" sh -n /etc/runit/core-services/01-hidepid.sh
+    local u new
     if getent group proc >/dev/null; then
         skip "group proc"
     else
@@ -87,7 +80,7 @@ hide_pids() {
         groupadd -r proc >>"$LOG" 2>&1 || die "cannot create the group proc"
         ok "group proc created"
     fi
-    # need to see other users' processes; $TUSER for the polkit agent (elogind)
+    # need to see other users' processes; $TUSER for the polkit agent
     for u in polkitd rtkit "$TUSER"; do
         getent passwd "$u" >/dev/null || continue
         if [[ " $(id -nG -- "$u") " == *" proc "* ]]; then
@@ -98,18 +91,59 @@ hide_pids() {
         gpasswd -a "$u" proc >>"$LOG" 2>&1 || die "cannot add $u to proc"
         ok "$u added to proc"
     done
+    # logind is not restarted under a running session: the drop-in counts from the reboot, with hidepid
+    put_tree hidepid
+    svc_reload
+    new=$(awk -v g="$(getent group proc | cut -d: -f3)" '
+		!/^[[:space:]]*#/ && $2 == "/proc" { next }
+		{ print }
+		END { print "proc /proc proc nosuid,nodev,noexec,hidepid=invisible,gid=" g " 0 0" }' /etc/fstab)
+    if [[ $new == "$(cat /etc/fstab)" ]]; then
+        skip "/proc hidepid=invisible in /etc/fstab"
+        return 0
+    fi
+    put_text /etc/fstab 0644 <<<"$new"
+    run "fstab is valid" findmnt --verify
+    ok "/proc hides the processes of other users after the reboot"
 }
 
+# empty: at every boot systemd puts a new random one over it, in RAM, and nothing saves it
+machine_id() {
+    local f=/etc/machine-id d=/var/lib/dbus/machine-id
+    put_tree machineid
+    run "journal-prune parses" sh -n /usr/local/libexec/journal-prune
+    if [[ -f $f && ! -L $f && ! -s $f ]] || findmnt -n "$f" >/dev/null; then
+        skip "$f empty on disk"
+    else
+        put /dev/null "$f" 0444
+    fi
+    # D-Bus reads the same one
+    if [[ -L $d && $(readlink -- "$d") == /etc/machine-id ]]; then
+        skip "$d -> /etc/machine-id"
+    else
+        backup "$d"
+        mkdirs "${d%/*}"
+        ln -sfn /etc/machine-id "$d"
+        ok "$d -> /etc/machine-id"
+    fi
+    svc_mask systemd-machine-id-commit.service
+    svc_enable journal-prune.service
+}
+
+# dpkg-statoverride: updates keep the new modes
 no_suid() {
-    local f m c n=0
+    local f m c n=0 o
     put_tree nosuid
     run "nosuid parses" sh -n /usr/local/sbin/nosuid
-    run "nosuid boot script parses" sh -n /etc/runit/core-services/05-nosuid.sh
     while IFS= read -r f; do
         if [[ -u $f || -g $f ]]; then
             m=$(stat -c '%a %u:%g' -- "$f")
-            jot perm "$f" "${m% *}" "${m#* }"
-            chmod ug-s -- "$f"
+            o=$(dpkg-statoverride --list "$f" || true)
+            jot statov "$f" "${m% *}" "$o"
+            [[ -z $o ]] || dpkg-statoverride --remove "$f" >>"$LOG" 2>&1
+            dpkg-statoverride --update --add "$(stat -c %U -- "$f")" "$(stat -c %G -- "$f")" \
+                "$(printf '%o' $((8#${m% *} & 8#1777)))" "$f" >>"$LOG" 2>&1 ||
+                die "dpkg-statoverride failed for $f"
             ok "$f ${m% *} -> $(stat -c %a -- "$f")"
         else
             c=$(getcap -- "$f" | sed 's/^[^ ]* \(= \)\{0,1\}//')
@@ -122,29 +156,38 @@ no_suid() {
     ((n)) || skip "no setuid on su pkexec passwd and the others"
 }
 
+# Debian has an ext4 /boot and a vfat /boot/efi: no device, setuid or program files on
+# either, and /boot readable by root only
 boot_mask() {
-    local mnt new
-    mnt=$(awk '$3 == "vfat" && ($2 == "/boot" || $2 == "/boot/efi") { print $2; exit }' /etc/fstab)
-    if [[ -z $mnt ]]; then
-        skip "no vfat /boot in /etc/fstab"
-        return 0
-    fi
-    new=$(awk -v m="$mnt" '
-		!/^[[:space:]]*#/ && $2 == m && $3 == "vfat" {
+    local new m t
+    new=$(awk '
+		!/^[[:space:]]*#/ && ($2 == "/boot" || $2 == "/boot/efi") {
 			n = split($4, o, ","); $4 = ""
 			for (i = 1; i <= n; i++)
-				if (o[i] !~ /^(fmask|dmask|umask|nosuid|nodev|noexec|exec|suid|dev)(=|$)/) $4 = $4 o[i] ","
-			$4 = $4 "nosuid,nodev,noexec,fmask=0077,dmask=0077"
+				if (o[i] !~ /^(fmask|dmask|umask|nosuid|nodev|noexec|exec|suid|dev|defaults)(=|$)/) $4 = $4 o[i] ","
+			$4 = $4 "nosuid,nodev,noexec"
+			if ($3 == "vfat") $4 = $4 ",fmask=0077,dmask=0077"
 		}
 		{ print }' /etc/fstab)
     if [[ $new == "$(cat /etc/fstab)" ]]; then
-        skip "$mnt nosuid,nodev,noexec,fmask=0077,dmask=0077"
+        skip "/boot nosuid,nodev,noexec in /etc/fstab"
+    else
+        put_text /etc/fstab 0644 <<<"$new"
+        run "fstab is valid" findmnt --verify
+        for t in /boot /boot/efi; do
+            findmnt -n "$t" >/dev/null || continue
+            try "remount $t" mount -o remount "$t"
+        done
+    fi
+    [[ $(stat -f -c %T /boot) != msdos ]] || return 0
+    m=$(stat -c '%a %u:%g' /boot)
+    if [[ ${m% *} == 700 ]]; then
+        skip "/boot (700)"
         return 0
     fi
-    put_text /etc/fstab 0644 <<<"$new"
-    run "fstab is valid" findmnt --verify
-    try "remount $mnt" mount -o remount "$mnt"
-    [[ $(stat -c %a -- "$mnt") == 700 ]] || warn "$mnt is readable by everyone until the reboot"
+    jot perm /boot "${m% *}" "${m#* }"
+    chmod 0700 /boot
+    ok "/boot ${m% *} -> 700"
 }
 
 tmp_mount() {
@@ -224,14 +267,14 @@ ssh_dir() {
 
 do_usb() {
     step "USB devices: usbguard"
-    local rules=/etc/usbguard/rules.conf tmp
-    [[ -d /etc/sv/usbguard ]] || die "usbguard did not install /etc/sv/usbguard"
-    # allow what is plugged in only the first time
-    if [[ -L $SVDIR/usbguard ]]; then
+    local rules=/etc/usbguard/rules.conf tmp f
+    [[ -n $(systemctl list-unit-files --no-legend usbguard.service) ]] || die "usbguard did not install usbguard.service"
+    # allow what is plugged in only the first time: Debian's policy at install has ports and parents in it
+    if [[ -e $STATE/usbguard ]]; then
         skip "usbguard rules kept"
-    elif grep -q '^[^#[:space:]]' "$rules" 2>/dev/null; then
-        note "$rules already has rules, kept"
     else
+        USB_NEW=1
+        jot usbopen
         tmp=$(mktemp -p "$BAK")
         usbguard generate-policy >"$tmp" 2>>"$LOG" || die "usbguard generate-policy failed"
         sed -i 's/ parent-hash "[^"]*"//; s/ via-port "[^"]*"//; s/ with-connect-type "[^"]*"//' "$tmp"
@@ -239,10 +282,18 @@ do_usb() {
         put "$tmp" "$rules" 0600
         rm -f -- "$tmp"
         ok "$(grep -c '^allow ' "$rules") USB devices plugged in now allowed"
+        put_text "$STATE/usbguard" 0644 <<<"rules from $TS"
+    fi
+    # the plugdev group Debian lets manage the devices: only root here
+    f=/etc/usbguard/IPCAccessControl.d/:plugdev
+    if [[ -e $f ]]; then
+        backup "$f"
+        rm -f -- "$f"
+        ok "removed $f"
     fi
     mkdirs /var/log/usbguard
     put_tree session
-    sv_refresh usbguard put_tree usbguard
-    sv_refresh usbguard-notify put_tree usb
+    svc_refresh usbguard.service put_tree usbguard
+    svc_refresh usbguard-notify.service put_tree usb
     run "usb parses" sh -n /usr/local/bin/usb
 }

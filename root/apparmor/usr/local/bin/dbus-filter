@@ -125,7 +125,8 @@ real=${bus#unix:path=}
 for f in /tmp/dbus-*; do
     mask "$f"
 done
-for p in bus ssh-agent.socket gnupg keyring at-spi pipewire-0-manager; do
+# systemd: the user manager starts anything it is asked to
+for p in bus systemd openssh_agent ssh-agent.socket gnupg keyring at-spi pipewire-0-manager; do
     mask "$run/$p"
 done
 mask "${SSH_AUTH_SOCK:-}"

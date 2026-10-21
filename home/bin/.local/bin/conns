@@ -132,7 +132,7 @@ def main():
         listening = listening or o == '-l'
 
     try:
-        dnscrypt = pwd.getpwnam('dnscrypt_proxy').pw_uid
+        dnscrypt = pwd.getpwnam('_dnscrypt-proxy').pw_uid
     except KeyError:
         dnscrypt = None
     pids = owners()
