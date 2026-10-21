@@ -17,7 +17,7 @@ do_swap() {
     try "sysctl -p 50-zram.conf" sysctl -p /etc/sysctl.d/50-zram.conf
     [[ -d /etc/sv/earlyoom ]] || die "earlyoom did not install /etc/sv/earlyoom"
     grep -q '\. \./conf' /etc/sv/earlyoom/run || die "/etc/sv/earlyoom/run does not read conf"
-    sv_refresh earlyoom put_tree earlyoom
+    svc_refresh earlyoom.service put_tree earlyoom
     run "earlyoom conf parses" sh -n /etc/sv/earlyoom/conf
     run "earlyoom-closed parses" sh -n /usr/local/libexec/earlyoom-closed
 }
@@ -26,7 +26,7 @@ do_logs() {
     step "System logs"
     local d=/var/log/socklog
     [[ -d $d/everything && -d $d/kernel && -d $d/secure ]] || die "socklog-void did not create $d"
-    sv_refresh socklog-unix/log put_tree logs
+    svc_refresh systemd-journald.service put_tree logs
     # watchdog needs it
     put_tree session
     fix_perm "$d/secure" 2700
@@ -44,7 +44,7 @@ do_maint() {
     local conf=etc/dracut.conf.d/40-snapshots.conf
     cmp -s -- "$REPO/root/maint/$conf" "/$conf" || REGEN=1
     put_tree session
-    sv_refresh maint put_tree maint
+    svc_refresh maint.service put_tree maint
     run "maint parses" sh -n /usr/local/sbin/maint
     run "thumbs-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/thumbs-clean
     run "trash-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/trash-clean

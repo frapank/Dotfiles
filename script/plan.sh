@@ -142,7 +142,7 @@ plan() {
 		Monthly: btrfs scrub, on AC power only.
 		'snap FILE' lists the versions of a file in the snapshots of /home, 'snap -r DATE FILE' copies one back, 'snap -d DATE' lists what changed in your home since then.
 		'forget FILE' deletes a file from all the snapshots of /home, 'traces -cs' does it for histories and recent files.
-		'doas maint status', 'doas maint home|update', 'svlogtail cron'.
+		'doas maint status', 'doas maint home|update', 'logs service maint'.
 	EOF
     section dirs "Home folders" <<-EOF
 		Custom user-dirs from home/{$(join , "${HOME_DIRS[@]}")}, creates those folders.

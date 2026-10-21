@@ -207,7 +207,7 @@ aa_check() {
 }
 
 usb_check() {
-    [[ ! -L $SVDIR/usbguard ]] || return 0
+    [[ ! -e $STATE/usbguard ]] || return 0
     local kbd ptr miss
     read -r kbd ptr < <(awk '
 		/^H: Handlers=/ {

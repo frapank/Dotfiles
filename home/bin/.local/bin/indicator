@@ -80,7 +80,7 @@ mic/) mic ;;
 cam/) cam ;;
 cam/close) cam_close ;;
 dns/) dns ;;
-dns/restart) exec foot -H doas sv restart dnscrypt-proxy ;;
+dns/restart) exec foot -H doas systemctl restart dnscrypt-proxy.service ;;
 dns/logs) exec foot logs -p service dnscrypt-proxy boot ;;
 -h/ | --help/) usage ;;
 *)

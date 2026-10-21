@@ -16,7 +16,7 @@ save_sysctl() {
 
 nft_apply() {
     local nft_on=0 n f
-    [[ $(sv status nftables 2>/dev/null) == run:* ]] && nft_on=1 && jot nft
+    systemctl -q is-active nftables.service && nft_on=1 && jot nft
     n=$(njot)
     "$@"
     put_text /etc/nftables.conf 0600 < <(
@@ -224,14 +224,14 @@ ssh_dir() {
 
 do_usb() {
     step "USB devices: usbguard"
-    local rules=/etc/usbguard/rules.conf tmp
-    [[ -d /etc/sv/usbguard ]] || die "usbguard did not install /etc/sv/usbguard"
-    # allow what is plugged in only the first time
-    if [[ -L $SVDIR/usbguard ]]; then
+    local rules=/etc/usbguard/rules.conf tmp f
+    [[ -n $(systemctl list-unit-files --no-legend usbguard.service) ]] || die "usbguard did not install usbguard.service"
+    # allow what is plugged in only the first time: Debian's policy at install has ports and parents in it
+    if [[ -e $STATE/usbguard ]]; then
         skip "usbguard rules kept"
-    elif grep -q '^[^#[:space:]]' "$rules" 2>/dev/null; then
-        note "$rules already has rules, kept"
     else
+        USB_NEW=1
+        jot usbopen
         tmp=$(mktemp -p "$BAK")
         usbguard generate-policy >"$tmp" 2>>"$LOG" || die "usbguard generate-policy failed"
         sed -i 's/ parent-hash "[^"]*"//; s/ via-port "[^"]*"//; s/ with-connect-type "[^"]*"//' "$tmp"
@@ -239,10 +239,18 @@ do_usb() {
         put "$tmp" "$rules" 0600
         rm -f -- "$tmp"
         ok "$(grep -c '^allow ' "$rules") USB devices plugged in now allowed"
+        put_text "$STATE/usbguard" 0644 <<<"rules from $TS"
+    fi
+    # the plugdev group Debian lets manage the devices: only root here
+    f=/etc/usbguard/IPCAccessControl.d/:plugdev
+    if [[ -e $f ]]; then
+        backup "$f"
+        rm -f -- "$f"
+        ok "removed $f"
     fi
     mkdirs /var/log/usbguard
     put_tree session
-    sv_refresh usbguard put_tree usbguard
-    sv_refresh usbguard-notify put_tree usb
+    svc_refresh usbguard.service put_tree usbguard
+    svc_refresh usbguard-notify.service put_tree usb
     run "usb parses" sh -n /usr/local/bin/usb
 }

@@ -67,7 +67,7 @@ do_packages() {
     if ((SEL[power])); then
         for p in tlp-rdw tlp; do installed "$p" && old+=("$p"); done
         if ((${#old[@]})); then
-            sv_disable tlp
+            svc_disable tlp.service
             jot pkgback "${old[*]}"
             run "remove ${old[*]}" "${APT[@]}" remove "${old[@]}"
         fi
@@ -165,40 +165,23 @@ do_groups() {
 
 do_services() {
     step "Services"
-    [[ -d $SVDIR ]] || die "$SVDIR does not exist, is this system running runit?"
-    if ((SEL[desktop] || SEL[session] || SEL[power] || SEL[hw] || SEL[media])); then
-        sv_enable dbus
-    fi
-    if ((SEL[desktop])); then
-        sv_disable acpid
-        sv_enable elogind
-        sv_enable polkitd
-        [[ -L $SVDIR/seatd ]] && warn "seatd and elogind are both enabled, consider: rm $SVDIR/seatd"
-    fi
-    ((SEL[harden])) && sv_enable nftables
+    ((SEL[harden])) && svc_enable nftables.service
     if ((SEL[usb])); then
-        [[ -L $SVDIR/usbguard ]] || {
-            USB_NEW=1
-            jot usbopen
-        }
-        sv_enable usbguard
-        sv_enable usbguard-notify
+        svc_enable usbguard.service
+        svc_enable usbguard-notify.service
     fi
-    ((SEL[session])) && sv_enable bluetoothd
+    ((SEL[session])) && svc_enable bluetooth.service
     if ((SEL[power])); then
-        sv_disable tlp
-        sv_enable power-profiles-daemon
+        svc_disable tlp.service
+        svc_enable power-profiles-daemon.service
     fi
-    ((SEL[swap])) && sv_enable zramen
-    ((SEL[swap])) && sv_enable earlyoom
-    ((SEL[maint])) && sv_enable maint
+    ((SEL[swap])) && svc_enable earlyoom.service
+    ((SEL[maint])) && svc_enable maint.service
     if ((SEL[logs])); then
-        sv_enable socklog-unix
-        sv_enable nanoklogd
         save_sysctl "$REPO"/root/watchdog/etc/sysctl.d/*.conf
-        sv_refresh watchdog put_tree watchdog
+        svc_refresh watchdog.service put_tree watchdog
         try "sysctl -p 60-watchdog.conf" sysctl -p /etc/sysctl.d/60-watchdog.conf
-        sv_enable watchdog
+        svc_enable watchdog.service
     fi
     return 0
 }
@@ -221,7 +204,7 @@ do_post() {
             grep -q '^/dev/zram' /proc/swaps && break
             sleep 1
         done
-        if grep -q '^/dev/zram' /proc/swaps; then ok "zram swap active"; else warn "zram swap not up yet, check 'sv status zramen'"; fi
+        if grep -q '^/dev/zram' /proc/swaps; then ok "zram swap active"; else warn "zram swap not up yet, check 'systemctl status systemd-zram-setup@zram0'"; fi
     fi
     ((SEL[usb] == 0)) || usb_up
     if ((REGEN == 1)); then
@@ -340,17 +323,17 @@ verify() {
             warn "tlp still installed"
             bad=1
         }
-        [[ -L $SVDIR/power-profiles-daemon ]] || {
+        systemctl -q is-enabled power-profiles-daemon.service || {
             warn "power-profiles-daemon not enabled"
             bad=1
         }
     fi
     if ((SEL[swap])); then
-        [[ -L $SVDIR/zramen ]] || {
-            warn "zramen not enabled"
+        [[ -f /etc/systemd/zram-generator.conf ]] || {
+            warn "zram-generator not configured"
             bad=1
         }
-        [[ -L $SVDIR/earlyoom ]] || {
+        systemctl -q is-enabled earlyoom.service || {
             warn "earlyoom not enabled"
             bad=1
         }
@@ -366,7 +349,7 @@ verify() {
         }
     fi
     if ((SEL[maint])); then
-        [[ -L $SVDIR/maint ]] || {
+        systemctl -q is-enabled maint.service || {
             warn "maint not enabled"
             bad=1
         }
@@ -406,7 +389,7 @@ verify() {
         }
     fi
     if ((SEL[usb])); then
-        [[ -L $SVDIR/usbguard && -L $SVDIR/usbguard-notify ]] || {
+        systemctl -q is-enabled usbguard.service && systemctl -q is-enabled usbguard-notify.service || {
             warn "usbguard or usbguard-notify not enabled"
             bad=1
         }
@@ -428,11 +411,7 @@ verify() {
         }
     fi
     if ((SEL[logs])); then
-        [[ -L $SVDIR/socklog-unix && -L $SVDIR/nanoklogd ]] || {
-            warn "socklog not enabled"
-            bad=1
-        }
-        [[ -L $SVDIR/watchdog ]] || {
+        systemctl -q is-enabled watchdog.service || {
             warn "watchdog not enabled"
             bad=1
         }
@@ -543,12 +522,12 @@ verify() {
 usb_up() {
     local i bad
     for ((i = 0; i < 15; i++)); do
-        usbguard list-rules >/dev/null 2>&1 && [[ $(sv status usbguard-notify 2>/dev/null) == run:* ]] && break
+        usbguard list-rules >/dev/null 2>&1 && systemctl -q is-active usbguard-notify.service && break
         sleep 1
     done
     usbguard list-rules >/dev/null 2>&1 || die "usbguard did not start, see 'logs service usbguard'"
     ok "usbguard running"
-    [[ $(sv status usbguard-notify 2>/dev/null) == run:* ]] ||
+    systemctl -q is-active usbguard-notify.service ||
         warn "usbguard-notify is not running, nothing asks about new devices: 'logs service usbguard-notify'"
     ((USB_NEW)) || return 0
     bad=$(usbguard list-devices -b | grep -E ' with-interface .*03:01:0[12]' |

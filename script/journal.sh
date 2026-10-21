@@ -6,7 +6,7 @@ jot() {
     printf '%s\n' "$*" >>"$BAK/journal"
 }
 
-njot() { grep -vcE '^(sysctl|nft|svr|aaload|usbopen)' -- "$BAK/journal" || true; }
+njot() { grep -vcE '^(sysctl|nft|svr|svc-stop|aaload|usbopen)' -- "$BAK/journal" || true; }
 
 rollback() {
     trap '' INT TERM HUP
@@ -26,8 +26,9 @@ rollback() {
             rm -rf -- "$a"
             ;;
         rmdir) rmdir -- "$a" ;;
-        sv-off) rm -f -- "$SVDIR/$a" ;;
-        sv-on) ln -sfn -- "$b" "$SVDIR/$a" ;;
+        svc-off) systemctl disable --now -- "$a" ;;
+        svc-stop) systemctl stop -- "$a" ;;
+        svc-on) systemctl enable --now -- "$a" ;;
         group)
             [[ $a == wheel ]] && ((keepdoas)) && continue
             gpasswd -d "$b" "$a"
@@ -57,10 +58,10 @@ rollback() {
             sysctl -p "$BAK/sysctl.orig"
             ;;
         nft) nft -f /etc/nftables.conf ;;
-        svr) sv restart "$a" ;;
+        svr) systemctl restart -- "$a" ;;
         usbopen)
             # usbguard left the kernel blocking new devices
-            sv -w 5 force-stop /etc/sv/usbguard /etc/sv/usbguard-notify || true
+            systemctl stop usbguard-notify.service usbguard.service || true
             for p in /sys/bus/usb/devices/usb*/authorized_default /sys/bus/usb/devices/*/authorized; do
                 [[ $(<"$p") == 1 ]] || echo 1 >"$p"
             done
@@ -99,6 +100,7 @@ rollback() {
         esac >>"$LOG" 2>&1 || printf '   %s! could not undo: %s %s%s\n' "$C_Y" "$op" "$a" "$C_0" >&2
     done < <(tac -- "$BAK/journal")
     : >"$BAK/journal"
+    systemctl daemon-reload >>"$LOG" 2>&1 || true
     ((keepdoas == 0)) || printf '   %s! sudo could not be reinstalled: doas, /etc/doas.conf and wheel were kept%s\n' "$C_Y" "$C_0" >&2
     printf '\n%sRolled back.%s\n   log      %s\n   backups  %s\n' "$C_B" "$C_0" "$LOG" "$BAK" >&2
     ((reset == 0)) || printf '   reboot to be sure every kernel setting is back\n' >&2

@@ -1,11 +1,8 @@
 #!/bin/sh
 # Desktop notifications, sent to whoever runs g0wm, for: crashes, programs
 # closed by earlyoom, kernel bugs and lockups, GPU hangs, hardware errors, disk
-# and filesystem errors, overheating, USB devices, runit services restarting in
-# a loop, low batteries, full disks, microphone and webcam
-
-[ "$1" = pgrp ] || exec chpst -P "$0" pgrp
-exec 2>&1
+# and filesystem errors, overheating, USB devices, services that failed, low
+# batteries, full disks, microphone and webcam
 
 st=/run/watchdog
 rm -rf "$st"
@@ -29,11 +26,11 @@ notify_level() {
         -h "string:x-dunst-stack-tag:$1" -h "int:value:$2" "$6"
 }
 
-svloop() {
-    case $(as_user notify-send -u critical -a " $1" -h "string:desktop-entry:$1" \
-        -A default=Log -A stop=Stop "restarting in a loop") in
-    default) as_user foot -- /usr/local/bin/logs -p service "$1" ;;
-    stop) sv down "/var/service/$1" ;;
+svfail() {
+    case $(as_user notify-send -u critical -a " ${1%.service}" -h "string:desktop-entry:${1%.service}" \
+        -A default=Log -A restart=Restart "failed and stopped") in
+    default) as_user foot -- /usr/local/bin/logs -p service "${1%.service}" ;;
+    restart) systemctl restart -- "$1" ;;
     esac
 }
 
@@ -86,7 +83,7 @@ kernel() {
             port=${msg#usb } port=${port%%:*}
             echo "${msg#*Product: }" >"$st/usb.$port"
             # usbguard-notify tells it
-            [ ! -L /var/service/usbguard-notify ] || continue
+            ! systemctl -q is-active usbguard-notify.service || continue
             prog=USB why="$(cat "$st/usb.$port") connected" u=low icon=
             ;;
         "usb "*": USB disconnect"*)
@@ -145,19 +142,16 @@ kernel() {
     done
 }
 
+# systemd gives up on a service that keeps exiting and marks it failed
 services() {
-    sv status /var/service/* 2>/dev/null |
-        sed -nE 's|^([a-z]+): /var/service/([^:]+): (\(pid ([0-9]+)\) )?([0-9]+)s.*|\2 \1\4 \5|p' |
-        while read -r s pid up; do
-            read -r old n 2>/dev/null <"$st/sv.$s" || { old=$pid n=0; }
-            [ "$pid" != "$old" ] && n=$((n + 1))
-            [ "$up" -ge 60 ] && n=0
-            echo "$pid $n" >"$st/sv.$s"
-            if [ "$n" -ge 3 ]; then
-                if once "svloop.$s"; then svloop "$s" & fi
-            elif [ "$n" -eq 0 ]; then
-                reset "svloop.$s"
-            fi
+    for f in "$st"/failed.*; do
+        [ -e "$f" ] || continue
+        systemctl -q is-failed -- "${f#"$st"/failed.}" || rm -f "$f"
+    done
+    systemctl list-units --state=failed --type=service --no-legend --plain 2>/dev/null |
+        while read -r u _; do
+            case $u in *[!A-Za-z0-9_.@:-]*) continue ;; esac
+            if once "failed.$u"; then svfail "$u" & fi
         done
 }
 

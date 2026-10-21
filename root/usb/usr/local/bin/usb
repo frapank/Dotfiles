@@ -109,7 +109,7 @@ need_root() {
 
 need_daemon() {
     usbguard list-rules >/dev/null 2>&1 ||
-        die "usbguard is not running: 'doas sv status usbguard', 'logs service usbguard'"
+        die "usbguard is not running: 'systemctl status usbguard', 'logs service usbguard'"
 }
 
 check_port() {

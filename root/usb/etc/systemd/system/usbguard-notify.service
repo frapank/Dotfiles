@@ -1,0 +1,12 @@
+[Unit]
+Description=Ask about the USB devices usbguard blocked
+Wants=usbguard.service
+After=usbguard.service
+
+[Service]
+ExecStart=/usr/local/bin/usb watch
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
