@@ -7,15 +7,22 @@ do_repos() {
     codename=$(. /etc/os-release && echo "${VERSION_CODENAME:-}")
     [[ -n $codename ]] || die "no VERSION_CODENAME in /etc/os-release"
     # microcode, firmware and unrar are in contrib, non-free and non-free-firmware
+    # https needs the certificates, the installer's list can bring them
+    if ! installed ca-certificates; then
+        run "sync repository index" "${APT[@]}" update
+        jot pkgs ca-certificates
+        run "install ca-certificates, for https" "${APT[@]}" install ca-certificates
+    fi
+    put_tree apt
     put_text "$SOURCES" 0644 <<-EOF
 		Types: deb
-		URIs: http://deb.debian.org/debian
+		URIs: https://deb.debian.org/debian
 		Suites: $codename $codename-updates
 		Components: $COMPONENTS
 		Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 
 		Types: deb
-		URIs: http://security.debian.org/debian-security
+		URIs: https://security.debian.org/debian-security
 		Suites: $codename-security
 		Components: $COMPONENTS
 		Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg

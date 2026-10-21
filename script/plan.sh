@@ -13,7 +13,8 @@ plan() {
     say "${C_B}Debian post-install${C_0}"
     say "   user  $TUSER ($THOME)"
     say "   repo  $REPO"
-    say "   apt   ${SOURCES##*/}: $COMPONENTS; packages without their Recommends"
+    say "   apt   ${SOURCES##*/}: $COMPONENTS over https; packages without their Recommends"
+    say "         downloads under seccomp, never from an unsigned repository, no translations"
     say "   ${C_D}Nothing changes until you confirm the plan at the end.${C_0}"
 
     section update "System upgrade" <<-EOF
