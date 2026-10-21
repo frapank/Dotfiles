@@ -22,6 +22,7 @@ do_apparmor() {
     # Debian's chrony profile, with what local/usr.sbin.chronyd adds
     [[ ! -f /etc/apparmor.d/usr.sbin.chronyd ]] || prof+=(/etc/apparmor.d/usr.sbin.chronyd)
     run "AppArmor profiles compile" apparmor_parser -QK -- "${prof[@]}"
+    run "aa-packages parses" sh -n /usr/local/libexec/aa-packages
     aa_wlsandbox
     aa_landlock
     aa_hmalloc

@@ -2,7 +2,7 @@ abi <abi/4.0>,
 
 include <tunables/global>
 
-profile NetworkManager /usr/sbin/NetworkManager {
+profile NetworkManager /usr/sbin/NetworkManager flags=(attach_disconnected) {
   include <abstractions/base>
   include <abstractions/nameservice>
   include <abstractions/ssl_certs>
@@ -38,6 +38,7 @@ profile NetworkManager /usr/sbin/NetworkManager {
   @{run}/NetworkManager/{,**} rwk,
   @{run}/dbus/system_bus_socket rw,
   @{run}/udev/{,**} r,
+  @{run}/network/{,**} r,
   # a new one at every boot
   /{etc,var/lib/dbus}/machine-id r,
   @{PROC}/** r,

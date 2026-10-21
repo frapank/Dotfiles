@@ -4,7 +4,9 @@ include <tunables/global>
 
 profile pipewire /usr/bin/pipewire flags=(attach_disconnected) {
   include <abstractions/dotfiles/app-read>
+  include <abstractions/dotfiles/other-shm>
   include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/chat-data>
   include <abstractions/dotfiles/persist>
   include <abstractions/dotfiles/setuid>
   include <abstractions/dotfiles/browser-data>

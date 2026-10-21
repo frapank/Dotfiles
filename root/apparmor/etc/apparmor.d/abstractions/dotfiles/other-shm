@@ -1,0 +1,5 @@
+  abi <abi/4.0>,
+
+  # sockets and shared memory of other programs
+  audit deny /tmp/{.*,lazygit-*,steam_chrome_*}{,/**} rwlkm,
+  audit deny /dev/shm/.* rwlkm,

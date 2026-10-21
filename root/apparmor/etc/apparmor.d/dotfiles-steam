@@ -7,6 +7,7 @@ include <tunables/global>
 # steam profile, unconfined, is disabled
 profile steam /{usr/games/steam,usr/lib/steam/bin_steam.sh,home/*/.local/share/Steam/steam.sh} flags=(attach_disconnected) {
   include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/chat-data>
   include <abstractions/dotfiles/persist>
   include <abstractions/dotfiles/setuid>
   include <abstractions/dotfiles/browser-data>

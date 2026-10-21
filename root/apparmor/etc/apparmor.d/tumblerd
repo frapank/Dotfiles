@@ -4,7 +4,9 @@ include <tunables/global>
 
 profile tumblerd /usr/lib/@{multiarch}/tumbler-1/tumblerd flags=(attach_disconnected) {
   include <abstractions/dotfiles/app-read>
+  include <abstractions/dotfiles/other-shm>
   include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/chat-data>
   include <abstractions/dotfiles/pipewire-manager>
   include <abstractions/dotfiles/persist>
   include <abstractions/dotfiles/setuid>

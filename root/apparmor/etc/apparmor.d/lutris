@@ -5,6 +5,7 @@ include <tunables/global>
 # games are untrusted code: all but secrets, shell startup and setuid programs
 profile lutris /usr/bin/lutris flags=(attach_disconnected) {
   include <abstractions/dotfiles/secrets>
+  include <abstractions/dotfiles/chat-data>
   include <abstractions/dotfiles/persist>
   include <abstractions/dotfiles/setuid>
   include <abstractions/dotfiles/browser-data>
