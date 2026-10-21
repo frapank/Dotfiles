@@ -137,6 +137,7 @@ plan() {
 		Daily: system update while you are logged in, with battery over 20% and 10% free on /. Flatpak apps too, if there are any.
 		  Downloads first, snapshots / (last 3 kept), then installs. Sleep and shutdown wait for it. Notifies every stage.
 		  Waits for a good connection: postponed when requests to the mirror fail or hang, under 100 KB/s, or when the download would take over 30 minutes. A notification after 3 days, 'doas maint update' updates anyway.
+		  apt takes one too before dpkg changes anything when it runs by hand (DPkg::Pre-Invoke), at most one in 10 minutes.
 		  The snapshots of / are in the GRUB menu (grub-btrfs from its repository at a fixed commit, Debian has no package; 'Snapshots before updates'), the daily ones of /home are not.
 		  A snapshot boots with a throwaway overlay in RAM (overlayroot): changes are lost, /home is the live one.
 		  Pick its kernel in the menu: /boot is not in the snapshot, the kernels it was taken with are kept while it exists.

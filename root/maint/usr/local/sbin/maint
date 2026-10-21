@@ -23,8 +23,9 @@ NET_MAX_MIN=30
 log() { printf '%s\n' "$*"; }
 
 # conffiles keep the local copy, as the installer does
+# its own snapshot is taken: the apt hook leaves it
 apt_get() {
-    DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l apt-get -y -q \
+    MAINT_SNAPSHOT=1 DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l apt-get -y -q \
         -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
         -o APT::Install-Recommends=false "$@"
 }
@@ -242,6 +243,15 @@ snap_root() {
 }
 
 # the packages an upgrade changes, one per line
+# DPkg::Pre-Invoke: a snapshot when apt runs by hand, at most one in 10 minutes
+apt_snapshot() {
+    [ "${MAINT_SNAPSHOT:-0}" = 0 ] || return 0
+    [ "$(stat -f -c %T /)" = btrfs ] && btrfs subvolume show / >/dev/null 2>&1 || return 0
+    last=$(snapshots "$ROOTSNAP" root 2>/dev/null | tail -n1 | tr -dc 0-9)
+    [ -z "$last" ] || [ "$last" -lt "$(date -d '10 minutes ago' +%Y%m%d%H%M)" ] || return 0
+    snap_root && prune "$ROOTSNAP" root "$ROOT_KEEP" && log "maint: snapshot of / in $ROOTSNAP/$snap"
+}
+
 pending() {
     out=$(apt-get -s -o Debug::NoLocking=1 full-upgrade 2>&1) || {
         printf '%s\n' "$out"
@@ -620,6 +630,12 @@ home | thumbs | trash | disks | kernels | packages | firmware | scrub | blocklis
     job "$1"
 ) ;;
 update-now) update_now ;;
+apt-snapshot) (
+    # shellcheck disable=SC2174
+    mkdir -p -m 0700 "$STATE"
+    exec 9>"$STATE/snapshot.lock"
+    flock -w 30 9 && apt_snapshot
+) ;;
 loop)
     sleep 900
     while :; do
@@ -631,7 +647,7 @@ loop)
     done
     ;;
 *)
-    echo 'usage: maint status | run | home | thumbs | trash | update | disks | kernels | packages | firmware | scrub | blocklist' >&2
+    echo 'usage: maint status | run | home | thumbs | trash | update | disks | kernels | packages | firmware | scrub | blocklist | apt-snapshot' >&2
     exit 1
     ;;
 esac
