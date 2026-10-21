@@ -8,13 +8,15 @@ fonts_ok() {
         -type f ! -perm 0644 -o -type d ! -perm 0755 \) -print -quit) ]]
 }
 
+# $4 links: symlinks are fine, the tree is only built
 git_at() {
     run "download ${2##*/} at ${3:0:12}" env GIT_TERMINAL_PROMPT=0 sh -c '
 		git init -q "$1" && cd "$1" &&
 		git fetch -q --depth 1 -- "$2" "$3" &&
 		git -c advice.detachedHead=false checkout -q FETCH_HEAD' _ "$1" "$2" "$3"
     [[ $(git -C "$1" rev-parse HEAD) == "$3" ]] || die "$2 did not give commit $3"
-    [[ -z $(find "$1" -path "$1/.git" -prune -o -type l -print -quit) ]] || die "symlinks in $2, refusing"
+    [[ ${4:-} == links || -z $(find "$1" -path "$1/.git" -prune -o -type l -print -quit) ]] ||
+        die "symlinks in $2, refusing"
 }
 
 font_dir() {

@@ -314,6 +314,10 @@ verify() {
             warn "g0wm or start-g0wm missing from $TUSER's PATH"
             bad=1
         }
+        [[ -f $WLR_PREFIX/lib/libwlroots-0.20.so ]] || {
+            warn "wlroots 0.20 missing from $WLR_PREFIX"
+            bad=1
+        }
         [[ -f $THOME/.config/g0wm/settings.json && ! -L $THOME/.config/g0wm/settings.json ]] ||
             {
                 warn "g0wm settings not installed"

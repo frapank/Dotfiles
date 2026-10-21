@@ -16,6 +16,50 @@ g0wm_clone() {
         [[ -z $(as_user git -C "$1" status --porcelain --untracked-files=no 2>&1) ]]
 }
 
+# in a prefix of its own, with what it needs newer than Debian: only g0wm finds it, by its rpath
+wlroots_build() {
+    local tmp d name url rev stage mark=$STATE/wlroots
+    if [[ -f $WLR_PREFIX/lib/pkgconfig/wlroots-0.20.pc && ! -L $WLR_PREFIX &&
+        $(cat -- "$mark" 2>/dev/null) == "$WLR_REV ${WLR_DEPS[*]}" ]]; then
+        skip "wlroots 0.20 in $WLR_PREFIX"
+        return 0
+    fi
+    tmp=$(mktemp -d)
+    git_at "$tmp/wlroots" "$WLR_URL" "$WLR_REV"
+    for d in "${WLR_DEPS[@]}"; do
+        read -r name url rev <<<"$d"
+        git_at "$tmp/wlroots/subprojects/$name" "$url" "$rev" links
+    done
+    # the libdrm of the drivers stays the system one, Mesa loads it
+    run "configure wlroots 0.20" env LDFLAGS="-Wl,-rpath,$WLR_PREFIX/lib" \
+        meson setup "$tmp/build" "$tmp/wlroots" --prefix="$WLR_PREFIX" --libdir=lib \
+        --buildtype=release --wrap-mode=nodownload -Dwerror=false \
+        --force-fallback-for=wayland,libdrm,libxkbcommon,wayland-protocols \
+        -Dexamples=false -Dbackends=drm,libinput -Dxwayland=enabled -Dicon_directory=/usr/share/icons \
+        -Dwayland:dtd_validation=false -Dlibxkbcommon:xkb-config-root=/usr/share/X11/xkb \
+        -Dlibxkbcommon:x-locale-root=/usr/share/X11/locale -Dlibdrm:intel=disabled \
+        -Dlibdrm:radeon=disabled -Dlibdrm:amdgpu=disabled -Dlibdrm:nouveau=disabled -Dlibdrm:vmwgfx=disabled
+    run "build wlroots 0.20" meson compile -C "$tmp/build"
+    run "install wlroots 0.20 into a staging folder" meson install -C "$tmp/build" --destdir "$tmp/root" --quiet
+    [[ -f $tmp/root$WLR_PREFIX/lib/pkgconfig/wlroots-0.20.pc ]] || die "the wlroots build left no wlroots-0.20.pc"
+    mkdirs "${WLR_PREFIX%/*}"
+    stage=$(mktemp -d -p "${WLR_PREFIX%/*}" ".${WLR_PREFIX##*/}.XXXXXX")
+    cp -a -- "$tmp/root$WLR_PREFIX/." "$stage/"
+    rm -rf -- "$tmp"
+    chown -R root:root "$stage"
+    chmod 0755 "$stage"
+    if [[ -e $WLR_PREFIX || -L $WLR_PREFIX ]]; then
+        backup "$WLR_PREFIX"
+        rm -rf -- "$WLR_PREFIX"
+    else
+        jot remove "$WLR_PREFIX"
+    fi
+    mv -T -- "$stage" "$WLR_PREFIX"
+    ok "$WLR_PREFIX (wlroots ${WLR_REV:0:12})"
+    put_text "$mark" 0644 <<<"$WLR_REV ${WLR_DEPS[*]}"
+    WLR_NEW=1
+}
+
 do_g0wm() {
     step "Desktop: g0wm"
     do_home "${HOME_DESKTOP[@]}"
@@ -26,6 +70,7 @@ do_g0wm() {
     [[ -z $wp || -f $wp ]] || warn "wallpaper $wp does not exist, set it in settings.json"
 
     local src=$THOME/.local/src/g0wm bin=$THOME/.local/bin before= rev out where=
+    wlroots_build
     where=$(g0wm_where) || where=
     if [[ -n $where ]] && ! g0wm_clone "$src"; then
         note "g0wm in ${where/#$THOME/\~}, built elsewhere: not cloned nor rebuilt"
@@ -47,12 +92,14 @@ do_g0wm() {
     fi
     rev=$(as_user git -C "$src" rev-parse HEAD)
     log "g0wm at $rev"
-    if [[ -n $where && $before == "$rev" ]]; then
+    if [[ -n $where && $before == "$rev" ]] && ((WLR_NEW == 0)); then
         skip "g0wm ${rev:0:12} installed"
         return 0
     fi
 
-    run "configure g0wm" as_user sh -c 'cd "$1" && exec ./configure' _ "$src"
+    # DT_RPATH, not RUNPATH: it also holds for the libraries wlroots and Mesa load
+    run "configure g0wm" as_user sh -c 'cd "$1" && exec ./configure --wlroots-prefix="$2" --ldflags=-Wl,--disable-new-dtags' \
+        _ "$src" "$WLR_PREFIX"
     run "build g0wm" as_user make -C "$src" -j"$(nproc)"
     run "test g0wm" as_user make -C "$src" test
     stash "$bin/g0wm"
