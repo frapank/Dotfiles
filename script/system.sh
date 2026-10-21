@@ -26,6 +26,8 @@ do_repos() {
             sed -E 's,^([[:space:]]*deb(-src)?[[:space:]].*(debian\.org|/debian(-security)?/?[[:space:]]|cdrom:)),# \1,' /etc/apt/sources.list
         )
     fi
+    # LibreWolf: its own repository, the key is the one Debian's extrepo lists for it
+    ((SEL[apps])) && put_tree librewolf
     run "sync repository index (network check)" "${APT[@]}" update
 }
 
