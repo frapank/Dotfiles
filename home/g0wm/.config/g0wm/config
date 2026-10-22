@@ -31,116 +31,31 @@ windows {
 	cornerpx 12
 	gaps 2
 	gappx 2
-	smartgaps false
-	titlebar true
 	titlepadding 15
-	titlecenter true
-	# shown with the pointer over it
-	titleclose true
-	titleclosecolor #ff5f57ff
-	# px dragged on a title before the window moves
-	movethreshold 4
-	# px at which a moved floating window sticks, 0 off
-	movesnap 12
 }
 
 bar {
-	showbar true
-	topbar true
-	barwintitle false
-	# dots instead of the tag names
-	bartagdots true
-	barltsymbol false
-	barboxradius 2
 	barpadding 4
 	# times the font height, 0 for automatic
 	barheight 1.5
-	# one bar only, on the first monitor
-	barsinglemon false
-	showsystray true
-	systrayspacing 2
-	systraypadding 2
-	# 0 fills the bar
-	systrayiconsize 16
-	shownotifications true
-	# seconds
-	notification_timeout 5
-	notification_linewidth 4
-	notification_lineradius 2
 	notification_actionsign 
-	# shown while nothing is typed
-	runner_placeholder Run...
 }
 
 opacity {
 	opacity_enabled false
 	opacity_focus 0.82
 	opacity_unfocus 0.82
-	# bar, title bars and borders
-	opacity_deco 1
 	# normal or blur
 	opacity_type blur
-	blur_radius 15
-	blur_passes 1
-	blur_saturation 1.6
-	blur_brightness 1
 }
 
 input {
-	sloppyfocus true
-	xkb_rules {
-		rules
-		model
-		layout
-		variant
-		options
-	}
-	repeat_rate 25
-	repeat_delay 600
 	cursor_theme Bibata-Modern-Classic
 	cursor_size 20
-	hide_cursor_when_typing true
-	tap_to_click true
-	tap_and_drag true
-	drag_lock true
-	natural_scrolling false
-	disable_while_typing true
-	left_handed false
-	middle_button_emulation false
-	# none, 2fg, edge or on-button-down
-	scroll_method 2fg
-	# none, button-areas or clickfinger
-	click_method button-areas
-	# enabled, disabled or disabled-on-external-mouse
-	send_events_mode enabled
 	# none, flat or adaptive, speed from -1 to 1
 	accel_profile flat
-	accel_speed 0
 	# the same three, for touchpads
 	touchpad_natural_scrolling true
-	touchpad_accel_profile adaptive
-	touchpad_accel_speed 0
-	# held while pinching to zoom, none for off
-	pinchzoom_mod logo
-	# lrm or lmr
-	button_map lrm
-	# output names as wlr-randr shows them, none for all
-	tablet_output
-	# buttons on the right
-	tablet_left_handed false
-	# none: the one udev reports
-	touch_output
-}
-
-misc {
-	# silent, error, info or debug
-	log_level error
-	# a hidden fullscreen window keeps the screen awake
-	bypass_surface_visibility false
-	# tearing for fullscreen windows that ask for it
-	allow_tearing true
-	# VRR for fullscreen games and videos
-	auto_vrr true
 }
 
 # layout: symbol, then tile, float or tabbed
@@ -148,31 +63,8 @@ layout "[ ]" tile
 layout "< >" float
 layout "| |" tabbed
 
-# rule: opacity 0 keeps the default, monitor -1 is the focused one
-rule {
-	id Placeholder
-	title
-	tags 0
-	isfloating true
-	opacity_focus 0
-	opacity_unfocus 0
-	monitor -1
-}
-
 # monitor: the first matching name wins
-monitor {
-	name
-	mfact 0.55
-	nmaster 1
-	scale 2
-	layout "[ ]"
-	transform normal
-	x -1
-	y -1
-	width 0
-	height 0
-	refresh 0
-}
+@MONITOR@
 
 # autostart: a command, run without a shell
 autostart dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
@@ -281,9 +173,3 @@ button tagbar wheel-down shiftview 1
 button client logo+left moveresize move
 button client logo+middle togglefloating
 button client logo+right moveresize resize
-
-# gesture: motion, fingers, action, argument
-gesture swipe-left 3 shiftview 1
-gesture swipe-right 3 shiftview -1
-
-# padbutton: button from 0, action, argument
