@@ -219,7 +219,9 @@ do_boot() {
 
     grub_theme
     grub_quiet
-    grub_words quiet splash
+    # loglevel=3: the kernel errors of drivers go to the journal, not over the login
+    grub_words quiet splash loglevel=3 "$(vt_palette red)" "$(vt_palette grn)" "$(vt_palette blu)"
+    login_defs
     luks_check
 
     if ((REGEN)); then
@@ -227,6 +229,35 @@ do_boot() {
     else
         skip "initramfs up to date"
     fi
+}
+
+# vt.default_red=7,204,... from VT_PALETTE: the console keeps it across resets
+vt_palette() {
+    local c v=() shift=16
+    case $1 in grn) shift=8 ;; blu) shift=0 ;; esac
+    for c in "${VT_PALETTE[@]}"; do v+=($(((16#$c >> shift) & 255))); done
+    printf 'vt.default_%s=%s' "$1" "$(join , "${v[@]}")"
+}
+
+# one try per login: a wrong password ends login(1), agetty starts again and
+# g0wm-login draws the error. pam_faildelay still waits 3 seconds on it
+login_defs() {
+    local f=/etc/login.defs
+    [[ -f $f ]] || die "$f missing (login.defs)"
+    put_text "$f" 0644 < <(awk '
+		BEGIN { v["LOGIN_RETRIES"] = 1; v["FAIL_DELAY"] = 1 }
+		match($0, /^#?[ \t]*[A-Z_]+[ \t]/) {
+			k = $0
+			sub(/^#?[ \t]*/, "", k)
+			sub(/[ \t].*/, "", k)
+			if (k in v) {
+				if (!(k in done)) printf "%s\t\t%s\n", k, v[k]
+				done[k] = 1
+				next
+			}
+		}
+		{ print }
+		END { for (k in v) if (!(k in done)) printf "%s\t\t%s\n", k, v[k] }' "$f")
 }
 
 # console-setup: Terminus on every tty, larger on screens 1440 pixels tall or more

@@ -33,6 +33,8 @@ readonly CURSOR_SIZE=20
 readonly GRUB_THEME_URL=https://github.com/tomdewildt/minimal-grub-theme.git
 readonly GRUB_THEME_REV=1f3fe66561f5e1f88e1467e0eb189117fd09e79c
 readonly GRUB_THEME_DIR=/boot/grub/themes/minimal
+readonly VT_PALETTE=(070707 cc6666 8c9a8c ffee8f 708a99 a6829c 70a09f 8a8a8a
+    555555 d97e7e afd7af ffe066 8ab0c6 c59dc8 8cc8c7 e9e9e9)
 readonly GRUB_QUIET_MARK='# debian-postinstall: no Loading messages'
 readonly GRUB_BTRFS_URL=https://github.com/Antynea/grub-btrfs.git
 readonly GRUB_BTRFS_REV=2fcfbe967637166b88dadd49c834807243a941bf

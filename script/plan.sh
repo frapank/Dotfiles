@@ -97,7 +97,10 @@ plan() {
 		Kernel arguments go in /etc/default/grub.d, /etc/default/grub stays as it is. / on LUKS: checked that cryptsetup-initramfs and /etc/crypttab unlock it, an initramfs without it is not kept.
 		GRUB theme minimal (tomdewildt, fixed commit): GRUB_THEME in /etc/default/grub.d, the arguments the system booted with (root, subvolume, resume) are checked in grub.cfg.
 		No 'Loading Linux ...' lines after the menu (10_linux patched; dpkg keeps it and leaves the new one of a grub update as 10_linux.dpkg-dist, maint patches that and puts it in place).
-		Clean tty1 login and /etc/issue. Terminus font on every tty (console-setup), larger on screens 1440 pixels tall or more.
+		tty1: the cat of /etc/issue and the login in the middle of the screen (g0wm-login), login(1) still asks the password. One try per login (LOGIN_RETRIES 1 in /etc/login.defs): a wrong password draws the screen again with "Login incorrect" under the prompts.
+		The splash stays until that screen draws over it (plymouth quit --retain-splash), on the same #070707: no black in between. No motd or last login after the password (~/.hushlogin), a blank screen until g0wm draws.
+		The 16 colors of every tty from the theme, set by the kernel (vt.default_red/grn/blu): /etc/issue in the colors of foot. loglevel=3: driver errors go to the journal, not over the login.
+		Terminus font on every tty (console-setup), larger on screens 1440 pixels tall or more.
 		Rebuilds the initramfs when needed, old images restored on failure.
 	EOF
     detect_hw
