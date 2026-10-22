@@ -1,0 +1,180 @@
+#!/bin/sh
+
+ISSUE=/etc/issue
+STATE=/run/g0wm-login
+BTMP=/var/log/btmp
+# sizeof(struct utmp), and ut_line in it, on glibc
+UTMP_SIZE=384
+UTMP_LINE=8
+
+ESC=$(printf '\033')
+export ESC
+
+# a failed login on this tty since the last draw: login(1) writes it to btmp
+failed_here() {
+    size=$(stat -c %s -- "$BTMP" 2>/dev/null) || return 1
+    old=$(cat -- "$STATE/btmp" 2>/dev/null) || old=$size
+    case $old in '' | *[!0-9]*) old=$size ;; esac
+    # rotated
+    [ "$old" -le "$size" ] || old=0
+    (printf '%s\n' "$size" >"$STATE/btmp") 2>/dev/null
+    off=$((old - old % UTMP_SIZE))
+    found=1
+    while [ $((off + UTMP_SIZE)) -le "$size" ]; do
+        line=$(dd if="$BTMP" bs=1 skip=$((off + UTMP_LINE)) count=32 2>/dev/null | tr -d '\000')
+        [ "$line" = "$TTYNAME" ] && found=0
+        off=$((off + UTMP_SIZE))
+    done
+    return "$found"
+}
+
+# the escapes of agetty in /etc/issue, then the block in the middle of a
+# ROWS x COLS screen, the prompt of the user name last
+draw() {
+    LC_ALL=C awk '
+	BEGIN {
+		e = ENVIRON["ESC"]
+		# the names of agetty (lib/color-names.c), lightgray too: util-linux
+		# misspells it there
+		split("black:30 red:31 green:32 brown:33 blue:34 magenta:35 cyan:36 gray:37 " \
+			"lightgray:37 darkgray:1;30 lightred:1;31 lightgreen:1;32 yellow:1;33 " \
+			"lightblue:1;34 lightmagenta:1;35 lightcyan:1;36 white:1;37 reset:0 " \
+			"bold:1 halfbright:2 blink:5 reverse:7", t, " ")
+		for (i in t) {
+			split(t[i], kv, ":")
+			sgr[kv[1]] = e "[" kv[2] "m"
+		}
+		while ((getline l < "/etc/os-release") > 0) {
+			k = l
+			sub(/=.*/, "", k)
+			v = substr(l, length(k) + 2)
+			gsub(/^["\047]|["\047]$/, "", v)
+			osr[k] = v
+		}
+	}
+	function visible(s) {
+		gsub(e "\\[[0-9;]*m", "", s)
+		# UTF-8: the continuation bytes take no column
+		gsub(/[\200-\277]/, "", s)
+		return length(s)
+	}
+	function braced(    j, name) {
+		if (substr(s, 1, 1) != "{" || !(j = index(s, "}")))
+			return ""
+		name = substr(s, 2, j - 2)
+		s = substr(s, j + 1)
+		return name
+	}
+	{
+		out = ""
+		s = $0
+		while ((i = index(s, "\\")) > 0) {
+			out = out substr(s, 1, i - 1)
+			c = substr(s, i + 1, 1)
+			s = substr(s, i + 2)
+			if (c == "e") {
+				name = braced()
+				out = out (name == "" ? e : sgr[name])
+			} else if (c == "S") {
+				name = braced()
+				out = out osr[name == "" ? "PRETTY_NAME" : name]
+			} else if (c == "r")
+				out = out ENVIRON["REL"]
+			else if (c == "d")
+				out = out ENVIRON["DAY"]
+			else if (c == "t")
+				out = out ENVIRON["NOW"]
+			else if (c == "l")
+				out = out ENVIRON["TTYNAME"]
+			else if (c == "\\")
+				out = out "\\"
+		}
+		line[++n] = out s
+	}
+	END {
+		# blank lines around the block go, their colors stay for the input
+		first = 1
+		while (first <= n && visible(line[first]) == 0)
+			first++
+		last = n
+		tail = ""
+		while (last >= first && visible(line[last]) == 0)
+			tail = line[last--] tail
+		w = length("login: ") + 16
+		for (i = first; i <= last; i++)
+			if (visible(line[i]) > w)
+				w = visible(line[i])
+		rows = ENVIRON["ROWS"] + 0
+		cols = ENVIRON["COLS"] + 0
+		h = last - first + 1 + 5
+		top = rows > h ? int((rows - h) / 2) + 1 : 1
+		left = cols > w ? int((cols - w) / 2) + 1 : 1
+
+		printf "%s[0m%s[H%s[2J%s[3J", e, e, e, e
+		r = top
+		for (i = first; i <= last; i++)
+			printf "%s[%d;%dH%s%s[0m", e, r++, left, line[i], e
+		# the prompts line up with the text above them
+		pad = line[last]
+		gsub(e "\\[[0-9;]*m", "", pad)
+		match(pad, /^ */)
+		left += RLENGTH
+		if (ENVIRON["FAILED"] != "")
+			printf "%s[%d;%dH%s[31mLogin incorrect%s[0m", e, r + 4, left, e, e
+		# the prompt: saved, the password goes under it
+		printf "%s[%d;%dH%s7%s[37mlogin: %s[0m%s", e, r + 1, left, e, e, e, tail
+	}' "$ISSUE"
+}
+
+main() {
+    TTYNAME=$(tty 2>/dev/null) || TTYNAME=
+    TTYNAME=${TTYNAME#/dev/}
+    ROWS=24 COLS=80
+    # shellcheck disable=SC2046
+    set -- $(stty size 2>/dev/null) && [ $# -eq 2 ] && ROWS=$1 COLS=$2
+    REL=$(uname -r) DAY=$(date '+%a %b %d %Y') NOW=$(date +%T)
+    FAILED=
+    if [ "$PREVIEW" ]; then
+        FAILED=${G0WM_LOGIN_FAILED:-}
+    else
+        mkdir -p -m 0700 -- "$STATE" 2>/dev/null
+        if [ -e "$STATE/bad-name" ]; then
+            FAILED=1
+            rm -f -- "$STATE/bad-name"
+        fi
+        failed_here && FAILED=1
+    fi
+    export TTYNAME ROWS COLS REL DAY NOW FAILED
+    draw || return 1
+    [ -z "$PREVIEW" ] || {
+        printf '\n'
+        exit 0
+    }
+
+    # EOF (Ctrl+D) or Ctrl+C: agetty starts again
+    IFS= read -r name || exit 0
+    case $name in
+    '') exit 0 ;;
+    # what useradd takes: never an option for login
+    -* | *[!A-Za-z0-9._-]*)
+        (: >"$STATE/bad-name") 2>/dev/null
+        exit 0
+        ;;
+    esac
+    [ ${#name} -le 32 ] || {
+        (: >"$STATE/bad-name") 2>/dev/null
+        exit 0
+    }
+    # under the prompt of the user name, where login asks the password
+    printf '%s[0m%s8%s[B%s[37m' "$ESC" "$ESC" "$ESC" "$ESC"
+    exec /usr/bin/login -- "$name"
+}
+
+if [ "${1:-}" = --preview ]; then
+    PREVIEW=1
+    main
+    exit 1
+fi
+PREVIEW=
+main
+exec /usr/bin/login

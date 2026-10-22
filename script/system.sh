@@ -490,6 +490,18 @@ verify() {
             bad=1
         }
     fi
+    if ((SEL[boot])); then
+        # agetty on tty1 runs it as root: a broken one leaves tty1 without a login
+        [[ -x /usr/local/libexec/g0wm-login ]] && sh -n /usr/local/libexec/g0wm-login &&
+            TERM=linux sh /usr/local/libexec/g0wm-login --preview </dev/null >/dev/null 2>&1 || {
+            warn "g0wm-login does not draw: tty1 has no login, use tty2"
+            bad=1
+        }
+        grep -qE '^LOGIN_RETRIES[[:space:]]+1$' /etc/login.defs || {
+            warn "login.defs: LOGIN_RETRIES is not 1, a wrong password breaks the tty1 screen"
+            bad=1
+        }
+    fi
     if ((SEL[boot])) && [[ -f /etc/default/grub && -f /boot/grub/grub.cfg ]] && grub_gfx; then
         grep -qE '^[[:space:]]*set theme=.*/themes/minimal/theme\.txt' /boot/grub/grub.cfg || {
             warn "grub.cfg does not load the minimal theme"
