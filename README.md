@@ -120,3 +120,11 @@ With usbguard new devices stay blocked. When you plug one in a notification arri
 - privacy-check: checks in one go that network, DNS, AppArmor and the rest are fine.
 - conns: shows the open connections with the program and its AppArmor profile.
 - traces: shows or deletes recent files, histories, thumbnails, trash and clipboard.
+
+## AI Disclaimer
+
+This repository may contain AI-assisted code and documentation. Not every commit is AI-generated, and all AI-generated commits are reviewed and supervised by humans.
+
+## License
+
+GPL-3.0, see [LICENSE](LICENSE).
