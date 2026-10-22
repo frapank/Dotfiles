@@ -75,9 +75,18 @@ mic/up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SOURCE@ 5%+ && volume @DEFAULT_AUDI
 mic/down) wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%- && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
 brightness/up) brightnessctl -q s 10%+ 2>/dev/null && brightness ;;
 brightness/down) brightnessctl -q s 10%- 2>/dev/null && brightness ;;
-media/play) playerctl play-pause 2>/dev/null; player 0.2 ;;
-media/next) playerctl next 2>/dev/null; player 0.4 ;;
-media/prev) playerctl previous 2>/dev/null; player 0.4 ;;
+media/play)
+    playerctl play-pause 2>/dev/null
+    player 0.2
+    ;;
+media/next)
+    playerctl next 2>/dev/null
+    player 0.4
+    ;;
+media/prev)
+    playerctl previous 2>/dev/null
+    player 0.4
+    ;;
 battery/) battery ;;
 clock/) show clock " Date" "$(date '+%-d/%-m/%Y %H:%M:%S')" '' 3000 ;;
 *)

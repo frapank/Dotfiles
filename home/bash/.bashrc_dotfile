@@ -67,7 +67,10 @@ _setup_prompt() {
         __title_armed=
         [[ $BASH_COMMAND == __set_bash_prompt ]] && return
         local cmd=$BASH_COMMAND
-        __title_pid=$({ sleep 0.5 && __title "$cmd"; } </dev/null >/dev/tty 2>&1 & echo $!)
+        __title_pid=$(
+            { sleep 0.5 && __title "$cmd"; } </dev/null >/dev/tty 2>&1 &
+            echo $!
+        )
     }
     __title_dir() {
         [[ -z $__title_pid ]] || kill "$__title_pid" 2>/dev/null
