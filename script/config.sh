@@ -84,7 +84,7 @@ PKG_DESKTOP=(
     # session
     dbus dbus-user-session libpam-systemd polkitd libgl1-mesa-dri xwayland pipewire wireplumber
     xdg-utils xdg-user-dirs fontconfig
-    # settings.json monitors
+    # the monitors of the g0wm config
     python3
     # apps
     foot thunar grim slurp swappy swayidle gtklock
