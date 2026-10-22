@@ -25,7 +25,7 @@ What Debian does not have is built or downloaded at fixed commits and checksums:
 
 maint is the service that handles the maintenance of the system automatically. Every hour it checks what there is to do and does it:
 - every day: snapshot of /home (it keeps 14), cleanup of old thumbnails and trash, update of the system and of the DNS blocklist.
-- every week: old kernels and orphan packages (apt autoremove; the kernels a snapshot of / boots are kept), firmware (notification only), disk health, the integrity of the package files (debsums).
+- every week: old kernels and orphan packages (apt autoremove; the kernels a snapshot of / boots are kept), firmware and Vesktop, a .deb apt does not update (notification only), disk health, the integrity of the package files (debsums).
 - every month: btrfs scrub, only with the PC plugged in.
 
 The update starts only if you are logged in, with the battery above 20% and enough free disk. First it takes a snapshot of / that can be booted from GRUB, then it installs. Every phase sends a notification. apt takes the same snapshot when you run it by hand, before dpkg changes anything. A snapshot boots with a throwaway overlay in RAM (overlayroot).
@@ -34,12 +34,12 @@ For the snapshots there are snap, that shows and restores the versions of a file
 ## Sandbox
 
 One of the blocks is dbus-filter. dbus-filter is a simple sh script. Basically it combines xdg-dbus-proxy and bwrap in order to create a protected environment, where the filtered application can send only the necessary requests to the dbus filter (the proxy), with bwrap acting as a block on the process, so that it cannot access the main bus.
-The applications affected by dbus-filter are in /usr/local/bin/{applications} and they include librewolf, papers, libreoffice, soffice, showtime and xarchiver.
+The applications affected by dbus-filter are in /usr/local/bin/{applications} and they include librewolf, papers, libreoffice, soffice, showtime, xarchiver and vesktop (if installed, /usr/local/share/applications has its launcher).
 All this comes with some .service files in /usr/local/share/dbus-1/services/ that open with the filter also the apps started by dbus, that is tumblerd and showtime. Loupe, which is not in the sandbox (glycin already sandboxes the decoding), starts from there and from /usr/local/bin/loupe without gvfs: the filtered apps can ask it over dbus to open a URI, and gvfs would fetch an http one for an app without network.
 
 dbus-filter-open is a dbus service in python that runs outside the sandbox. When a filtered app wants to open another one, for example papers opening a link, the request goes through it: it checks the arguments and opens the right app with its filter. If an app without network wants to open a link in the browser, it first asks for confirmation with a notification, so it cannot get data out.
 
-xdg-dbus-proxy and bubblewrap are external programs, the same ones Flatpak uses. The proxy acts as a fake bus and lets through only portals, dconf and little else. The apps write dconf in a database of their own, ~/.config/dconf/sandbox, and read the user's under it: a setting they write never reaches the programs outside, some of which run what they find there (virt-manager connects to the libvirt URIs in its settings, and a URI can run a command). bwrap instead hides the real bus, ssh-agent, gpg, keyring and X11 and takes the network away from the apps without network.
+xdg-dbus-proxy and bubblewrap are external programs, the same ones Flatpak uses. The proxy acts as a fake bus and lets through only portals, dconf and little else. The apps write dconf in a database of their own, ~/.config/dconf/sandbox, and read the user's under it: a setting they write never reaches the programs outside, some of which run what they find there (virt-manager connects to the libvirt URIs in its settings, and a URI can run a command). bwrap instead gives the app an empty runtime dir (/run/user/UID) with only dconf, the document portal, its own filtered bus and Wayland socket, and audio for the apps that have it: the rest of that dir runs commands outside the sandbox (the foot server, systemd, nvim) or holds keys (ssh, gpg, keyring). It also hides tmux and ssh-agent in /tmp, the real bus and X11, and takes the network away from the apps without network. The system bus goes through the proxy too: polkit lets anything in the session change the network or power off without a password, so the apps with audio reach only RealtimeKit there, the others nothing.
 
 wl-sandbox is a small program in C that creates a "sandbox" Wayland socket: this way g0wm knows it is a confined app and does not let it read the screen or send fake input. Without that socket the app has no display, it never gets the real compositor. The clipboard is not restricted: as on any Wayland desktop, the focused app is told what was copied last.
 
@@ -62,6 +62,7 @@ Another system put there is AppArmor with profiles and abstractions. Among the a
 
 The profiles instead are these:
 - librewolf: network, audio and webcam, but never ~/Private.
+- vesktop: the same, and its own login in ~/.config/vesktop that no other profile reads. No keyring, which would give it every secret in it.
 - papers, libreoffice, xarchiver: no network, audio and webcam.
 - showtime: no network, but with audio.
 - tumblerd: read only, it writes only the thumbnails and its temporary files.
@@ -71,7 +72,7 @@ The profiles instead are these:
 - chronyd: the profile of Debian, with the certificates for NTS and the root secrets added in local/.
 - steam, lutris: everything except secrets, browser and setuid, only if you install them.
 
-The other profiles of Debian stay. The ones for the same programs are disabled in /etc/apparmor.d/disable: those of papers and LibreOffice, which let the app write all of the home, and the unconfined steam and librewolf profiles.
+The other profiles of Debian stay. The ones for the same programs are disabled in /etc/apparmor.d/disable: those of papers and LibreOffice, which let the app write all of the home, and the unconfined steam, librewolf and vesktop profiles. Their postinst load them again at every update (vesktop's over the one here, it has the same name): after each apt run aa-packages unloads them and puts the ones here back.
 
 There are hardened kernel options that prevent several exploits:
 - memory zeroed when it is allocated and freed.
@@ -94,7 +95,7 @@ The logs are in the journal, on disk and capped: logs reads it. Nothing is writt
 ## Users, permissions and processes
 
 - the processes of other users are invisible to the users of the daemons (hidepid in fstab). Your user is in the proc group, which the polkit agent needs, and sees them all, and so does librewolf, which has no PID namespace of its own; systemd-logind and polkitd are in it too.
-- nosuid removes setuid from su, pkexec, passwd etc., since doas is enough, and the file capabilities of cdrecord and the other cdrtools programs. dpkg-statoverride keeps it across updates.
+- nosuid removes setuid from su, pkexec, passwd etc., since doas is enough, and from pppd, which NetworkManager runs as root, and the file capabilities of cdrecord and the other cdrtools programs. dpkg-statoverride keeps it across updates.
 - doas instead of sudo, with the password every time (no persist). sudo is pinned away, polkit asks the password of the wheel group.
 - a new machine-id at every boot: /etc/machine-id is empty on disk and systemd puts a random one over it in RAM.
 - /boot and /boot/efi readable only by root and nosuid,nodev,noexec.

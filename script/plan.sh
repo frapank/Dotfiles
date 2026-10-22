@@ -48,7 +48,7 @@ plan() {
 		fstab: /boot and /boot/efi nosuid,nodev,noexec and readable by root only, /tmp a nosuid,nodev tmpfs unless a partition, /home nosuid,nodev.
 		Core dumps: a dump is the memory of the program, keys and passwords included. Only the one of g0wm is kept (~/.local/state/g0wm, for debugging it), the others are dropped (core-keep).
 		/proc, after reboot (fstab): the daemons' users see only their own processes. Group proc sees all: polkitd, rtkit, systemd-logind, $TUSER (the polkit agent needs it).
-		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap fusermount (the old one, fusermount3 stays for the FUSE mounts of the desktop) ssh-keysign wall write Xorg.wrap firejail lxc-user-nic qemu-bridge-helper spice-client-glib-usb-acl-helper: doas does it ('doas passwd $TUSER').
+		No setuid on su pkexec passwd chsh chfn chage expiry gpasswd newgrp sg mount umount newuidmap newgidmap fusermount (the old one, fusermount3 stays for the FUSE mounts of the desktop) pppd (NetworkManager runs it as root) ssh-keysign wall write Xorg.wrap firejail lxc-user-nic qemu-bridge-helper spice-client-glib-usb-acl-helper: doas does it ('doas passwd $TUSER').
 		No file capabilities on cdrecord readcd cdda2wav (dac_override and sys_admin on programs anyone can run).
 		  dpkg-statoverride keeps the modes across updates; apt runs nosuid after each run, for what a new package brings.
 	EOF
@@ -62,6 +62,7 @@ plan() {
     section apparmor "AppArmor: confine the apps that parse untrusted input" <<-EOF
 		Apps keep working, but an exploit cannot read the hidden files of the home but the few GTK and the fonts need (~/.ssh ~/.gnupg keyrings histories and the data and logins of every other app, also of those installed later), reach what runs commands outside (nvim, tmux, the session services), write files that run code later (shell startup, autostart, PATH, configs, git hooks, this repo) or use setuid programs.
 		  librewolf: keeps network, camera, mic and screen sharing, but not ~/Private (to upload a file from there, copy it to ~/Get).
+		  vesktop, if you install its .deb: the same, without the keyring (log in again the first time).
 		  papers libreoffice xarchiver: offline, no mic or camera.
 		  showtime offline. tumblerd offline, writes only to ~/.cache and its temporary files.
 		  foot: no network, no secrets. The shell inside is not confined, so neither is a program an exploit in foot starts.
@@ -69,12 +70,12 @@ plan() {
 		  wpa_supplicant: the profile of Void, Debian has none; it reads certificates, so eduroam works.
 		  steam lutris, if you install them: all but secrets, the browser's data, shell startup and setuid programs.
 		  Loupe is left to glycin, which already sandboxes image decoding. It starts without gvfs (GIO_USE_VFS=local), also over D-Bus: the sandboxed apps can ask it to open a URI, gvfs would fetch an http one for them.
-		Sandbox: these apps start in bwrap via dbus-filter, with a filtered session bus (portals, dconf, notifications, media keys; their dconf writes go to ~/.config/dconf/sandbox, the programs outside never see them), no X11, no user namespaces, no other process in sight and no network (librewolf keeps the network and its namespaces).
+		Sandbox: these apps start in bwrap via dbus-filter, with a filtered session bus (portals, dconf, notifications, media keys; their dconf writes go to ~/.config/dconf/sandbox, the programs outside never see them), a filtered system bus (RealtimeKit for the audio, nothing else), an empty /run/user/UID but for dconf, audio and their own sockets (the foot server, nvim, systemd and the ssh agents run or sign outside), no X11, no user namespaces, no other process in sight and no network (librewolf keeps the network and its namespaces).
 		  landlock-scope closes in the kernel what bwrap cannot: abstract unix sockets (Xwayland listens on one, and librewolf has the host network) and signals to processes outside; with Landlock ABI 9 (kernel 7, trixie-backports) also every pathname unix socket but the few the app uses, Debian's 6.12 stops at ABI 6. AppArmor does not do this here: the 6.12 kernel does not mediate unix sockets, the newer ones offer network_v9/af_unix that AppArmor 4.1 does not compile.
 		  The apps get a Wayland socket of their own (wp_security_context_v1 in g0wm): no screen, no input injection, no clipboard managers. Without that socket they have no display at all, never the real compositor.
 		  The clipboard is not restricted: as on any Wayland desktop, the focused app is told what was copied last.
 		hardened_malloc (GrapheneOS) in papers tumblerd showtime xarchiver: heap bugs in file parsers crash instead of being exploitable.
-		Debian's own profiles stay. Disabled (/etc/apparmor.d/disable) where one here confines the same program: the Ubuntu ones of papers and LibreOffice (they let it write all of the home), the unconfined steam and the unconfined librewolf of its package. Debian's chrony profile gets the certificates for NTS and the root secrets in local/.
+		Debian's own profiles stay. Disabled (/etc/apparmor.d/disable) where one here confines the same program: the Ubuntu ones of papers and LibreOffice (they let it write all of the home), the unconfined steam and the unconfined librewolf and vesktop of their packages. Their postinst load them again at every update: after each apt run aa-packages takes them out again. Debian's chrony profile gets the certificates for NTS and the root secrets in local/.
 		Kernel command line, active after reboot: $(aa_lsm)
 		Blocks go to the kernel log, local changes in /etc/apparmor.d/local/.
 	EOF
@@ -144,6 +145,7 @@ plan() {
 		Daily: deletes thumbnails of deleted files and what has been in the trash for 30 days, updates the DNS blocklist.
 		Weekly: old kernels (never the running one or one of a snapshot of /), orphans, package cache. Packages installed here are never orphans.
 		Weekly: checks for firmware updates (fwupd) and notifies, installing is 'doas fwupdmgr update'.
+		Daily, if Vesktop is installed: notifies a new release, its .deb is outside apt.
 		  fwupd never sends reports on failed or successful updates (the report address is emptied).
 		Weekly: disk health with smartmontools (SMART, NVMe wear and media errors), notifies what got worse since last week. Errors as they happen come from the logs notifications.
 		Weekly: debsums checks the files of every package against what dpkg installed, and notifies the ones that changed since last week (conffiles are yours to change).
