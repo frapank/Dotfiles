@@ -1,0 +1,77 @@
+#!/bin/sh
+set -u
+
+usage() {
+    cat <<EOF
+Usage: logins [--notify]
+The wrong passwords since the login before this session, on the ttys (login)
+and on the lock screen (gtklock), from the journal: when, where, for whom.
+
+  --notify   a notification instead, and only if there is one: g0wm runs it
+             at every login
+EOF
+}
+
+notify=0
+case ${1:-} in
+'') ;;
+--notify) notify=1 ;;
+-h | --help)
+    usage
+    exit 0
+    ;;
+*)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+# pam_unix logs each wrong password; from the login before this session
+list=$(journalctl -q --no-pager -o short-unix SYSLOG_IDENTIFIER=login SYSLOG_IDENTIFIER=gtklock 2>/dev/null |
+    awk -v me="$(id -un)" '
+	/pam_unix\(login:session\): session opened for user / {
+		u = $0
+		sub(/.* session opened for user /, "", u)
+		sub(/\(.*/, "", u)
+		if (u == me) {
+			prev = last
+			last = NR
+		}
+		next
+	}
+	/pam_unix\((login|gtklock):auth\): authentication failure/ {
+		t = $1
+		sub(/\..*/, "", t)
+		where = $0 ~ /\(gtklock:auth\)/ ? "lock screen" : "tty"
+		if (match($0, /tty=\/dev\/[^ ]+/))
+			where = substr($0, RSTART + 9, RLENGTH - 9)
+		u = "unknown user"
+		if (match($0, / user=[^ ]+/))
+			u = substr($0, RSTART + 6, RLENGTH - 6)
+		at[NR] = t "|" where "|" u
+	}
+	END {
+		for (i = prev + 1; i <= NR; i++)
+			if (i in at)
+				print at[i]
+	}')
+
+[ -n "$list" ] || {
+    [ "$notify" = 1 ] || echo "No wrong passwords since the last login."
+    exit 0
+}
+
+n=$(printf '%s\n' "$list" | wc -l)
+[ "$n" -eq 1 ] && what="1 wrong password" || what="$n wrong passwords"
+# the last 5, newest last
+body=$(printf '%s\n' "$list" | tail -n 5 | while IFS='|' read -r t where who; do
+    printf '%s  %s  %s\n' "$(date -d "@$t" '+%a %d %b %H:%M')" "$where" "$who"
+done)
+[ "$n" -le 5 ] || body="… $((n - 5)) more
+$body"
+
+if [ "$notify" = 1 ]; then
+    notify-send -a " logins" -u normal -t 15000 "$what since the last login" "$body" 2>/dev/null
+else
+    printf '%s since the last login:\n%s\n' "$what" "$body"
+fi
