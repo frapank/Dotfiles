@@ -25,7 +25,7 @@ What Debian does not have is built or downloaded at fixed commits and checksums:
 
 maint is the service that handles the maintenance of the system automatically. Every hour it checks what there is to do and does it:
 - every day: snapshot of /home (it keeps 14), cleanup of old thumbnails and trash, update of the system and of the DNS blocklist.
-- every week: old kernels and orphan packages (apt autoremove; the kernels a snapshot of / boots are kept), firmware and Vesktop, a .deb apt does not update (notification only), disk health, the integrity of the package files (debsums).
+- every week: old kernels and orphan packages (apt autoremove; the kernels a snapshot of / boots are kept), firmware and Vesktop, a .deb apt does not update (notification only), disk health, the integrity of the package files (debsums), the security fixes in Debian not installed yet (debsecan).
 - every month: btrfs scrub, only with the PC plugged in.
 
 The update starts only if you are logged in, with the battery above 20% and enough free disk. First it takes a snapshot of / that can be booted from GRUB, then it installs. Every phase sends a notification. apt takes the same snapshot when you run it by hand, before dpkg changes anything. A snapshot boots with a throwaway overlay in RAM (overlayroot).

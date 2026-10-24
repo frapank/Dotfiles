@@ -204,6 +204,42 @@ job_integrity() {
     notify_log "Integrity" "$(printf '%s\n' "$new" | grep -c .) package files changed since last week, like $(printf '%s\n' "$new" | head -n1). Click to see the log."
 }
 
+# vulnerabilities
+
+# debsecan: a fix not installed means the updates are stuck. The open ones are
+# only counted, most are minor or disputed
+job_cves() {
+    command -v debsecan >/dev/null || {
+        log "cves: debsecan not installed"
+        return 0
+    }
+    suite=$(. /etc/os-release && echo "${VERSION_CODENAME:-}")
+    [ -n "$suite" ] || {
+        log "cves: no VERSION_CODENAME in /etc/os-release"
+        return 1
+    }
+    curl -fsS -I -o /dev/null --proto =https --tlsv1.2 --max-time 30 https://security-tracker.debian.org/tracker/ 2>/dev/null || {
+        log "cves: security-tracker.debian.org not reachable"
+        return 2
+    }
+    # what comes from the network is parsed as nobody
+    open=$(runuser -u nobody -- debsecan --suite "$suite" --format summary 2>&1) || {
+        printf '%s\n' "$open"
+        return 1
+    }
+    fixed=$(runuser -u nobody -- debsecan --suite "$suite" --only-fixed --format packages 2>&1) || {
+        printf '%s\n' "$fixed"
+        return 1
+    }
+    log "cves: $(printf '%s\n' "$open" | awk 'NF { print $1 }' | sort -u | wc -l) open vulnerabilities in the installed packages"
+    if [ -z "$fixed" ]; then
+        log "cves: every fix in $suite is installed"
+        return 0
+    fi
+    printf '%s\n' "$fixed" | sed 's/^/cves: fix not installed: /'
+    notify_log  "Vulnerabilities" "$(printf '%s\n' "$fixed" | grep -c .) packages have a security fix in Debian that is not installed, like $(printf '%s\n' "$fixed" | head -n1). Update with 'doas maint update'. Click to see the log."
+}
+
 # firmware
 
 job_firmware() {
@@ -646,6 +682,7 @@ run_due() {
     due packages "$((7 * DAY))" && job packages
     due firmware "$((7 * DAY))" && job firmware
     due integrity "$((7 * DAY))" && job integrity
+    due cves "$((7 * DAY))" && job cves
     due vesktop "$DAY" && job vesktop
     due scrub "$((30 * DAY))" && job scrub
     [ -x /usr/local/sbin/dns-blocklist ] && due blocklist "$DAY" && job blocklist
@@ -653,7 +690,7 @@ run_due() {
 }
 
 status() {
-    for j in home thumbs trash update disks kernels packages firmware integrity vesktop scrub blocklist; do
+    for j in home thumbs trash update disks kernels packages firmware integrity cves vesktop scrub blocklist; do
         if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
         printf '%-9s last %s' "$j" "$last"
         [ -e "$STATE/$j.failed" ] && printf ', FAILED %s' "$(cat "$STATE/$j.failed")"
@@ -682,7 +719,7 @@ update) (
     locked
     FORCE=1 job update
 ) ;;
-home | thumbs | trash | disks | kernels | packages | firmware | integrity | vesktop | scrub | blocklist) (
+home | thumbs | trash | disks | kernels | packages | firmware | integrity | cves | vesktop | scrub | blocklist) (
     locked
     job "$1"
 ) ;;
@@ -704,7 +741,7 @@ loop)
     done
     ;;
 *)
-    echo 'usage: maint status | run | home | thumbs | trash | update | disks | kernels | packages | firmware | integrity | vesktop | scrub | blocklist | apt-snapshot' >&2
+    echo 'usage: maint status | run | home | thumbs | trash | update | disks | kernels | packages | firmware | integrity | cves | vesktop | scrub | blocklist | apt-snapshot' >&2
     exit 1
     ;;
 esac
