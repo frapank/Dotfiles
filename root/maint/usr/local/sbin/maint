@@ -446,6 +446,25 @@ update_now() {
         unotify -u critical "Update done!" "$total package(s) updated. Restart to use the new kernel."
     else
         unotify -u normal "Update done!" "$total package(s) updated."
+        stale
+    fi
+}
+
+# what still runs the old libraries (needrestart)
+stale() {
+    command -v needrestart >/dev/null || return 0
+    out=$(needrestart -b -r l 2>/dev/null) || return 0
+    svc=$(printf '%s\n' "$out" | sed -n 's/^NEEDRESTART-SVC: //p' | tr '\n' ' ')
+    svc=${svc% }
+    sess=$(printf '%s\n' "$out" | grep -c '^NEEDRESTART-SESS:')
+    [ -n "$svc" ] && log "update: still on the old libraries: $svc"
+    [ "$sess" = 0 ] || log "update: $sess session(s) still on the old libraries"
+    if [ -n "$svc" ]; then
+        # needrestart leaves out what would drop the network or the session
+        notify_do  "Restart needed" "Still on the old libraries: $svc$([ "$sess" = 0 ] || echo ", and apps of your session: log out and in again"). Restart them, or the PC." \
+            restart=Restart needrestart -r a -q
+    elif [ "$sess" != 0 ]; then
+        notify normal  "Restart needed" "Apps of your session still run the old libraries: log out and in again."
     fi
 }
 

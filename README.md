@@ -28,7 +28,7 @@ maint is the service that handles the maintenance of the system automatically. E
 - every week: old kernels and orphan packages (apt autoremove; the kernels a snapshot of / boots are kept), firmware and Vesktop, a .deb apt does not update (notification only), disk health, the integrity of the package files (debsums), the security fixes in Debian not installed yet (debsecan).
 - every month: btrfs scrub, only with the PC plugged in.
 
-The update starts only if you are logged in, with the battery above 20% and enough free disk. First it takes a snapshot of / that can be booted from GRUB, then it installs. Every phase sends a notification. apt takes the same snapshot when you run it by hand, before dpkg changes anything. A snapshot boots with a throwaway overlay in RAM (overlayroot).
+The update starts only if you are logged in, with the battery above 20% and enough free disk. First it takes a snapshot of / that can be booted from GRUB, then it installs. Every phase sends a notification, the last one lists the services still on the old libraries (needrestart) and restarts them. apt takes the same snapshot when you run it by hand, before dpkg changes anything. A snapshot boots with a throwaway overlay in RAM (overlayroot).
 For the snapshots there are snap, that shows and restores the versions of a file, and forget, that deletes it from all the snapshots.
 
 ## Sandbox

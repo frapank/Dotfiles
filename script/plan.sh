@@ -153,6 +153,7 @@ plan() {
 		Weekly: disk health with smartmontools (SMART, NVMe wear and media errors), notifies what got worse since last week. Errors as they happen come from the logs notifications.
 		Weekly: debsums checks the files of every package against what dpkg installed, and notifies the ones that changed since last week (conffiles are yours to change).
 		Weekly: debsecan asks Debian's security tracker which installed packages have a security fix not installed yet and notifies them (the updates are stuck). Its daily mail to root stays off.
+		After an update needrestart lists the services still running the old libraries, the notification restarts them. With apt by hand it only lists them.
 		Monthly: btrfs scrub, on AC power only.
 		'snap FILE' lists the versions of a file in the snapshots of /home, 'snap -r DATE FILE' copies one back, 'snap -d DATE' lists what changed in your home since then.
 		'forget FILE' deletes a file from all the snapshots of /home, 'traces -cs' does it for histories and recent files.

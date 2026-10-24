@@ -125,7 +125,7 @@ PKG_POWER=(power-profiles-daemon)
 PKG_LOGS=(pulseaudio-utils gawk less)
 PKG_DIRS=(xdg-user-dirs)
 PKG_SWAP=(systemd-zram-generator earlyoom)
-PKG_MAINT=(btrfs-progs util-linux python3 smartmontools curl debsums debsecan)
+PKG_MAINT=(btrfs-progs util-linux python3 smartmontools curl debsums debsecan needrestart)
 # the snapshots of / boot with a throwaway overlay in RAM
 PKG_SNAPBOOT=(overlayroot)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
