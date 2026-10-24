@@ -222,6 +222,7 @@ do_boot() {
     # loglevel=3: the kernel errors of drivers go to the journal, not over the login
     grub_words quiet splash loglevel=3 "$(vt_palette red)" "$(vt_palette grn)" "$(vt_palette blu)"
     login_defs
+    login_faillock
     luks_check
 
     if ((REGEN)); then
@@ -240,12 +241,13 @@ vt_palette() {
 }
 
 # one try per login: a wrong password ends login(1), agetty starts again and
-# g0wm-login draws the error. pam_faildelay still waits 3 seconds on it
+# g0wm-login draws the error. pam_faildelay still waits 3 seconds on it,
+# FAIL_DELAY 0 drops the "Login incorrect" of login(1) at once
 login_defs() {
     local f=/etc/login.defs
     [[ -f $f ]] || die "$f missing (login.defs)"
     put_text "$f" 0644 < <(awk '
-		BEGIN { v["LOGIN_RETRIES"] = 1; v["FAIL_DELAY"] = 1 }
+		BEGIN { v["LOGIN_RETRIES"] = 1; v["FAIL_DELAY"] = 0 }
 		match($0, /^#?[ \t]*[A-Z_]+[ \t]/) {
 			k = $0
 			sub(/^#?[ \t]*/, "", k)
@@ -258,6 +260,47 @@ login_defs() {
 		}
 		{ print }
 		END { for (k in v) if (!(k in done)) printf "%s\t\t%s\n", k, v[k] }' "$f")
+}
+
+# pam_faillock in common-auth (login, gtklock, doas, su): 5 wrong passwords in
+# 15 minutes lock the account for 10, root never. authsucc clears them in auth,
+# not in account, which cron runs too
+login_faillock() {
+    local f=/etc/security/faillock.conf p=/etc/pam.d/common-auth
+    [[ -f $f ]] || die "$f missing (libpam-modules)"
+    command -v faillock >/dev/null || die "faillock missing (libpam-modules)"
+    put_text "$f" 0644 < <(awk '
+		BEGIN { v["deny"] = 5; v["fail_interval"] = 900; v["unlock_time"] = 600 }
+		match($0, /^#?[ \t]*[a-z_]+[ \t]*=/) {
+			k = $0
+			sub(/^#?[ \t]*/, "", k)
+			sub(/[ \t]*=.*/, "", k)
+			if (k in v) {
+				if (!(k in done)) printf "%s = %s\n", k, v[k]
+				done[k] = 1
+				next
+			}
+		}
+		{ print }
+		END { for (k in v) if (!(k in done)) printf "%s = %s\n", k, v[k] }' "$f")
+    if faillock_on "$p"; then
+        skip "$p has pam_faillock"
+        return 0
+    fi
+    # backed up together: pam-auth-update compares them
+    backup "$p"
+    backup /var/lib/pam/auth
+    backup /var/lib/pam/seen
+    run "pam_faillock in $p" pam-auth-update --package \
+        --enable dotfiles-faillock-preauth dotfiles-faillock dotfiles-faillock-reset
+    # it leaves a common-auth edited by hand as it is
+    faillock_on "$p" || die "pam-auth-update did not put pam_faillock in $p (edited by hand?)"
+}
+
+faillock_on() {
+    grep -qE '^auth[[:space:]]+requisite[[:space:]]+pam_faillock\.so preauth' "$1" &&
+        grep -qE '^auth[[:space:]]+\[default=die\][[:space:]]+pam_faillock\.so authfail' "$1" &&
+        grep -qE '^auth[[:space:]]+optional[[:space:]]+pam_faillock\.so authsucc' "$1"
 }
 
 # console-setup: Terminus on every tty, larger on screens 1440 pixels tall or more

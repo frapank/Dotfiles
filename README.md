@@ -98,6 +98,7 @@ The logs are in the journal, on disk and capped: logs reads it. Nothing is writt
 - the processes of other users are invisible to the users of the daemons (hidepid in fstab). Your user is in the proc group, which the polkit agent needs, and sees them all, and so does librewolf, which has no PID namespace of its own; systemd-logind and polkitd are in it too.
 - nosuid removes setuid from su, pkexec, passwd etc., since doas is enough, and from pppd, which NetworkManager runs as root, and the file capabilities of cdrecord and the other cdrtools programs. dpkg-statoverride keeps it across updates.
 - doas instead of sudo, with the password every time (no persist). sudo is pinned away, polkit asks the password of the wheel group.
+- 5 wrong passwords in 15 minutes lock the account out for 10 minutes (pam_faillock): on the ttys, the lock screen, doas and su. The login screen says until when.
 - a new machine-id at every boot: /etc/machine-id is empty on disk and systemd puts a random one over it in RAM.
 - /boot and /boot/efi readable only by root and nosuid,nodev,noexec.
 - core dumps are dropped, only the one of g0wm is kept for debugging it.
