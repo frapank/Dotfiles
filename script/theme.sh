@@ -118,36 +118,40 @@ gset() {
     run "gsettings $1 $2" as_user dbus-run-session gsettings set "$schema" "$1" "$2"
 }
 
-legacy_icons() {
-    local tmp stage mark=$STATE/adwaita-legacy
-    if [[ -f $ICONS_DIR/index.theme && ! -L $ICONS_DIR && $(cat -- "$mark" 2>/dev/null) == "$ICONS_REV" ]] &&
-        [[ -z $(find "$ICONS_DIR" \( -type l -o ! -user root -o ! -group root -o \
-            -type f ! -perm 0644 -o -type d ! -perm 0755 \) -print -quit) ]]; then
-        skip "$ICONS_DIR ($ICONS_TAG)"
-        return 0
-    fi
-    tmp=$(mktemp -d)
-    git_at "$tmp/src" "$ICONS_URL" "$ICONS_REV"
-    [[ -f $tmp/src/index.theme && -d $tmp/src/AdwaitaLegacy/48x48 ]] || die "unexpected layout in $ICONS_URL"
-    stage=$(mktemp -d -p "${ICONS_DIR%/*}" .AdwaitaLegacy.XXXXXX)
-    cp -r -- "$tmp/src/AdwaitaLegacy/." "$stage/"
-    cp -- "$tmp/src/index.theme" "$stage/index.theme"
-    rm -rf -- "$tmp"
-    rm -rf -- "$stage/cursors"
-    chown -R root:root "$stage"
-    find "$stage" -type d -exec chmod 0755 {} +
-    find "$stage" -type f -exec chmod 0644 {} +
-    if [[ -d $ICONS_DIR ]] && diff -rq -x icon-theme.cache "$stage" "$ICONS_DIR" >/dev/null; then
-        rm -rf -- "$stage"
-        skip "$ICONS_DIR"
+# dpkg puts back the blue folders at every upgrade, the apt hook sets them again
+papirus_icons() {
+    local tmp places=${ICONS_DIR%/*}/Papirus/48x48/places keep=/var/lib/papirus-folders/keep
+    [[ -f $ICONS_DIR/index.theme && -f $places/folder-$ICONS_COLOR.svg ]] ||
+        die "Papirus-Dark or its $ICONS_COLOR folders missing (papirus-icon-theme)"
+    if [[ -f $FOLDERS_BIN && $(stat -c '%a %U %G' -- "$FOLDERS_BIN") == '755 root root' &&
+        $(cat -- "$STATE/papirus-folders" 2>/dev/null) == "$FOLDERS_REV" ]]; then
+        skip "$FOLDERS_BIN ($FOLDERS_TAG)"
     else
-        backup "$ICONS_DIR"
-        rm -rf -- "$ICONS_DIR"
-        mv -T -- "$stage" "$ICONS_DIR"
-        ok "$ICONS_DIR ($ICONS_TAG)"
-        try "icon cache" gtk-update-icon-cache -f -q "$ICONS_DIR"
+        tmp=$(mktemp -d)
+        git_at "$tmp/src" "$FOLDERS_URL" "$FOLDERS_REV"
+        [[ -f $tmp/src/papirus-folders ]] || die "unexpected layout in $FOLDERS_URL"
+        put "$tmp/src/papirus-folders" "$FOLDERS_BIN" 0755
+        rm -rf -- "$tmp"
+        put_text "$STATE/papirus-folders" 0644 <<<"$FOLDERS_REV"
     fi
-    put_text "$mark" 0644 <<<"$ICONS_REV"
+    put_text /etc/apt/apt.conf.d/80-papirus-folders 0644 <<-EOF
+		// the $ICONS_COLOR folders of Papirus again after dpkg
+		DPkg::Post-Invoke { "if [ -x $FOLDERS_BIN ]; then $FOLDERS_BIN -R >/dev/null || true; fi"; };
+	EOF
+    if [[ $(readlink -- "$places/folder.svg") == "folder-$ICONS_COLOR.svg" &&
+        $(cat -- "$keep" 2>/dev/null) == "theme=${ICONS_DIR##*/}"$'\n'"color=$ICONS_COLOR" ]]; then
+        skip "folders in $ICONS_COLOR"
+    else
+        run "folders in $ICONS_COLOR" "$FOLDERS_BIN" -t "$ICONS_DIR" -C "$ICONS_COLOR"
+    fi
+    [[ $(readlink -- "$places/folder.svg") == "folder-$ICONS_COLOR.svg" ]] ||
+        die "papirus-folders did not set $ICONS_COLOR"
+    if [[ -e $OLD_ICONS_DIR || -L $OLD_ICONS_DIR ]]; then
+        backup "$OLD_ICONS_DIR"
+        rm -rf -- "$OLD_ICONS_DIR"
+        rm -f -- "$STATE/adwaita-legacy"
+        ok "removed $OLD_ICONS_DIR"
+    fi
 }
 
 cursor_theme() {
@@ -189,7 +193,7 @@ cursor_theme() {
 
 do_theme() {
     step "GTK theme"
-    legacy_icons
+    papirus_icons
     cursor_theme
     do_home "${HOME_THEME[@]}"
     [[ -d /usr/share/themes/Adwaita-dark/gtk-2.0 ]] ||
@@ -204,7 +208,7 @@ do_theme() {
         die "gsettings cannot read org.gnome.desktop.interface"
     gset color-scheme "'prefer-dark'"
     gset gtk-theme "'G0wm'"
-    gset icon-theme "'Adwaita'"
+    gset icon-theme "'${ICONS_DIR##*/}'"
     gset cursor-theme "'Bibata-Modern-Classic'"
     gset cursor-size "$CURSOR_SIZE"
     gset font-name "'Geist 11'"

@@ -202,7 +202,7 @@ plan() {
     section theme "Theme: Adwaita dark" <<-EOF
 		GTK 2, 3, 4 and Qt 5, 6 in Adwaita dark, Geist 11 as UI font, Geist Mono 11 for code.
 		Bibata-Modern-Classic cursor (sha256 checked) in the palette, size $CURSOR_SIZE.
-		AdwaitaLegacy $ICONS_TAG for full color icons in pavucontrol and Thunar.
+		Papirus-Dark icons with $ICONS_COLOR folders (papirus-folders $FOLDERS_TAG), set again after every apt run (DPkg::Post-Invoke). Removes AdwaitaLegacy.
 	EOF
     section fonts "Fonts: Geist and Geist Mono" <<-EOF
 		Geist for text, Geist Mono for terminal, code and g0wm, from the v1.7.2 release (sha256 checked). Nerd symbols (v3.4.0 release, sha256 checked: Debian has no package), emoji and CJK as fallback.

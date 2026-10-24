@@ -21,10 +21,14 @@ readonly GEIST_URL=https://github.com/vercel/geist-font/releases/download/v1.7.2
 readonly GEIST_SHA256=7fc800d2ac6b92844895196e5041aca55d814c15db70c44f79b3b83ab82b04e2
 readonly NERD_URL=https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/NerdFontsSymbolsOnly.tar.xz
 readonly NERD_SHA256=7f8c090da3b0eaa7108646bf34cbbb6ed13d5358a72460522108b06c7ecd716a
-readonly ICONS_URL=https://gitlab.gnome.org/GNOME/adwaita-icon-theme-legacy.git
-readonly ICONS_TAG=46.2
-readonly ICONS_REV=7642b102c4a7c4088f170f548ae37960f2443522
-readonly ICONS_DIR=/usr/share/icons/AdwaitaLegacy
+# Papirus-Dark from Debian, the folders recolored by papirus-folders
+readonly ICONS_DIR=/usr/share/icons/Papirus-Dark
+readonly ICONS_COLOR=paleorange
+readonly FOLDERS_URL=https://github.com/PapirusDevelopmentTeam/papirus-folders.git
+readonly FOLDERS_TAG=v1.14.0
+readonly FOLDERS_REV=0f838ee5679229e3a3e97e3b333c222c9e9615b4
+readonly FOLDERS_BIN=/usr/local/libexec/papirus-folders
+readonly OLD_ICONS_DIR=/usr/share/icons/AdwaitaLegacy
 readonly CURSOR_URL=https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata-Modern-Classic.tar.xz
 readonly CURSOR_SHA256=7d3495864e5bbef02f5e77de760b2905903b63c71495a78ef6306d19a3b556d8
 readonly CURSOR_DIR=/usr/share/icons/Bibata-Modern-Classic
@@ -118,7 +122,7 @@ PKG_APPS=(
 )
 PKG_SESSION=(gnome-keyring libsecret-1-0 libpam-gnome-keyring mate-polkit network-manager-gnome
     bluez blueman libspa-0.2-bluetooth)
-PKG_THEME=(gnome-themes-extra adwaita-icon-theme gsettings-desktop-schemas dconf-gsettings-backend
+PKG_THEME=(gnome-themes-extra adwaita-icon-theme papirus-icon-theme gsettings-desktop-schemas dconf-gsettings-backend
     libglib2.0-bin qt-style-kvantum qt6ct git libgtk-3-bin gtk-update-icon-cache librsvg2-bin curl tar xz-utils python3)
 PKG_FONTS=(fontconfig curl unzip xz-utils fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk)
 PKG_LOCALE=(locales)
