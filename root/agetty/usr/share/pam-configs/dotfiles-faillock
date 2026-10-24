@@ -1,0 +1,6 @@
+Name: pam_faillock: every wrong password is counted (dotfiles)
+Default: yes
+Priority: 0
+Auth-Type: Primary
+Auth:
+	[default=die]			pam_faillock.so authfail

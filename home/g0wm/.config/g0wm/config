@@ -70,6 +70,7 @@ layout "| |" tabbed
 autostart dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
 autostart gnome-keyring-daemon --start --components=secrets
 autostart services session
+autostart logins --notify
 
 # key: modifiers+key, action, argument
 key logo+q spawn foot

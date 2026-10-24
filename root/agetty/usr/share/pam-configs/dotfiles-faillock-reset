@@ -1,0 +1,6 @@
+Name: pam_faillock: a right password clears the count (dotfiles)
+Default: yes
+Priority: 0
+Auth-Type: Additional
+Auth:
+	optional			pam_faillock.so authsucc
