@@ -58,7 +58,8 @@ APT=(env DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l 
 
 PKG_CORE=(git build-essential ca-certificates)
 PKG_CLI=(bash bash-completion vim-nox neovim tmux universal-ctags fzf fd-find ripgrep bat
-    xxd less binutils gdb ncurses-term wl-clipboard)
+    xxd less binutils gdb ncurses-term wl-clipboard tree
+    zoxide)
 # taplo, zls, bash-language-server and yaml-language-server are not in Debian
 PKG_LSP=(clangd rust-analyzer)
 PKG_HARDEN=(nftables openssh-client)
