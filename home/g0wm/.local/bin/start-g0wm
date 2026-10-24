@@ -95,7 +95,13 @@ run_session() {
 
     # shellcheck disable=SC2086
     if command -v g0wm-status.sh >/dev/null 2>&1; then
-        status_loop 9>&- | $session_launcher $journal g0wm 9>&- >>"$log_out" 2>&1
+        # g0wm-status.sh writes once a minute: end it as soon as g0wm exits
+        status_loop 9>&- | {
+            rc=0
+            $session_launcher $journal g0wm 9>&- >>"$log_out" 2>&1 || rc=$?
+            pkill -PIPE -u "$(id -u)" -x g0wm-status.sh 2>/dev/null || true
+            exit "$rc"
+        }
     else
         echo "start-g0wm: g0wm-status.sh not found, starting without bar status text" >&2
         $session_launcher $journal g0wm 9>&- >>"$log_out" 2>&1
