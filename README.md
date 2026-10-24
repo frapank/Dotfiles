@@ -89,7 +89,7 @@ The kernel arguments go in /etc/default/grub.d, /etc/default/grub stays the one 
 
 ## systemd
 
-The services of the dotfiles are systemd units: maint, watchdog, usbguard-notify, journal-prune. Those of the session are user units bound to g0wm-session.target, with the PipeWire and ssh-agent units of Debian, and 'services' starts and stops them. On top of the units of Debian, drop-ins add the sandbox of systemd to NetworkManager, dnscrypt-proxy and bluetoothd.
+The services of the dotfiles are systemd units: maint, watchdog, usbguard-notify, journal-prune. Those of the session are user units bound to g0wm-session.target, with the PipeWire and ssh-agent units of Debian, and 'services' starts and stops them. On top of the units of Debian, drop-ins add the sandbox of systemd to NetworkManager, dnscrypt-proxy, bluetoothd and wpa_supplicant.
 
 The logs are in the journal, on disk and capped: logs reads it. Nothing is written on the terminals (ForwardToWall).
 
