@@ -283,7 +283,7 @@ do_doas() {
 
 verify() {
     step "Final check"
-    local bad=0 c
+    local bad=0 c cat
     if ((SEL[cli])); then
         for c in vim nvim tmux fzf rg fd bat; do
             command -v "$c" >/dev/null || {
@@ -502,8 +502,27 @@ verify() {
             warn "g0wm-login does not draw: tty1 has no login, use tty2"
             bad=1
         }
+        TERM=linux sh /usr/local/libexec/g0wm-login --starting </dev/null >/dev/null 2>&1 || {
+            warn "g0wm-login --starting does not draw: a blank screen until g0wm"
+            bad=1
+        }
+        for cat in awake grumpy; do
+            [[ -f /etc/g0wm-login/$cat ]] && TERM=linux G0WM_LOGIN_CAT=$cat \
+                sh /usr/local/libexec/g0wm-login --preview </dev/null >/dev/null 2>&1 || {
+                warn "g0wm-login does not draw the $cat cat"
+                bad=1
+            }
+        done
         grep -qE '^LOGIN_RETRIES[[:space:]]+1$' /etc/login.defs || {
             warn "login.defs: LOGIN_RETRIES is not 1, a wrong password breaks the tty1 screen"
+            bad=1
+        }
+        faillock_on /etc/pam.d/common-auth || {
+            warn "common-auth has no pam_faillock: no lock out, no \"Login incorrect\" on tty1"
+            bad=1
+        }
+        grep -qE '^deny = 5$' /etc/security/faillock.conf || {
+            warn "faillock.conf: deny is not 5"
             bad=1
         }
     fi

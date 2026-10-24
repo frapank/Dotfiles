@@ -1,39 +1,186 @@
 #!/bin/sh
 
+# run as root by agetty on tty1: /etc/issue in a frame, the name, then login(1)
+
 ISSUE=/etc/issue
+# the awake and grumpy cats, in place of the first block of /etc/issue
+CATS=/etc/g0wm-login
 STATE=/run/g0wm-login
-BTMP=/var/log/btmp
-# sizeof(struct utmp), and ut_line in it, on glibc
-UTMP_SIZE=384
-UTMP_LINE=8
+FAILLOCK=/etc/security/faillock.conf
 
+# root: no PATH from agetty
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+umask 077
 ESC=$(printf '\033')
-export ESC
+export PATH ESC
 
-# a failed login on this tty since the last draw: login(1) writes it to btmp
-failed_here() {
-    size=$(stat -c %s -- "$BTMP" 2>/dev/null) || return 1
-    old=$(cat -- "$STATE/btmp" 2>/dev/null) || old=$size
-    case $old in '' | *[!0-9]*) old=$size ;; esac
-    # rotated
-    [ "$old" -le "$size" ] || old=0
-    (printf '%s\n' "$size" >"$STATE/btmp") 2>/dev/null
-    off=$((old - old % UTMP_SIZE))
-    found=1
-    while [ $((off + UTMP_SIZE)) -le "$size" ]; do
-        line=$(dd if="$BTMP" bs=1 skip=$((off + UTMP_LINE)) count=32 2>/dev/null | tr -d '\000')
-        [ "$line" = "$TTYNAME" ] && found=0
-        off=$((off + UTMP_SIZE))
+# what useradd takes: never an option for login
+valid_name() {
+    case $1 in '' | -* | *[!A-Za-z0-9._-]*) return 1 ;; esac
+    [ ${#1} -le 32 ]
+}
+
+# the pam_faillock records of $1 (uid $3), counted as pam_faillock does:
+# "locked UNTIL" (0: until faillock --reset), or "failed" if one came from
+# this tty since $2. UTC on both sides, faillock prints the local time
+tally() {
+    TZ=UTC0 faillock --user "$1" 2>/dev/null |
+        TZ=UTC0 LC_ALL=C awk -v conf="$FAILLOCK" -v uid="$3" -v since="$2" \
+            -v now="$(date +%s)" -v tty="$TTYNAME" '
+	BEGIN {
+		o["deny"] = 3
+		o["fail_interval"] = 900
+		o["unlock_time"] = 600
+		while ((getline l < conf) > 0) {
+			sub(/#.*/, "", l)
+			gsub(/[ \t]/, "", l)
+			if (l == "")
+				continue
+			if (i = index(l, "="))
+				o[substr(l, 1, i - 1)] = substr(l, i + 1)
+			else
+				o[l] = 1
+		}
+		if (!("root_unlock_time" in o))
+			o["root_unlock_time"] = o["unlock_time"]
+		# numbers, or awk compares them as strings
+		deny = o["deny"] + 0
+		interval = o["fail_interval"] + 0
+		unlock = o[uid == 0 ? "root_unlock_time" : "unlock_time"]
+		unlock = unlock == "never" ? 0 : unlock + 0
+	}
+	$1 ~ /^[0-9]+-[0-9]+-[0-9]+$/ && $2 ~ /^[0-9]+:[0-9]+:[0-9]+$/ {
+		split($1 " " $2, d, /[-: ]/)
+		t = mktime(d[1] " " d[2] " " d[3] " " d[4] " " d[5] " " d[6])
+		if (t >= since && $3 == "TTY" && ($4 == tty || $4 == "/dev/" tty))
+			failed = 1
+		if ($NF == "V") {
+			valid[++n] = t
+			if (t > latest)
+				latest = t
+		}
+	}
+	END {
+		if (uid == 0 && !("even_deny_root" in o))
+			n = 0
+		for (i = 1; i <= n; i++)
+			if (latest - valid[i] < interval)
+				f++
+		if (deny > 0 && f >= deny && (unlock == 0 || latest + unlock >= now))
+			print "locked", unlock == 0 ? 0 : latest + unlock
+		else if (failed)
+			print "failed"
+	}'
+}
+
+# the exit status start-g0wm logged for uid $1 since $2
+g0wm_status() {
+    line=$(journalctl -q -b --no-pager -o cat -n 1 _UID="$1" SYSLOG_IDENTIFIER=start-g0wm \
+        --since "@$2" 2>/dev/null) || return 1
+    st=${line#'g0wm exited with status '}
+    [ "$st" != "$line" ] || return 1
+    case $st in '' | *[!0-9]*) return 1 ;; esac
+    [ "$st" -le 255 ] && printf '%s\n' "$st"
+}
+
+grumpy() {
+    CAT=grumpy MSG=$1 MSGC=31
+}
+
+# how the last login here ended: locked, wrong password, g0wm crashed. An
+# unknown name reads as a wrong password
+outcome() {
+    read -r name since 2>/dev/null <"$STATE/last" || return 0
+    rm -f -- "$STATE/last"
+    case $since in '' | *[!0-9]*) return 0 ;; esac
+    if [ "$name" = '!' ] || ! valid_name "$name" || ! uid=$(id -u -- "$name" 2>/dev/null); then
+        grumpy 'Login incorrect'
+        return 0
+    fi
+    # shellcheck disable=SC2046
+    set -- $(tally "$name" "$since" "$uid")
+    case ${1:-} in
+    locked)
+        if [ "${2:-0}" = 0 ]; then
+            grumpy 'Too many tries: locked'
+        else
+            grumpy "Too many tries: locked until $(date -d "@$2" +%H:%M)"
+        fi
+        return 0
+        ;;
+    failed)
+        grumpy 'Login incorrect'
+        return 0
+        ;;
+    esac
+    st=$(g0wm_status "$uid" "$since") || return 0
+    case $st in
+    # HUP, INT, TERM: the session was ended, not g0wm
+    129 | 130 | 143) ;;
+    1[3-9][0-9] | 2[0-5][0-9])
+        grumpy "g0wm crashed: $(kill -l $((st - 128)) 2>/dev/null || echo "$st") · logs session"
+        ;;
+    *) grumpy "g0wm exited with $st · logs session" ;;
+    esac
+}
+
+remember() {
+    (printf '%s %s\n' "$1" "$2" >"$STATE/last") 2>/dev/null
+}
+
+# the battery label of the frame, fixed width, red under 15%
+battery() {
+    for b in /sys/class/power_supply/BAT*; do
+        if ! { read -r cap <"$b/capacity" && read -r st <"$b/status"; } 2>/dev/null; then
+            continue
+        fi
+        case $cap in '' | *[!0-9]*) continue ;; esac
+        c=37
+        case $st in
+        Charging) st=charging ;;
+        Full) st=full ;;
+        Discharging)
+            st=battery
+            [ "$cap" -gt 15 ] || c=31
+            ;;
+        *) st=plugged ;;
+        esac
+        printf '%s[%sm%-8s %3d%%' "$ESC" "$c" "$st" "$cap"
+        return 0
     done
-    return "$found"
+    return 1
+}
+
+# the kernel keeps the LEDs in sync with the tty
+caps_on() {
+    for f in /sys/class/leds/*::capslock/brightness; do
+        read -r v 2>/dev/null <"$f" && [ "$v" != 0 ] && return 0
+    done
+    return 1
+}
+
+size() {
+    ROWS=24 COLS=80
+    # shellcheck disable=SC2046
+    set -- $(stty size 2>/dev/null) && [ $# -eq 2 ] && ROWS=$1 COLS=$2
+}
+
+now() {
+    DAY=$(date '+%a %b %d %Y') NOW=$(date +%H:%M)
+    BAT=$(battery) || BAT=
 }
 
 # the escapes of agetty in /etc/issue, then the block in the middle of a
-# ROWS x COLS screen, the prompt of the user name last
+# ROWS x COLS screen in a frame when it fits, the prompt of the user name last.
+# The places of the clock, the battery and the message go in $POS
 draw() {
-    LC_ALL=C awk '
+    art=
+    # shellcheck disable=SC2031
+    [ "$CAT" = sleep ] || [ ! -r "$CATS/$CAT" ] || art=$CATS/$CAT
+    LC_ALL=C awk -v art="$art" '
 	BEGIN {
 		e = ENVIRON["ESC"]
+		pos = ENVIRON["POS"]
 		# the names of agetty (lib/color-names.c), lightgray too: util-linux
 		# misspells it there
 		split("black:30 red:31 green:32 brown:33 blue:34 magenta:35 cyan:36 gray:37 " \
@@ -51,12 +198,23 @@ draw() {
 			gsub(/^["\047]|["\047]$/, "", v)
 			osr[k] = v
 		}
+		if (art != "")
+			while ((getline l < art) > 0)
+				cat[++ncat] = expand(l)
 	}
 	function visible(s) {
-		gsub(e "\\[[0-9;]*m", "", s)
+		gsub(e "\\[[0-9;]*m|\001", "", s)
 		# UTF-8: the continuation bytes take no column
 		gsub(/[\200-\277]/, "", s)
 		return length(s)
+	}
+	function colors(s,    r) {
+		r = ""
+		while (match(s, e "\\[[0-9;]*m")) {
+			r = r substr(s, RSTART, RLENGTH)
+			s = substr(s, RSTART + RLENGTH)
+		}
+		return r
 	}
 	function braced(    j, name) {
 		if (substr(s, 1, 1) != "{" || !(j = index(s, "}")))
@@ -65,9 +223,9 @@ draw() {
 		s = substr(s, j + 1)
 		return name
 	}
-	{
+	function expand(l,    out, i, c, name) {
 		out = ""
-		s = $0
+		s = l
 		while ((i = index(s, "\\")) > 0) {
 			out = out substr(s, 1, i - 1)
 			c = substr(s, i + 1, 1)
@@ -82,15 +240,17 @@ draw() {
 				out = out ENVIRON["REL"]
 			else if (c == "d")
 				out = out ENVIRON["DAY"]
+			# \001 marks the clock for tick
 			else if (c == "t")
-				out = out ENVIRON["NOW"]
+				out = out "\001" ENVIRON["NOW"]
 			else if (c == "l")
 				out = out ENVIRON["TTYNAME"]
 			else if (c == "\\")
 				out = out "\\"
 		}
-		line[++n] = out s
+		return out s
 	}
+	{ line[++n] = expand($0) }
 	END {
 		# blank lines around the block go, their colors stay for the input
 		first = 1
@@ -100,81 +260,292 @@ draw() {
 		tail = ""
 		while (last >= first && visible(line[last]) == 0)
 			tail = line[last--] tail
-		w = length("login: ") + 16
+		# the awake or grumpy cat in place of the first block
+		if (ncat) {
+			for (j = first; j <= last && visible(line[j]); j++)
+				;
+			m = 0
+			for (i = 1; i <= ncat; i++)
+				b[++m] = cat[i]
+			for (i = j; i <= last; i++)
+				b[++m] = line[i]
+			for (i = 1; i <= m; i++)
+				line[first + i - 1] = b[i]
+			last = first + m - 1
+		}
+		# the prompts line up with the text above them
+		pad = line[last]
+		gsub(e "\\[[0-9;]*m|\001", "", pad)
+		match(pad, /^ */)
+		indent = RLENGTH
+		w = indent + length("login: ") + 32
 		for (i = first; i <= last; i++)
 			if (visible(line[i]) > w)
 				w = visible(line[i])
 		rows = ENVIRON["ROWS"] + 0
 		cols = ENVIRON["COLS"] + 0
-		h = last - first + 1 + 5
-		top = rows > h ? int((rows - h) / 2) + 1 : 1
-		left = cols > w ? int((cols - w) / 2) + 1 : 1
+		h = last - first + 1 + 4
+		# the frame: 1 row and indent + 1 columns around the block
+		fw = w + indent + 4
+		fh = h + 4
+		frame = cols >= fw && rows >= fh
+		if (frame) {
+			top = int((rows - fh) / 2) + 3
+			left = int((cols - fw) / 2) + 3
+		} else {
+			top = rows > h ? int((rows - h) / 2) + 1 : 1
+			left = cols > w ? int((cols - w) / 2) + 1 : 1
+		}
 
-		printf "%s[0m%s[H%s[2J%s[3J", e, e, e, e
+		# the cursor too, ~/.bash_profile hides it
+		printf "%s[0m%s[?25h%s[H%s[2J%s[3J", e, e, e, e, e
+		if (frame) {
+			bar = ""
+			for (i = 0; i < fw - 2; i++)
+				bar = bar "─"
+			printf "%s[1;30m%s[%d;%dH╭%s╮", e, e, top - 2, left - 2, bar
+			for (r = top - 1; r <= top + h; r++)
+				printf "%s[%d;%dH│%s[%d;%dH│", e, r, left - 2, e, r, left + fw - 3
+			bat = ENVIRON["BAT"]
+			if (bat != "" && (nb = fw - visible(bat) - 6) > 0) {
+				bot = ""
+				for (i = 0; i < nb; i++)
+					bot = bot "─"
+				printf "%s[%d;%dH╰%s %s%s[1;30m ──╯%s[0m", e, top + h + 1, left - 2, bot, bat, e, e
+				if (pos != "")
+					printf "bat %d %d\n", top + h + 1, left + nb > pos
+			} else
+				printf "%s[%d;%dH╰%s╯%s[0m", e, top + h + 1, left - 2, bar, e
+		}
 		r = top
-		for (i = first; i <= last; i++)
+		for (i = first; i <= last; i++) {
+			if ((j = index(line[i], "\001")) && pos != "") {
+				c = substr(line[i], 1, j - 1)
+				printf "clock %d %d %s\n", r, left + visible(c), colors(c) > pos
+			}
+			gsub(/\001/, "", line[i])
 			printf "%s[%d;%dH%s%s[0m", e, r++, left, line[i], e
-		# the prompts line up with the text above them
-		pad = line[last]
-		gsub(e "\\[[0-9;]*m", "", pad)
-		match(pad, /^ */)
-		left += RLENGTH
-		if (ENVIRON["FAILED"] != "")
-			printf "%s[%d;%dH%s[31mLogin incorrect%s[0m", e, r + 4, left, e, e
+			# the first draw of the boot: a line at a time
+			if (ENVIRON["CASCADE"] != "") {
+				fflush()
+				system("sleep 0.03")
+			}
+		}
+		left += indent
+		if (pos != "")
+			printf "msg %d %d\n", r + 3, left > pos
+		if (ENVIRON["MSG"] != "")
+			printf "%s[%d;%dH%s[%sm%s%s[0m", e, r + 3, left, e, ENVIRON["MSGC"], ENVIRON["MSG"], e
+		# --starting: no prompt, no cursor
+		if (ENVIRON["MODE"] == "starting") {
+			printf "%s[%d;%dH%s[33mwaking up g0wm…%s[0m%s[?25l", e, r + 1, left, e, e, e
+			exit
+		}
 		# the prompt: saved, the password goes under it
-		printf "%s[%d;%dH%s7%s[37mlogin: %s[0m%s", e, r + 1, left, e, e, e, tail
+		printf "%s[%d;%dH%s7%s[33mlogin: %s[0m%s%s", e, r + 1, left, e, e, e, tail, ENVIRON["NAME"]
 	}' "$ISSUE"
+}
+
+# the places written by draw
+load_pos() {
+    crow='' ccol='' csgr='' brow='' bcol='' mrow='' mcol=''
+    [ -n "$POS" ] || return 0
+    while read -r what row col sgr; do
+        case $row$col in '' | *[!0-9]*) continue ;; esac
+        case $what in
+        clock) crow=$row ccol=$col csgr=$sgr ;;
+        bat) brow=$row bcol=$col ;;
+        msg) mrow=$row mcol=$col ;;
+        esac
+    done 2>/dev/null <"$POS"
+}
+
+# the clock and the battery, for one write
+stamp() {
+    [ -z "$crow" ] || printf '%s[%d;%dH%s%s' "$ESC" "$crow" "$ccol" "$csgr" "$(date +%H:%M)"
+    [ -z "$brow" ] || printf '%s[%d;%dH%s' "$ESC" "$brow" "$bcol" "$(battery)"
+}
+
+# the clock and the battery every minute, in one write: the echo of a key
+# never lands inside it
+tick() {
+    [ -n "$crow$brow" ] || return 0
+    (
+        while :; do
+            s=$(date +%S)
+            # not on the tty: it would hold it after login
+            # shellcheck disable=SC2217
+            sleep $((60 - ${s#0})) </dev/null >/dev/null 2>&1
+            printf '%s7%s%s8' "$ESC" "$(stamp)" "$ESC"
+        done
+    ) &
+    TICK=$!
+}
+
+# reaped too: login(1) takes over this pid, its wait(NULL) would catch the
+# child and end the session at once
+untick() {
+    [ -z "$TICK" ] || {
+        kill "$TICK" 2>/dev/null
+        wait "$TICK" 2>/dev/null
+    }
+    TICK=
+}
+
+redraw() {
+    now
+    [ -z "$POS" ] || rm -f -- "$POS"
+    draw || return 1
+    load_pos
+    tick
+}
+
+# Caps Lock and the clock while login(1) $1 reads the password. No child of
+# login (its wait(NULL)); the tty opens again at each write, login hangs it up
+watch_password() {
+    pid=$1 caps=$2 tty=/dev/$TTYNAME min=$NOW seen='' i=0
+    while [ "$i" -lt 400 ]; do
+        i=$((i + 1))
+        sleep 0.2
+        read -r st 2>/dev/null </proc/"$pid"/stat || return 0
+        comm=${st#*\(}
+        comm=${comm%\)*}
+        # shellcheck disable=SC2086
+        set -- ${st##*\) }
+        # still this script before exec
+        [ "$comm" = login ] || continue
+        # login between vhangup and its new tty
+        [ "${6:-}" != -1 ] || continue
+        # the session has the tty now
+        [ "$6" = "$pid" ] || return 0
+        lflag=$(stty -g <"$tty" 2>/dev/null) || continue
+        lflag=${lflag#*:*:*:}
+        lflag=${lflag%%:*}
+        case $lflag in '' | *[!0-9a-f]*) continue ;; esac
+        # ECHO
+        if [ $((0x$lflag & 8)) = 0 ]; then
+            seen=1
+        elif [ -n "$seen" ]; then
+            return 0
+        else
+            continue
+        fi
+        out=
+        c=
+        caps_on && c=1
+        if [ "$c" != "$caps" ] && [ -n "$mrow" ]; then
+            caps=$c
+            if [ -n "$c" ]; then
+                out=$(printf '%s[%d;%dH%s[33mCaps Lock is on' "$ESC" "$mrow" "$mcol" "$ESC")
+            else
+                out=$(printf '%s[%d;%dH%15s' "$ESC" "$mrow" "$mcol" '')
+            fi
+        fi
+        if [ $((i % 5)) = 0 ] && t=$(date +%H:%M) && [ "$t" != "$min" ]; then
+            min=$t
+            out=$out$(stamp)
+        fi
+        [ -z "$out" ] || printf '%s7%s%s8' "$ESC" "$out" "$ESC" >"$tty"
+    done
 }
 
 main() {
     TTYNAME=$(tty 2>/dev/null) || TTYNAME=
     TTYNAME=${TTYNAME#/dev/}
-    ROWS=24 COLS=80
-    # shellcheck disable=SC2046
-    set -- $(stty size 2>/dev/null) && [ $# -eq 2 ] && ROWS=$1 COLS=$2
-    REL=$(uname -r) DAY=$(date '+%a %b %d %Y') NOW=$(date +%T)
-    FAILED=
-    if [ "$PREVIEW" ]; then
-        FAILED=${G0WM_LOGIN_FAILED:-}
-    else
-        mkdir -p -m 0700 -- "$STATE" 2>/dev/null
-        if [ -e "$STATE/bad-name" ]; then
-            FAILED=1
-            rm -f -- "$STATE/bad-name"
-        fi
-        failed_here && FAILED=1
+    size
+    now
+    REL=$(uname -r)
+    CAT=sleep MSG='' MSGC='' NAME='' POS='' MODE='' TICK='' CASCADE='' RESIZED=''
+    export TTYNAME ROWS COLS REL DAY NOW BAT MSG MSGC NAME POS MODE CASCADE
+    if [ "$STARTING" ]; then
+        CAT=awake MODE=starting
+        draw
+        exit
     fi
-    export TTYNAME ROWS COLS REL DAY NOW FAILED
-    draw || return 1
-    [ -z "$PREVIEW" ] || {
+    if [ "$PREVIEW" ]; then
+        CAT=${G0WM_LOGIN_CAT:-sleep}
+        [ -z "${G0WM_LOGIN_FAILED:-}" ] || grumpy 'Login incorrect'
+        draw || return 1
         printf '\n'
         exit 0
-    }
+    fi
 
-    # EOF (Ctrl+D) or Ctrl+C: agetty starts again
-    IFS= read -r name || exit 0
-    case $name in
-    '') exit 0 ;;
-    # what useradd takes: never an option for login
-    -* | *[!A-Za-z0-9._-]*)
-        (: >"$STATE/bad-name") 2>/dev/null
+    mkdir -m 0700 -- "$STATE" 2>/dev/null
+    # without it the screen still draws, nothing ticks
+    [ ! -d "$STATE" ] || POS=$STATE/pos
+    # the first draw since boot: Num Lock on
+    if [ ! -e "$STATE/booted" ]; then
+        (: >"$STATE/booted") 2>/dev/null
+        CASCADE=1
+        setleds -D +num 2>/dev/null
+    fi
+    outcome
+    redraw || return 1
+    CASCADE=''
+    trap untick EXIT
+    # a new size or Enter alone: redraw here, agetty starting again for each
+    # would hit the start limit of systemd
+    trap 'RESIZED=1' WINCH
+    while :; do
+        if [ -z "$RESIZED" ]; then
+            if IFS= read -r name; then
+                [ -z "$name" ] || break
+            # EOF (Ctrl+D) or Ctrl+C: agetty starts again
+            elif [ -z "$RESIZED" ]; then
+                exit 0
+            fi
+        fi
+        RESIZED=''
+        untick
+        size
+        redraw || return 1
+    done
+    # the default, not ignored: login and the session inherit it
+    trap - WINCH
+    untick
+    since=$(date +%s)
+    valid_name "$name" || {
+        remember '!' "$since"
         exit 0
+    }
+    remember "$name" "$since"
+    # locked out: no password, the next draw says until when
+    if uid=$(id -u -- "$name" 2>/dev/null); then
+        case $(tally "$name" "$since" "$uid") in locked*) exit 0 ;; esac
+    fi
+
+    # the cat wakes up for the password
+    CAT=awake NAME=$name MSG='' MSGC=''
+    caps=
+    caps_on && caps=1 MSG='Caps Lock is on' MSGC=33
+    now
+    rm -f -- "$POS"
+    draw || exit 0
+    load_pos
+    case $TTYNAME in
+    tty[1-9] | tty[1-9][0-9])
+        (
+            trap '' HUP
+            watch_password "$$" "$caps" </dev/null >/dev/null 2>&1 &
+        )
         ;;
     esac
-    [ ${#name} -le 32 ] || {
-        (: >"$STATE/bad-name") 2>/dev/null
-        exit 0
-    }
     # under the prompt of the user name, where login asks the password
-    printf '%s[0m%s8%s[B%s[37m' "$ESC" "$ESC" "$ESC" "$ESC"
+    printf '%s[0m%s8%s[B%s[33m' "$ESC" "$ESC" "$ESC" "$ESC"
     exec /usr/bin/login -- "$name"
 }
 
+PREVIEW='' STARTING=''
+# from ~/.bash_profile, as the user, until g0wm draws
+if [ "${1:-}" = --starting ]; then
+    STARTING=1
+    main
+    exit 1
+fi
 if [ "${1:-}" = --preview ]; then
     PREVIEW=1
     main
     exit 1
 fi
-PREVIEW=
 main
 exec /usr/bin/login
