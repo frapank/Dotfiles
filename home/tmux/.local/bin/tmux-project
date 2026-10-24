@@ -1,0 +1,50 @@
+#!/bin/sh
+set -u
+
+usage() {
+    cat <<EOF
+Usage: tmux-project [FOLDER]
+Pick a folder with fzf, the open sessions first and then the ones zoxide
+knows, most used first, and switch to its tmux session: made there if missing.
+With FOLDER, skip the picker. Prefix f in tmux opens it in a popup.
+EOF
+}
+
+case ${1:-} in -h | --help | help)
+    usage
+    exit 0
+    ;;
+esac
+
+if [ $# -gt 0 ]; then
+    dir=$1
+else
+    command -v fzf >/dev/null || {
+        echo "tmux-project: fzf is not installed" >&2
+        exit 1
+    }
+    dir=$(
+        {
+            tmux list-sessions -F '#{session_path}' 2>/dev/null
+            command -v zoxide >/dev/null && zoxide query -l
+        } | awk '!seen[$0]++' | sed "s|^$HOME|~|" |
+            fzf --prompt 'project> ' --reverse --no-sort \
+                --preview 'ls -A --color=always "$(echo {} | sed "s|^~|$HOME|")"'
+    ) || exit 0
+    dir=$(printf '%s\n' "$dir" | sed "s|^~|$HOME|")
+fi
+[ -d "$dir" ] || {
+    echo "tmux-project: '$dir' is not a folder" >&2
+    exit 1
+}
+dir=$(cd -- "$dir" && pwd)
+
+# tmux takes . and : in a name as window and pane
+name=$(basename -- "$dir" | tr '.:' '__')
+[ "$dir" = / ] && name=root
+
+tmux has-session -t "=$name" 2>/dev/null || tmux new-session -d -s "$name" -c "$dir" || exit 1
+if [ -n "${TMUX:-}" ]; then
+    exec tmux switch-client -t "=$name"
+fi
+exec tmux attach-session -t "=$name"
