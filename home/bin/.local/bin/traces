@@ -12,8 +12,8 @@ histories, thumbnails, trash and clipboard. With -c, delete them.
 WHAT:
   recent      recently used files, positions in documents, videos watched,
               LibreOffice recent documents
-  history     shell, vim, neovim, less, python, node, sqlite, w3m, and the
-              sites wget remembers (HSTS)
+  history     shell, vim, neovim, less, python, node, sqlite, w3m, the
+              folders zoxide knows and the sites wget remembers (HSTS)
   thumbnails  previews of images and documents
   trash       everything in the trash
   clipboard   the clipboard and the primary selection
@@ -38,7 +38,7 @@ paths() {
         .local/state/showtime/playback_history.json ;;
     history) set -- .bash_history .lesshst .local/state/lesshst .viminfo \
         .local/state/nvim/shada .python_history .node_repl_history .sqlite_history \
-        .w3m/history .wget-hsts ;;
+        .w3m/history .wget-hsts .local/share/zoxide ;;
     thumbnails) set -- .cache/thumbnails ;;
     trash) set -- .local/share/Trash ;;
     *) set -- ;;

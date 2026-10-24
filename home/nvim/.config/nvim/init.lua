@@ -107,11 +107,55 @@ map("n", "<Tab>", ":bnext<CR>", { silent = true })
 map("n", "<S-Tab>", ":bprevious<CR>", { silent = true })
 
 -- FIND / GREP
+-- Debian's fzf ships its vim plugin only among the examples
+local fzf_examples = "/usr/share/doc/fzf/examples"
+if vim.uv.fs_stat(fzf_examples .. "/plugin/fzf.vim") then o.runtimepath:append(fzf_examples) end
+
 if vim.fn.executable("fzf") == 1 and vim.fn.globpath(vim.o.runtimepath, "plugin/fzf.vim") ~= "" then
     vim.env.FZF_DEFAULT_COMMAND = vim.fn.executable("fd") == 1
-        and 'fd . --exclude build --exclude .git'
+        and 'fd --type f --exclude build --exclude .git'
         or 'find . \\( -path "*/build/*" -o -path "*/.git/*" \\) -prune -o -type f -print'
     map("n", "<leader>f", ":FZF<CR>")
+
+    local function fzf(spec) vim.fn["fzf#run"](vim.fn["fzf#wrap"](spec)) end
+
+    -- Open buffers but the current one
+    map("n", "<leader>b", function()
+        local bufs = {}
+        for _, b in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
+            if b.bufnr ~= vim.fn.bufnr() then
+                table.insert(bufs, b.bufnr .. "\t" .. (b.name == "" and "[No Name]" or vim.fn.fnamemodify(b.name, ":~:.")))
+            end
+        end
+        fzf({
+            source = bufs,
+            options = { "--prompt", "buffers> ", "--delimiter", "\t", "--with-nth", "2" },
+            sink = function(line) vim.cmd.buffer(tonumber(line:match("^(%d+)"))) end,
+        })
+    end)
+
+    -- Live grep: rg runs again at every key
+    if vim.fn.executable("rg") == 1 then
+        local rg = "rg --column --line-number --no-heading --color=always --smart-case --glob '!.git/*' -- "
+        map("n", "<leader>s", function()
+            fzf({
+                source = rg .. "''",
+                options = {
+                    "--prompt", "rg> ", "--ansi", "--disabled",
+                    "--delimiter", ":",
+                    "--bind", "change:reload:" .. rg .. "{q} || true",
+                    "--preview", "bat -p --color=always --highlight-line {2} {1} 2>/dev/null || cat {1}",
+                    "--preview-window", "+{2}-/2",
+                },
+                sink = function(line)
+                    local file, lnum, col = line:match("^(.-):(%d+):(%d+):")
+                    if not file then return end
+                    vim.cmd.edit(vim.fn.fnameescape(file))
+                    vim.api.nvim_win_set_cursor(0, { tonumber(lnum), tonumber(col) - 1 })
+                end,
+            })
+        end)
+    end
 else
     o.path = ".,**"
     map("n", "<leader>f", ":find ")

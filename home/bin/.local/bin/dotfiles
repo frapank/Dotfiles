@@ -21,6 +21,8 @@ privacy-check|check MAC, DNS, firewall, AppArmor, camera and microphone
 conns|the open connections and the programs behind them
 isolate|run a command in a sandbox: empty home, no network
 logins|the wrong passwords since the last login, told at every login
+Shell
+tmux-project|a tmux session per folder, from zoxide (prefix f)
 Snapshots of /home
 snap|the older versions of a file, copy one back, what changed since a day
 forget|delete a file from every snapshot, for good

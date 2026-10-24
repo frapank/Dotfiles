@@ -31,10 +31,16 @@ _setup_prompt() {
         [[ -n $SSH_CONNECTION ]] && h='\h '
 
         PS1="$__mark$h$p \W: "
+
+        # the zoxide hook (init with --hook none)
+        if [[ -n $__zoxide && $PWD != "$__zoxide_pwd" ]]; then
+            __zoxide_pwd=$PWD
+            zoxide add -- "$PWD" 2>/dev/null
+        fi
     }
 
     PROMPT_COMMAND='__set_bash_prompt; history -a'
-    __mark=
+    __mark= __zoxide= __zoxide_pwd=
 
     # tell foot the folder and where prompts and outputs start
     [[ $TERM == foot* ]] || return 0
@@ -162,6 +168,24 @@ _setup_fzf() {
         echo "${_colors[*]}"
     )"
 
+    # Ctrl-T files, Alt-C folders, Ctrl-R history, in a tmux popup
+    if _has fd; then
+        export FZF_DEFAULT_COMMAND='fd --type f --hidden --exclude .git'
+        export FZF_CTRL_T_COMMAND='fd --hidden --exclude .git'
+        export FZF_ALT_C_COMMAND='fd --type d --hidden --exclude .git'
+    fi
+    local _cat='cat {}' _b
+    for _b in bat batcat; do
+        _has "$_b" && {
+            _cat="$_b -p --color=always --line-range :200 {}"
+            break
+        }
+    done
+    local _tree='tree -C -L 2 {} 2>/dev/null || ls -A {}'
+    export FZF_CTRL_T_OPTS="--tmux 80% --preview '[ -d {} ] && { $_tree; } || $_cat'"
+    export FZF_ALT_C_OPTS="--tmux 80% --preview '$_tree'"
+    export FZF_CTRL_R_OPTS='--tmux 80%'
+
     local _init
     _init=$(fzf --bash 2>/dev/null) && [[ -n $_init ]] && {
         eval "$_init"
@@ -173,6 +197,14 @@ _setup_fzf() {
         [[ -f $_dir/key-bindings.bash ]] && source "$_dir/key-bindings.bash"
         [[ -f $_dir/completion.bash ]] && source "$_dir/completion.bash"
     done
+}
+
+# z FOLDER jumps to the most used match, zi picks it with fzf
+_setup_zoxide() {
+    _has zoxide || return
+    export _ZO_EXCLUDE_DIRS="$HOME:$HOME/Private:$HOME/Private/*:/tmp:/tmp/*:/dev/shm/*:/run/*"
+    eval "$(zoxide init bash --hook none)"
+    __zoxide=1
 }
 
 _setup_ls() {
@@ -272,7 +304,8 @@ _setup_env
 _setup_path
 _setup_completion
 _setup_fzf
+_setup_zoxide
 _setup_ls
 _setup_man
 
-unset -f _setup_history _setup_prompt _setup_env _setup_path _setup_completion _setup_fzf _setup_ls _setup_man
+unset -f _setup_history _setup_prompt _setup_env _setup_path _setup_completion _setup_fzf _setup_zoxide _setup_ls _setup_man

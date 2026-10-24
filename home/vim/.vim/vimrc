@@ -79,13 +79,67 @@ nnoremap <silent> <leader>m :make<CR>
 nnoremap <silent> <leader>/ :nohlsearch<CR>
 
 # FUZZY FINDER
+# Debian's fzf ships its vim plugin only among the examples
+const fzf_examples = '/usr/share/doc/fzf/examples'
+if filereadable(fzf_examples .. '/plugin/fzf.vim')
+    &runtimepath ..= ',' .. fzf_examples
+endif
+
+def Fzf(spec: dict<any>)
+    fzf#run(fzf#wrap(spec))
+enddef
+
+# Open buffers but the current one
+def FzfBuffers()
+    var bufs: list<string>
+    for b in getbufinfo({buflisted: 1})
+        if b.bufnr != bufnr()
+            add(bufs, b.bufnr .. "\t" .. (empty(b.name) ? '[No Name]' : fnamemodify(b.name, ':~:.')))
+        endif
+    endfor
+    Fzf({
+        source: bufs,
+        options: ['--prompt', 'buffers> ', '--delimiter', "\t", '--with-nth', '2'],
+        sink: (line) => execute('buffer ' .. matchstr(line, '^\d\+')),
+    })
+enddef
+
+# Live grep: rg runs again at every key
+const rg = "rg --column --line-number --no-heading --color=always --smart-case --glob '!.git/*' -- "
+def FzfGrep()
+    Fzf({
+        source: rg .. "''",
+        options: [
+            '--prompt', 'rg> ', '--ansi', '--disabled',
+            '--delimiter', ':',
+            '--bind', 'change:reload:' .. rg .. '{q} || true',
+            '--preview', 'bat -p --color=always --highlight-line {2} {1} 2>/dev/null || cat {1}',
+            '--preview-window', '+{2}-/2',
+        ],
+        sink: (line) => GrepOpen(line),
+    })
+enddef
+
+def GrepOpen(line: string)
+    var m = matchlist(line, '^\(.\{-}\):\(\d\+\):\(\d\+\):')
+    if empty(m)
+        return
+    endif
+    execute 'edit ' .. fnameescape(m[1])
+    cursor(str2nr(m[2]), str2nr(m[3]))
+enddef
+
 if executable('fzf') && !empty(globpath(&runtimepath, 'plugin/fzf.vim'))
     if executable('fd')
-        $FZF_DEFAULT_COMMAND = 'fd . --exclude build --exclude .git'
+        $FZF_DEFAULT_COMMAND = 'fd --type f --exclude build --exclude .git'
     else
         $FZF_DEFAULT_COMMAND = 'find . \( -path "*/build/*" -o -path "*/.git/*" \) -prune -o -type f -print'
     endif
     nnoremap <leader>f :FZF<CR>
+    nnoremap <silent> <leader>b <ScriptCmd>FzfBuffers()<CR>
+    if executable('rg')
+        nnoremap <silent> <leader>s <ScriptCmd>FzfGrep()<CR>
+    endif
 else
     set path=.,**
     nnoremap <leader>f :find<Space>
