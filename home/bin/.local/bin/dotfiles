@@ -105,8 +105,8 @@ case ${1:-} in
 
   doas maint status    when each job last ran, the snapshots, the last scrub
   doas maint run       every job that is due
-  doas maint JOB       one job now: home thumbs trash update kernels packages
-                       firmware integrity scrub blocklist
+  doas maint JOB       one job now: home thumbs trash update disks kernels packages
+                       firmware integrity cves vesktop scrub blocklist
   logs service maint   what it did
 EOF
     }

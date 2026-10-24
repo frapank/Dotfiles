@@ -6,8 +6,8 @@ usage() {
 Usage: privacy-check [-i]
 Check that the privacy and hardening setup is working right now: random MAC,
 DHCP, IPv6, DNS through dnscrypt-proxy, blocklist, DNS lock, time, kernel
-lockdown, AppArmor, hidepid, setuid programs, open ports, bluetooth, camera
-and microphone.
+lockdown, CPU mitigations, AppArmor, hidepid, setuid programs, open ports,
+bluetooth, camera and microphone.
 Nothing leaves this machine except a DNS query through dnscrypt-proxy.
 Exits 1 if something needs attention.
 
@@ -293,6 +293,12 @@ case $(cat /sys/kernel/security/lockdown 2>/dev/null) in
 esac
 [ "$(cat /sys/module/module/parameters/sig_enforce 2>/dev/null)" = Y ] &&
     ok "only signed modules load" || warn "unsigned modules can load"
+v=$(grep -l '^Vulnerable' /sys/devices/system/cpu/vulnerabilities/* 2>/dev/null | sed 's,.*/,,' | tr '\n' ' ')
+if [ -n "$v" ]; then
+    warn "CPU not mitigated against ${v% } (microcode not loaded?)"
+else
+    ok "CPU mitigations active"
+fi
 if aa-enabled -q 2>/dev/null; then
     ok "AppArmor enabled"
     for p in dnscrypt-proxy NetworkManager chronyd bluetoothd wpa_supplicant \

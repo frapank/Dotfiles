@@ -119,6 +119,11 @@ do_packages() {
         return 0
     fi
     NEW_PKGS=("${new[@]}")
+    # debsecan: no daily mail to root, maint checks it weekly
+    if [[ " ${new[*]} " == *" debsecan "* ]]; then
+        debconf-set-selections <<<'debsecan debsecan/report boolean false' >>"$LOG" 2>&1 ||
+            die "debconf-set-selections failed for debsecan"
+    fi
     jot pkgs "${new[*]}"
     log "new: ${new[*]}"
     run "install ${#new[@]} packages" "${APT[@]}" install "${new[@]}"
