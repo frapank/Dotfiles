@@ -82,7 +82,7 @@ There are hardened kernel options that prevent several exploits:
 - ptrace, perf and BPF restricted.
 - a program cannot type into the terminal that launched it.
 - many rare modules blocked, like firewire and old filesystems, part of them from the list of Kicksecure.
-- from Kicksecure too: no IOMMU passthrough and every device isolated in the IOMMU, KFENCE, the random pool not trusted to the CPU or the bootloader alone, no writes to the disk under a mounted filesystem, TSX off, Intel ME, msr and optical drives blocked.
+- from Kicksecure too: no IOMMU passthrough and every device isolated in the IOMMU, KFENCE, the random pool not trusted to the CPU or the bootloader alone, no writes to the disk under a mounted filesystem, TSX off, Intel ME, msr and optical drives blocked, ARP that answers only on the interface asked.
 - the CPU mitigations stay the kernel's defaults: the stricter ones of Kicksecure turn off SMT or AVX, too much for gaming.
 
 The kernel arguments go in /etc/default/grub.d, /etc/default/grub stays the one of Debian. The sysctl files sort after the 50-default.conf of Debian, which would undo part of them.

@@ -37,7 +37,7 @@ plan() {
 		taplo, zls, bash-language-server and yaml-language-server are not in Debian: nvim uses them once they are in PATH.
 	EOF
     section harden "Kernel and firewall hardening" <<-EOF
-		sysctl: /etc/sysctl.d/5{1..5}-*.conf, after the 50-default.conf of Debian that would undo some, TCP timestamps off.
+		sysctl: /etc/sysctl.d/5{1..5}-*.conf, after the 50-default.conf of Debian that would undo some, TCP timestamps off, ARP answers only on the interface asked and no unasked ARP replies.
 		Firewall (nftables): drops input and forward, allows output. ICMP only errors, rate limited ping from the LAN only (the internet cannot see the machine is up, IPv6 included), neighbor discovery, router adverts, MLD. Nothing goes out that announces the machine on the LAN (mDNS, LLMNR, SSDP, NetBIOS, WS-Discovery, Steam).
 		SSH client: offers only configured keys, hashed known_hosts, no agent forwarding, keys stay in the agent for an hour. ~/.ssh gets mode 0700, no keys are generated.
 		Blocks rarely used kernel modules with a history of bugs: rds tipc atm n_hdlc n_gsm sctp appletalk psnap llc2 phonet ax25 netrom rose x25 can ieee802154 firewire floppy cramfs hfs befs qnx6 adfs ufs hpfs jfs gfs2 ocfs2 vivid kcm rxrpc nfc nilfs2 zonefs cuse userio hci_vhci, and from the list of Kicksecure dccp decnet econet ipx ksmbd affs afs ceph coda ecryptfs freevxfs jffs2 minix orangefs reiserfs romfs sysv ubifs gnss and others; mei (Intel ME), msr (fwupd reports less on the firmware, updates still work), cdrom; no PC speaker. hfsplus udf exfat ntfs3 cifs nfs thunderbolt joydev still work.
