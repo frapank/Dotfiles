@@ -65,7 +65,8 @@ PKG_USB=(usbguard libnotify-bin)
 HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
     randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
     efi=disable_early_pci_dma lockdown=confidentiality module.sig_enforce=1 proc_mem.force_override=ptrace
-    iommu.passthrough=0 kfence.sample_interval=100 random.trust_cpu=off random.trust_bootloader=off)
+    iommu.passthrough=0 kfence.sample_interval=100 random.trust_cpu=off random.trust_bootloader=off
+    bdev_allow_write_mounted=0 intel_iommu=on amd_iommu=force_isolation tsx=off)
 PKG_APPARMOR=(apparmor apparmor-utils xdg-dbus-proxy bubblewrap python3-gi gir1.2-glib-2.0
     libwayland-dev wayland-protocols pkgconf)
 # weaker or unconfined profiles of the same programs: papers and libreoffice-common ship
