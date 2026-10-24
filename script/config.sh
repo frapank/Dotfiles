@@ -59,7 +59,7 @@ APT=(env DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l 
 PKG_CORE=(git build-essential ca-certificates)
 PKG_CLI=(bash bash-completion vim-nox neovim tmux universal-ctags fzf fd-find ripgrep bat
     xxd less binutils gdb ncurses-term wl-clipboard tree
-    zoxide)
+    zoxide git-delta lazygit bear entr shellcheck)
 # taplo, zls, bash-language-server and yaml-language-server are not in Debian
 PKG_LSP=(clangd rust-analyzer)
 PKG_HARDEN=(nftables openssh-client)
@@ -131,7 +131,7 @@ PKG_MAINT=(btrfs-progs util-linux python3 smartmontools curl debsums debsecan ne
 # the snapshots of / boot with a throwaway overlay in RAM
 PKG_SNAPBOOT=(overlayroot)
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
-HOME_CLI=(bash ctags nvim vim tmux ripgrep fetch)
+HOME_CLI=(bash ctags nvim vim tmux ripgrep fetch git lazygit)
 HOME_DESKTOP=(foot g0wm gtklock services)
 # nightlight is off until 'services enable nightlight' or Super+=
 USER_UNITS=(idle polkit thunar)

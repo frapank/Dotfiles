@@ -1,0 +1,21 @@
+# no update checks on GitHub, no popups at start
+update:
+  method: never
+disableStartupPopups: true
+git:
+  paging:
+    colorArg: always
+    pager: delta --paging=never
+gui:
+  nerdFontsVersion: "3"
+  showRandomTip: false
+  theme:
+    activeBorderColor:
+      - "#e0a86a"
+      - bold
+    inactiveBorderColor:
+      - "#555555"
+    selectedLineBgColor:
+      - "#1c1c1c"
+    optionsTextColor:
+      - "#8a8a8a"
