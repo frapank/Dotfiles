@@ -116,7 +116,11 @@ main() {
     trap cleanup EXIT
     trap 'exit 143' HUP INT TERM
 
-    run_session
+    # g0wm-login reads it from the journal
+    rc=0
+    run_session || rc=$?
+    [ "$rc" -eq 0 ] || logger -t start-g0wm "g0wm exited with status $rc" 2>/dev/null || true
+    return "$rc"
 }
 
 main "$@"

@@ -23,8 +23,9 @@ if [ "$(tty)" = /dev/tty1 ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         PROMPT_COMMAND=${PROMPT_COMMAND#__start_g0wm; }
         unset -f __start_g0wm
         if command -v start-g0wm >/dev/null 2>&1; then
-            # a blank screen until g0wm draws, not the shell
-            printf '\033[?25l\033[H\033[2J'
+            # the login cat until g0wm draws, not the shell
+            /usr/local/libexec/g0wm-login --starting 2>/dev/null ||
+                printf '\033[?25l\033[H\033[2J'
             exec start-g0wm
         fi
     }
