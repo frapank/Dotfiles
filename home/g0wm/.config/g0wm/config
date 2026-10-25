@@ -155,6 +155,16 @@ key ctrl+alt+XF86Switch_VT_10 chvt 10
 key ctrl+alt+XF86Switch_VT_11 chvt 11
 key ctrl+alt+XF86Switch_VT_12 chvt 12
 
+# zoom
+button client logo+wheel-up magnify 0.25
+button client logo+wheel-down magnify -0.25
+button root logo+wheel-up magnify 0.25
+button root logo+wheel-down magnify -0.25
+
+key logo+alt+equal magnify 0.25
+key logo+alt+minus magnify -0.25
+key logo+alt+0 magnify 0
+
 # button: bar area, modifiers+button, action, argument
 button ltsymbol left setlayout "[ ]"
 button title middle zoom
