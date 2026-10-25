@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate colors.css, the GTK base.css files, the Kvantum theme and the colors of
-foot and fzf from the palette.
+foot, fzf and LibreWolf from the palette.
 
 GTK: Adwaita's greys are mapped onto the palette and :backdrop is dropped.
 Kvantum: frame pieces are s x s, scaled to half of frame.expansion.
@@ -38,6 +38,7 @@ THEME = os.path.join(REPO, "home/gtk/.local/share/themes/G0wm")
 KVANTUM = os.path.join(REPO, "home/qt/.config/Kvantum/G0wm")
 FOOT = os.path.join(REPO, "home/foot/.config/foot/foot.ini")
 BASHRC = os.path.join(REPO, "home/bash/.bashrc_dotfile")
+LIBREWOLF = os.path.join(REPO, "home/librewolf/.config/librewolf/librewolf")
 
 PARTS = ("topleft", "top", "topright", "left", "", "right", "bottomleft", "bottom", "bottomright")
 
@@ -654,6 +655,42 @@ def fzf_colors():
         f.write(text)
 
 
+def librewolf_colors():
+    # only the --g0-* lines and the color prefs
+    css = {"bg": BG, "side": SIDE, "popup": POPUP, "hover": HOVER, "press": PRESS, "sel": SEL,
+           "trough": TROUGH, "sep": SEP, "line": LINE, "fg": FG, "dim": DIM, "mute": MUTE,
+           "accent": ACCENT, "on-accent": ON_ACCENT, "green": GREEN, "red": RED, "link": LINK,
+           "visited": VISITED}
+    # userContent.css has only some
+    for name, every in (("g0wm.css", True), ("userContent.css", False)):
+        p = os.path.join(LIBREWOLF, "chrome", name)
+        with open(p, encoding="utf-8") as f:
+            text = f.read()
+        for k, v in css.items():
+            text, n = re.subn(rf"^(\s*--g0-{k}: ).*;$", lambda m, v=v: f"{m[1]}{v};", text, flags=re.M)
+            assert n or not every, f"--g0-{k} missing in {p}"
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    prefs = {"ui.accentcolor": ACCENT, "ui.accentcolortext": ON_ACCENT, "ui.highlight": ACCENT,
+             "ui.highlighttext": ON_ACCENT, "ui.selecteditem": SEL, "ui.selecteditemtext": FG,
+             "browser.display.background_color.dark": BG, "browser.display.foreground_color.dark": FG,
+             "reader.custom_colors.background": BG, "reader.custom_colors.foreground": FG,
+             "reader.custom_colors.unvisited-links": LINK, "reader.custom_colors.visited-links": VISITED,
+             "reader.custom_colors.selection-highlight": ACCENT, "ui.textSelectAttentionBackground": ACCENT,
+             "ui.textSelectAttentionForeground": ON_ACCENT, "ui.textHighlightBackground": GREEN,
+             "ui.textHighlightForeground": ON_ACCENT}
+    p = os.path.join(LIBREWOLF, "librewolf.overrides.cfg")
+    with open(p, encoding="utf-8") as f:
+        text = f.read()
+    for k, v in prefs.items():
+        text, n = re.subn(rf'^defaultPref\("{re.escape(k)}", ".*"\);$', f'defaultPref("{k}", "{v}");',
+                          text, count=1, flags=re.M)
+        assert n == 1, f"{k} missing in {p}"
+    with open(p, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
 def lib(name):
     # /usr/lib/<triplet> on Debian, /usr/lib elsewhere
     for p in sorted(glob.glob(f"/usr/lib/*-linux-gnu/{name}")) + [f"/usr/lib/{name}"]:
@@ -666,6 +703,7 @@ def main():
     colors_css()
     foot_colors()
     fzf_colors()
+    librewolf_colors()
     gtk_base(lib("libgtk-3.so.0"), "/org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css",
              "/org/gtk/libgtk/theme/Adwaita/assets", os.path.join(THEME, "gtk-3.0/base.css"))
     gtk_base(lib("libgtk-4.so.1"), "/org/gtk/libgtk/theme/Default/Default-dark.css",

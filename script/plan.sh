@@ -188,6 +188,8 @@ plan() {
 		Default apps: images Loupe, video Showtime, PDF Papers, web librewolf, folders Thunar, archives xarchiver, documents LibreOffice, text vim (nvim in Open With).
 		GTK apps keep no list of recently used files.
 		LibreWolf: letterboxing on, so the window size the tiling layout gives it does not identify it (~/.config/librewolf/librewolf/librewolf.overrides.cfg).
+		LibreWolf: the G0wm theme in its window and about: pages (userChrome.css and userContent.css in ~/.config/librewolf/librewolf/chrome, linked in each profile; start LibreWolf once before, so it has a profile). Sites keep their own colors and cannot see the theme; reader view and PDFs are dark.
+		LibreWolf, minimal: no window buttons (g0wm closes the windows), the address bar shows example.org/page and its icons on hover, the AI buttons and menu items stay hidden (LibreWolf already blocks the AI features).
 	EOF
     section games "Games: Steam and Lutris work once you install them" <<-EOF
 		vm.max_map_count 1048576 as on SteamOS: many Proton games crash with the default 65530.

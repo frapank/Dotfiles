@@ -1,0 +1,142 @@
+/* G0wm for LibreWolf: the about: pages */
+
+@import url("g0wm.css");
+
+/* same pages as g0wm.css */
+@-moz-document url-prefix("chrome:"),
+    url-prefix("about:about"), url-prefix("about:addons"), url-prefix("about:buildconfig"),
+    url-prefix("about:cache"), url-prefix("about:certerror"), url-prefix("about:certificate"),
+    url-prefix("about:compat"), url-prefix("about:config"), url-prefix("about:crashes"),
+    url-prefix("about:debugging"), url-prefix("about:downloads"), url-prefix("about:home"),
+    url-prefix("about:httpsonlyerror"), url-prefix("about:license"), url-prefix("about:logins"),
+    url-prefix("about:memory"), url-prefix("about:neterror"), url-prefix("about:networking"),
+    url-prefix("about:newtab"), url-prefix("about:policies"), url-prefix("about:preferences"),
+    url-prefix("about:privatebrowsing"), url-prefix("about:processes"), url-prefix("about:profiles"),
+    url-prefix("about:protections"), url-prefix("about:rights"), url-prefix("about:serviceworkers"),
+    url-prefix("about:sessionrestore"), url-prefix("about:settings"), url-prefix("about:support"),
+    url-prefix("about:tabcrashed"), url-prefix("about:third-party"), url-prefix("about:translations"),
+    url-prefix("about:unloads"), url-prefix("about:url-classifier"), url-prefix("about:webrtc"),
+    url-prefix("about:welcome") {
+    /* not svg: the chrome: icons are documents too */
+    :root:not(svg),
+    body {
+        background-color: var(--g0-bg) !important;
+        background-image: none !important;
+        color: var(--g0-fg) !important;
+    }
+
+    * {
+        scrollbar-color: color-mix(in srgb, var(--g0-dim) 45%, transparent) transparent !important;
+    }
+
+    /* settings dialogs */
+    dialog,
+    .dialogBox {
+        --background-color-canvas: var(--g0-popup) !important;
+        border-color: var(--g0-line) !important;
+        border-radius: 12px !important;
+        box-shadow: var(--g0-shadow) !important;
+    }
+
+    dialog::backdrop,
+    .dialogOverlay[topmost="true"] {
+        background-color: rgba(0, 0, 0, 0.6) !important;
+    }
+
+    /* selected rows */
+    richlistbox > richlistitem[selected] {
+        --button-text-color: var(--g0-fg) !important;
+        --button-text-color-hover: var(--g0-fg) !important;
+        --button-text-color-active: var(--g0-fg) !important;
+        --focus-outline-color: color-mix(in srgb, var(--g0-fg) 30%, transparent) !important;
+        background-color: var(--g0-press) !important;
+        color: var(--g0-fg) !important;
+    }
+
+    treechildren::-moz-tree-row(selected) {
+        background-color: var(--g0-press) !important;
+    }
+
+    treechildren::-moz-tree-cell-text(selected) {
+        color: var(--g0-fg) !important;
+    }
+
+    /* side bar of settings and add-ons */
+    moz-page-nav,
+    moz-page-nav-button {
+        --page-nav-border-color: var(--g0-sep) !important;
+        --page-nav-hr-background-color: var(--g0-sep) !important;
+        --page-nav-button-background-color: transparent !important;
+        --page-nav-button-background-color-hover: transparent !important;
+        --page-nav-button-background-color-active: var(--g0-press) !important;
+        --page-nav-button-background-color-selected: var(--g0-press) !important;
+        --page-nav-button-border-color: transparent !important;
+        --page-nav-button-border-radius: 8px !important;
+        --page-nav-button-indicator-background-color: transparent !important;
+        --page-nav-button-indicator-width: 0 !important;
+        --page-nav-button-text-color: var(--g0-dim) !important;
+        --page-nav-button-text-color-hover: var(--g0-fg) !important;
+        --page-nav-button-text-color-active: var(--g0-fg) !important;
+        --page-nav-button-text-color-selected: var(--g0-fg) !important;
+    }
+
+    #categories > .category {
+        border-radius: 8px !important;
+        color: var(--g0-dim) !important;
+    }
+
+    #categories > .category:hover {
+        background-color: transparent !important;
+        color: var(--g0-fg) !important;
+    }
+
+    #categories > .category[selected],
+    #categories > .category.selected {
+        background-color: var(--g0-press) !important;
+        color: var(--g0-fg) !important;
+    }
+
+    input[type="checkbox"],
+    input[type="radio"] {
+        accent-color: var(--g0-accent) !important;
+    }
+
+    progress {
+        accent-color: var(--g0-accent) !important;
+    }
+
+    hr {
+        border-color: var(--g0-sep) !important;
+    }
+
+    /* search box of new tab and private browsing */
+    content-search-handoff-ui {
+        --content-search-handoff-ui-background-color: transparent !important;
+        --content-search-handoff-ui-color: var(--g0-fg) !important;
+        --content-search-handoff-ui-fill: var(--g0-dim) !important;
+        --content-search-handoff-ui-caret-color: var(--g0-accent) !important;
+        --content-search-handoff-ui-border-width: 1px !important;
+        --content-search-handoff-ui-unfocused-border-color: var(--g0-line) !important;
+        --content-search-handoff-ui-fakefocus-border-color: var(--g0-accent) !important;
+        --content-search-handoff-ui-fakefocus-box-shadow-inner: transparent !important;
+        --content-search-handoff-ui-fakefocus-box-shadow-outer: transparent !important;
+    }
+
+    /* purple box of private browsing */
+    .info-border,
+    .info {
+        border-color: transparent !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+}
+
+/* reader view: colors in librewolf.overrides.cfg, only the borders here */
+@-moz-document url-prefix("about:reader") {
+    body.custom {
+        --g0-line: #2a2a2a;
+        --toolbar-border: var(--g0-line) !important;
+        --popup-border: var(--g0-line) !important;
+        --popup-button-border: var(--g0-line) !important;
+    }
+}

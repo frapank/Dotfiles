@@ -1,0 +1,245 @@
+/* G0wm for LibreWolf: the browser window */
+
+@import url("g0wm.css");
+
+:root {
+    /* toolbars */
+    --toolbox-background-color: var(--g0-bg) !important;
+    --toolbox-background-color-inactive: var(--g0-bg) !important;
+    --toolbox-text-color: var(--g0-fg) !important;
+    --toolbox-text-color-inactive: var(--g0-fg) !important;
+    --toolbar-background-color: var(--g0-bg) !important;
+    --toolbar-text-color: var(--g0-fg) !important;
+    --toolbarseparator-color: var(--g0-sep) !important;
+    --chrome-content-separator-color: var(--g0-sep) !important;
+    --tabs-navbar-separator-style: none !important;
+    --tabpanel-background-color: var(--g0-bg) !important;
+
+    /* toolbar buttons */
+    --toolbarbutton-border-radius: 8px !important;
+    --toolbarbutton-icon-fill: var(--g0-dim) !important;
+    --toolbarbutton-icon-fill-hover: var(--g0-fg) !important;
+    --toolbarbutton-icon-fill-active: var(--g0-fg) !important;
+    --toolbarbutton-background-color-hover: transparent !important;
+    --toolbarbutton-background-color-active: var(--g0-press) !important;
+    --toolbarbutton-icon-fill-attention: var(--g0-accent) !important;
+    --toolbarbutton-icon-fill-attention-text: var(--g0-on-accent) !important;
+    --toolbarbutton-badge-background-color: var(--g0-accent) !important;
+
+    /* tabs */
+    --tab-border-radius: 8px !important;
+    --tab-background-color: transparent !important;
+    --tab-background-color-hover: transparent !important;
+    --tab-background-color-selected: var(--g0-press) !important;
+    --tab-text-color: var(--g0-dim) !important;
+    --tab-text-color-hover: var(--g0-fg) !important;
+    --tab-text-color-selected: var(--g0-fg) !important;
+    --tab-border-color: transparent !important;
+    --tab-border-color-hover: transparent !important;
+    --tab-border-color-selected: transparent !important;
+    --tab-border-color-selected-leading: transparent !important;
+    --tab-border-color-selected-trailing: transparent !important;
+    --tab-box-shadow-selected: none !important;
+    --tab-selected-color-scheme: dark !important;
+    --tab-icon-fill-loading: var(--g0-accent) !important;
+    --tab-attention-dot-color: var(--g0-accent) !important;
+    --tab-dragover-outline-color: var(--g0-accent) !important;
+}
+
+/* address bar */
+:root,
+.urlbar,
+#searchbar {
+    --toolbar-field-background-color: var(--g0-bg) !important;
+    --toolbar-field-background-color-focus: var(--g0-popup) !important;
+    --toolbar-field-text-color: var(--g0-fg) !important;
+    --toolbar-field-text-color-focus: var(--g0-fg) !important;
+    --toolbar-field-border-color: var(--g0-line) !important;
+    --toolbar-field-border-color-focus: var(--g0-accent) !important;
+    /* thin border also when open */
+    --urlbar-input-container-border-width-open: var(--urlbar-input-container-border-width) !important;
+    --urlbar-border-radius: 8px !important;
+    --urlbar-background-box-shadow-open: var(--g0-shadow) !important;
+    --urlbar-box-background-color: transparent !important;
+    --urlbar-box-background-color-hover: var(--g0-hover) !important;
+    --urlbar-box-background-color-active: var(--g0-press) !important;
+    --urlbar-box-background-color-focus: transparent !important;
+    --urlbar-box-text-color: var(--g0-dim) !important;
+    --urlbar-box-text-color-hover: var(--g0-fg) !important;
+    --urlbar-box-text-color-active: var(--g0-fg) !important;
+    --urlbarview-background-color-hover: var(--g0-hover) !important;
+    --urlbarview-background-color-selected: var(--g0-press) !important;
+    --urlbarview-text-color-selected: var(--g0-fg) !important;
+    --urlbarview-text-color-secondary: var(--g0-dim) !important;
+    --urlbarview-text-color-action: var(--g0-dim) !important;
+    --urlbarview-separator-color: var(--g0-sep) !important;
+    --urlbarview-action-button-background-color: transparent !important;
+    --urlbarview-action-button-background-color-hover: var(--g0-hover) !important;
+}
+
+/* search engine switcher */
+.searchmode-switcher {
+    --button-border-radius: 6px !important;
+    --button-background-color-muted: transparent !important;
+    --button-background-color-muted-hover: var(--g0-hover) !important;
+    --button-background-color-muted-active: var(--g0-press) !important;
+    --button-background-color-muted-selected: var(--g0-press) !important;
+    --button-border-color-muted: transparent !important;
+    --button-border-color-muted-hover: transparent !important;
+    --button-border-color-muted-active: transparent !important;
+    --button-border-color-muted-selected: transparent !important;
+    --button-text-color-muted: var(--g0-dim) !important;
+    --button-text-color-muted-hover: var(--g0-fg) !important;
+    --button-text-color-muted-active: var(--g0-fg) !important;
+    --button-text-color-muted-selected: var(--g0-fg) !important;
+}
+
+.searchmode-switcher::part(button) {
+    background-image: none !important;
+    box-shadow: none !important;
+}
+
+/* "Switch to Tab" */
+.urlbarView-action,
+.urlbarView-switchToTab-accessory {
+    border-color: var(--g0-line) !important;
+    color: var(--g0-dim) !important;
+}
+
+#urlbar-input,
+.urlbar-input,
+#searchbar input {
+    caret-color: var(--g0-accent) !important;
+}
+
+/* window */
+
+#navigator-toolbox,
+#TabsToolbar,
+#nav-bar,
+#PersonalToolbar,
+findbar {
+    background-color: var(--g0-bg) !important;
+    background-image: none !important;
+    color: var(--g0-fg) !important;
+}
+
+#navigator-toolbox {
+    border-bottom-color: var(--g0-sep) !important;
+}
+
+#tabbrowser-tabpanels,
+#tabbrowser-tabbox {
+    background-color: var(--g0-bg) !important;
+}
+
+findbar {
+    border-top-color: var(--g0-sep) !important;
+}
+
+/* tabs */
+
+.tabbrowser-tab:hover > .tab-stack > .tab-content .tab-label {
+    color: var(--g0-fg) !important;
+}
+
+.tab-close-button:hover {
+    background-color: transparent !important;
+    color: var(--g0-red) !important;
+}
+
+.tab-close-button:hover:active {
+    background-color: var(--g0-press) !important;
+}
+
+.tab-throbber[busy]::before,
+.tab-throbber[progress]::before {
+    fill: var(--g0-accent) !important;
+}
+
+/* menus */
+
+menupopup {
+    --menuitem-border-radius: 6px !important;
+}
+
+/* the margin must hold the whole shadow (4px + 12px blur) */
+@media (-moz-gtk-csd-transparency-available) {
+    menupopup,
+    panel {
+        --panel-border-radius: 12px !important;
+        --panel-box-shadow-margin: 16px !important;
+    }
+}
+
+menupopup:not([style*="color-scheme"]) > :is(menu, menuitem)[_moz-menuactive]:not([disabled]) {
+    background-color: var(--g0-press) !important;
+    color: var(--g0-fg) !important;
+}
+
+menupopup > :is(menu, menuitem)[disabled] {
+    color: var(--g0-mute) !important;
+}
+
+menupopup .menu-accel {
+    color: var(--g0-dim) !important;
+}
+
+menuseparator {
+    border-color: var(--g0-sep) !important;
+}
+
+/* message bars */
+
+notification-message,
+moz-message-bar {
+    --message-bar-background-color: var(--g0-bg) !important;
+    --message-bar-text-color: var(--g0-fg) !important;
+    --message-bar-border-color: var(--g0-line) !important;
+}
+
+/* minimal */
+
+/* no window buttons, g0wm closes the windows */
+.titlebar-buttonbox-container,
+.titlebar-spacer,
+#alltabs-button {
+    display: none !important;
+}
+
+/* address bar icons only on hover or in use; the shield (the lock) stays */
+#urlbar:not(:hover, [focused], :has([open])) :is(
+    #tracking-protection-icon-container,
+    #reader-mode-button:not([readeractive]),
+    #translations-button:not([translationsactive]),
+    #picture-in-picture-button:not([pipactive]),
+    #split-view-button,
+    #star-button-box
+) {
+    display: none !important;
+}
+
+/* AI: already blocked by LibreWolf, in case an update brings them back */
+#smartwindow-ask-button,
+#smartwindow-group-tabs-button,
+#ai-window-toggle,
+#ai-window-toggle-view,
+#ai-window-box,
+#ai-window-splitter,
+#appMenu-new-ai-window-button,
+#appmenuitem-new-ai-window,
+#appMenu-chats-history-button,
+#menu_newAIWindow,
+#menu-file-new-ai-window,
+#chatsHistoryMenu,
+#menu-history-chats,
+#menu-history-chats-recent,
+#menu_genaiChatSidebar,
+#menu_genaiPageAssistSidebar,
+#ai-chatbot-sidebar-shortcut,
+#context-ask-chat,
+#context-previewlink,
+#context-openlinksmartwindow,
+#main-context-menu-open-link-new-smart-window {
+    display: none !important;
+}

@@ -1,0 +1,346 @@
+/* G0wm for LibreWolf: the --g0-* colors are written by script/g0wm-theme.py.
+   Only the browser's own pages, sites could read these variables. */
+
+@-moz-document url-prefix("chrome:"),
+    url-prefix("about:about"), url-prefix("about:addons"), url-prefix("about:buildconfig"),
+    url-prefix("about:cache"), url-prefix("about:certerror"), url-prefix("about:certificate"),
+    url-prefix("about:compat"), url-prefix("about:config"), url-prefix("about:crashes"),
+    url-prefix("about:debugging"), url-prefix("about:downloads"), url-prefix("about:home"),
+    url-prefix("about:httpsonlyerror"), url-prefix("about:license"), url-prefix("about:logins"),
+    url-prefix("about:memory"), url-prefix("about:neterror"), url-prefix("about:networking"),
+    url-prefix("about:newtab"), url-prefix("about:policies"), url-prefix("about:preferences"),
+    url-prefix("about:privatebrowsing"), url-prefix("about:processes"), url-prefix("about:profiles"),
+    url-prefix("about:protections"), url-prefix("about:rights"), url-prefix("about:serviceworkers"),
+    url-prefix("about:sessionrestore"), url-prefix("about:settings"), url-prefix("about:support"),
+    url-prefix("about:tabcrashed"), url-prefix("about:third-party"), url-prefix("about:translations"),
+    url-prefix("about:unloads"), url-prefix("about:url-classifier"), url-prefix("about:webrtc"),
+    url-prefix("about:welcome") {
+    :root {
+        --g0-bg: #0a0a0a;
+        --g0-side: #0a0a0a;
+        --g0-popup: #0e0e0e;
+        --g0-hover: #121212;
+        --g0-press: #1c1c1c;
+        --g0-sel: #1c1c1c;
+        --g0-trough: #2a2a2a;
+        --g0-sep: #1a1a1a;
+        --g0-line: #2a2a2a;
+        --g0-fg: #e9e9e9;
+        --g0-dim: #8a8a8a;
+        --g0-mute: #555555;
+        --g0-accent: #e0a86a;
+        --g0-on-accent: #0a0a0a;
+        --g0-green: #7fa88a;
+        --g0-red: #d8625e;
+        --g0-link: #8ab0c6;
+        --g0-visited: #c59dc8;
+        --g0-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+        /* by hand, for the tab groups */
+        --g0-yellow: #ffe066;
+        --g0-cyan: #8cc8c7;
+        --g0-pink: #d97e7e;
+
+        color-scheme: dark !important;
+
+        /* accent */
+        --color-accent-primary: var(--g0-accent) !important;
+        --color-accent-primary-hover: color-mix(in srgb, var(--g0-accent) 85%, white) !important;
+        --color-accent-primary-active: color-mix(in srgb, var(--g0-accent) 85%, black) !important;
+        --color-accent-primary-selected: var(--g0-accent) !important;
+        --color-accent-attention: var(--g0-accent) !important;
+        --text-color-accent-primary-selected: var(--g0-on-accent) !important;
+        --focus-outline-color: var(--g0-accent) !important;
+        --focus-outline-width: 1px !important;
+
+        /* surfaces */
+        --background-color-canvas: var(--g0-bg) !important;
+        --background-color-box: var(--g0-bg) !important;
+        --background-color-box-info: var(--g0-hover) !important;
+        --background-color-dimmed: var(--g0-hover) !important;
+        --background-color-dimmed-further: var(--g0-press) !important;
+        --background-color-list-item-hover: var(--g0-hover) !important;
+        --background-color-information: color-mix(in srgb, var(--g0-link) 12%, var(--g0-bg)) !important;
+        --background-color-success: color-mix(in srgb, var(--g0-green) 12%, var(--g0-bg)) !important;
+        --background-color-warning: color-mix(in srgb, var(--g0-accent) 12%, var(--g0-bg)) !important;
+        --background-color-critical: color-mix(in srgb, var(--g0-red) 12%, var(--g0-bg)) !important;
+
+        /* text */
+        --text-color: var(--g0-fg) !important;
+        --text-color-deemphasized: var(--g0-dim) !important;
+        --text-color-disabled: var(--g0-mute) !important;
+        --text-color-error: var(--g0-red) !important;
+        --text-color-list-item-hover: var(--g0-fg) !important;
+        --link-color: var(--g0-link) !important;
+        --link-color-hover: color-mix(in srgb, var(--g0-link) 80%, white) !important;
+        --link-color-active: color-mix(in srgb, var(--g0-link) 60%, white) !important;
+        --link-color-visited: var(--g0-visited) !important;
+        --icon-color-information: var(--g0-link) !important;
+        --icon-color-success: var(--g0-green) !important;
+        --icon-color-warning: var(--g0-accent) !important;
+        --icon-color-critical: var(--g0-red) !important;
+
+        /* borders */
+        --border-color: var(--g0-line) !important;
+        --border-color-deemphasized: var(--g0-sep) !important;
+        --border-color-interactive: var(--g0-line) !important;
+        --border-color-interactive-hover: var(--g0-fg) !important;
+        --border-color-interactive-active: var(--g0-fg) !important;
+        --border-color-interactive-disabled: var(--g0-sep) !important;
+        --border-color-selected: var(--g0-accent) !important;
+        --border-color-error: var(--g0-red) !important;
+
+        /* buttons */
+        --button-border-radius: 8px !important;
+        --button-opacity-disabled: 1 !important;
+        --button-background-color: transparent !important;
+        --button-background-color-hover: transparent !important;
+        --button-background-color-active: var(--g0-press) !important;
+        --button-background-color-selected: var(--g0-press) !important;
+        --button-background-color-disabled: transparent !important;
+        --button-border-color: var(--g0-line) !important;
+        --button-border-color-hover: var(--g0-fg) !important;
+        --button-border-color-active: var(--g0-line) !important;
+        --button-border-color-selected: var(--g0-line) !important;
+        --button-border-color-disabled: var(--g0-sep) !important;
+        --button-text-color: var(--g0-fg) !important;
+        --button-text-color-hover: var(--g0-fg) !important;
+        --button-text-color-active: var(--g0-fg) !important;
+        --button-text-color-selected: var(--g0-fg) !important;
+        --button-text-color-disabled: var(--g0-mute) !important;
+
+        --button-background-color-primary: transparent !important;
+        --button-background-color-primary-hover: color-mix(in srgb, var(--g0-accent) 12%, transparent) !important;
+        --button-background-color-primary-active: color-mix(in srgb, var(--g0-accent) 20%, transparent) !important;
+        --button-background-color-primary-selected: color-mix(in srgb, var(--g0-accent) 20%, transparent) !important;
+        --button-background-color-primary-disabled: transparent !important;
+        --button-border-color-primary: var(--g0-accent) !important;
+        --button-border-color-primary-hover: var(--g0-accent) !important;
+        --button-border-color-primary-active: var(--g0-accent) !important;
+        --button-border-color-primary-selected: var(--g0-accent) !important;
+        --button-border-color-primary-disabled: var(--g0-sep) !important;
+        --button-text-color-primary: var(--g0-accent) !important;
+        --button-text-color-primary-hover: var(--g0-accent) !important;
+        --button-text-color-primary-active: var(--g0-accent) !important;
+        --button-text-color-primary-selected: var(--g0-accent) !important;
+        --button-text-color-primary-disabled: var(--g0-mute) !important;
+
+        --button-background-color-destructive: transparent !important;
+        --button-background-color-destructive-hover: color-mix(in srgb, var(--g0-red) 12%, transparent) !important;
+        --button-background-color-destructive-active: color-mix(in srgb, var(--g0-red) 20%, transparent) !important;
+        --button-background-color-destructive-selected: color-mix(in srgb, var(--g0-red) 20%, transparent) !important;
+        --button-background-color-destructive-disabled: transparent !important;
+        --button-border-color-destructive: var(--g0-red) !important;
+        --button-border-color-destructive-hover: var(--g0-red) !important;
+        --button-border-color-destructive-active: var(--g0-red) !important;
+        --button-border-color-destructive-selected: var(--g0-red) !important;
+        --button-border-color-destructive-disabled: var(--g0-sep) !important;
+        --button-text-color-destructive: var(--g0-red) !important;
+        --button-text-color-destructive-hover: var(--g0-red) !important;
+        --button-text-color-destructive-active: var(--g0-red) !important;
+        --button-text-color-destructive-selected: var(--g0-red) !important;
+        --button-text-color-destructive-disabled: var(--g0-mute) !important;
+
+        --button-background-color-muted: transparent !important;
+        --button-background-color-muted-hover: transparent !important;
+        --button-background-color-muted-active: var(--g0-press) !important;
+        --button-background-color-muted-selected: var(--g0-press) !important;
+        --button-background-color-muted-disabled: transparent !important;
+        --button-border-color-muted: var(--g0-line) !important;
+        --button-border-color-muted-hover: var(--g0-fg) !important;
+        --button-border-color-muted-active: var(--g0-line) !important;
+        --button-border-color-muted-selected: var(--g0-line) !important;
+        --button-border-color-muted-disabled: var(--g0-sep) !important;
+        --button-text-color-muted: var(--g0-fg) !important;
+        --button-text-color-muted-hover: var(--g0-fg) !important;
+        --button-text-color-muted-active: var(--g0-fg) !important;
+        --button-text-color-muted-selected: var(--g0-fg) !important;
+        --button-text-color-muted-disabled: var(--g0-mute) !important;
+
+        /* flat buttons */
+        --button-background-color-ghost: transparent !important;
+        --button-background-color-ghost-hover: transparent !important;
+        --button-background-color-ghost-active: var(--g0-press) !important;
+        --button-background-color-ghost-selected: var(--g0-press) !important;
+        --button-background-color-ghost-disabled: transparent !important;
+        --button-border-color-ghost: transparent !important;
+        --button-border-color-ghost-hover: transparent !important;
+        --button-border-color-ghost-active: transparent !important;
+        --button-border-color-ghost-selected: transparent !important;
+        --button-border-color-ghost-disabled: transparent !important;
+        --button-text-color-ghost: var(--g0-dim) !important;
+        --button-text-color-ghost-hover: var(--g0-fg) !important;
+        --button-text-color-ghost-active: var(--g0-fg) !important;
+        --button-text-color-ghost-selected: var(--g0-fg) !important;
+        --button-text-color-ghost-disabled: var(--g0-mute) !important;
+
+        --button-background-color-toolbar: transparent !important;
+        --button-background-color-toolbar-hover: transparent !important;
+        --button-background-color-toolbar-active: var(--g0-press) !important;
+        --button-background-color-toolbar-selected: var(--g0-press) !important;
+        --button-background-color-toolbar-disabled: transparent !important;
+        --button-border-color-toolbar: transparent !important;
+        --button-border-color-toolbar-hover: transparent !important;
+        --button-border-color-toolbar-active: transparent !important;
+        --button-border-color-toolbar-selected: transparent !important;
+        --button-border-color-toolbar-disabled: transparent !important;
+        --button-text-color-toolbar: var(--g0-dim) !important;
+        --button-text-color-toolbar-hover: var(--g0-fg) !important;
+        --button-text-color-toolbar-active: var(--g0-fg) !important;
+        --button-text-color-toolbar-selected: var(--g0-fg) !important;
+        --button-text-color-toolbar-disabled: var(--g0-mute) !important;
+
+        /* menu items */
+        --button-background-color-menu: transparent !important;
+        --button-background-color-menu-hover: var(--g0-press) !important;
+        --button-background-color-menu-active: var(--g0-press) !important;
+        --button-background-color-menu-selected: var(--g0-press) !important;
+        --button-background-color-menu-disabled: transparent !important;
+        --button-border-color-menu: transparent !important;
+        --button-border-color-menu-hover: transparent !important;
+        --button-border-color-menu-active: transparent !important;
+        --button-border-color-menu-selected: transparent !important;
+        --button-border-color-menu-disabled: transparent !important;
+        --button-text-color-menu: var(--g0-fg) !important;
+        --button-text-color-menu-hover: var(--g0-fg) !important;
+        --button-text-color-menu-active: var(--g0-fg) !important;
+        --button-text-color-menu-selected: var(--g0-fg) !important;
+        --button-text-color-menu-disabled: var(--g0-mute) !important;
+
+        --button-badge-background-color: var(--g0-accent) !important;
+        --button-attention-dot-color: var(--g0-accent) !important;
+
+        /* entries */
+        --input-text-background-color: transparent !important;
+        --input-text-background-color-disabled: transparent !important;
+        --input-text-color: var(--g0-fg) !important;
+        --input-text-color-disabled: var(--g0-mute) !important;
+        --input-text-border-color: var(--g0-line) !important;
+        --input-text-border-color-disabled: var(--g0-sep) !important;
+        --input-border-color: var(--g0-line) !important;
+        --input-text-border-radius: 8px !important;
+
+        /* switches */
+        --toggle-background-color: transparent !important;
+        --toggle-background-color-hover: transparent !important;
+        --toggle-background-color-active: transparent !important;
+        --toggle-background-color-pressed: var(--g0-accent) !important;
+        --toggle-background-color-pressed-hover: var(--g0-accent) !important;
+        --toggle-background-color-pressed-active: var(--g0-accent) !important;
+        --toggle-border-color: var(--g0-line) !important;
+        --toggle-border-color-hover: var(--g0-fg) !important;
+        --toggle-border-color-active: var(--g0-fg) !important;
+        --toggle-dot-background-color: var(--g0-dim) !important;
+        --toggle-dot-background-color-hover: var(--g0-fg) !important;
+        --toggle-dot-background-color-active: var(--g0-fg) !important;
+        --toggle-dot-background-color-on-pressed: var(--g0-on-accent) !important;
+
+        /* cards and tables */
+        --card-background-color: var(--g0-bg) !important;
+        --card-border-color: var(--g0-line) !important;
+        --card-border-radius: 8px !important;
+        --card-box-shadow: none !important;
+        --card-box-shadow-hover: none !important;
+        --table-background-color: var(--g0-bg) !important;
+        --table-border-color: var(--g0-sep) !important;
+        --table-header-background-color: var(--g0-bg) !important;
+        --table-header-text-color: var(--g0-dim) !important;
+        --table-row-background-color: var(--g0-bg) !important;
+        --table-row-background-color-alternate: var(--g0-hover) !important;
+
+        /* popups */
+        --panel-background-color: var(--g0-popup) !important;
+        --panel-background-color-dimmed: var(--g0-hover) !important;
+        --panel-background-color-dimmed-further: var(--g0-press) !important;
+        --panel-text-color: var(--g0-fg) !important;
+        --panel-border-color: var(--g0-line) !important;
+        --panel-border-radius: 12px !important;
+        --panel-box-shadow: var(--g0-shadow) !important;
+        --panel-separator-color: var(--g0-sep) !important;
+        --panel-menuitem-border-radius: 6px !important;
+        --popup-background-color: var(--g0-popup) !important;
+        --popup-border-color: var(--g0-line) !important;
+        --popup-border-radius: 12px !important;
+        --popup-box-shadow: var(--g0-shadow) !important;
+
+        /* tab groups */
+        --tab-group-blue: var(--g0-link) !important;
+        --tab-group-blue-hover: color-mix(in srgb, var(--g0-link) 85%, white) !important;
+        --tab-group-blue-invert: color-mix(in srgb, var(--g0-link) 35%, var(--g0-bg)) !important;
+        --tab-group-blue-pale: color-mix(in srgb, var(--g0-link) 15%, var(--g0-bg)) !important;
+        --tab-group-blue-text: var(--g0-on-accent) !important;
+        --tab-group-blue-text-invert: var(--g0-fg) !important;
+        --tab-group-cyan: var(--g0-cyan) !important;
+        --tab-group-cyan-hover: color-mix(in srgb, var(--g0-cyan) 85%, white) !important;
+        --tab-group-cyan-invert: color-mix(in srgb, var(--g0-cyan) 35%, var(--g0-bg)) !important;
+        --tab-group-cyan-pale: color-mix(in srgb, var(--g0-cyan) 15%, var(--g0-bg)) !important;
+        --tab-group-cyan-text: var(--g0-on-accent) !important;
+        --tab-group-cyan-text-invert: var(--g0-fg) !important;
+        --tab-group-green: var(--g0-green) !important;
+        --tab-group-green-hover: color-mix(in srgb, var(--g0-green) 85%, white) !important;
+        --tab-group-green-invert: color-mix(in srgb, var(--g0-green) 35%, var(--g0-bg)) !important;
+        --tab-group-green-pale: color-mix(in srgb, var(--g0-green) 15%, var(--g0-bg)) !important;
+        --tab-group-green-text: var(--g0-on-accent) !important;
+        --tab-group-green-text-invert: var(--g0-fg) !important;
+        --tab-group-yellow: var(--g0-yellow) !important;
+        --tab-group-yellow-hover: color-mix(in srgb, var(--g0-yellow) 85%, white) !important;
+        --tab-group-yellow-invert: color-mix(in srgb, var(--g0-yellow) 35%, var(--g0-bg)) !important;
+        --tab-group-yellow-pale: color-mix(in srgb, var(--g0-yellow) 15%, var(--g0-bg)) !important;
+        --tab-group-yellow-text: var(--g0-on-accent) !important;
+        --tab-group-yellow-text-invert: var(--g0-fg) !important;
+        --tab-group-orange: var(--g0-accent) !important;
+        --tab-group-orange-hover: color-mix(in srgb, var(--g0-accent) 85%, white) !important;
+        --tab-group-orange-invert: color-mix(in srgb, var(--g0-accent) 35%, var(--g0-bg)) !important;
+        --tab-group-orange-pale: color-mix(in srgb, var(--g0-accent) 15%, var(--g0-bg)) !important;
+        --tab-group-orange-text: var(--g0-on-accent) !important;
+        --tab-group-orange-text-invert: var(--g0-fg) !important;
+        --tab-group-red: var(--g0-red) !important;
+        --tab-group-red-hover: color-mix(in srgb, var(--g0-red) 85%, white) !important;
+        --tab-group-red-invert: color-mix(in srgb, var(--g0-red) 35%, var(--g0-bg)) !important;
+        --tab-group-red-pale: color-mix(in srgb, var(--g0-red) 15%, var(--g0-bg)) !important;
+        --tab-group-red-text: var(--g0-on-accent) !important;
+        --tab-group-red-text-invert: var(--g0-fg) !important;
+        --tab-group-pink: var(--g0-pink) !important;
+        --tab-group-pink-hover: color-mix(in srgb, var(--g0-pink) 85%, white) !important;
+        --tab-group-pink-invert: color-mix(in srgb, var(--g0-pink) 35%, var(--g0-bg)) !important;
+        --tab-group-pink-pale: color-mix(in srgb, var(--g0-pink) 15%, var(--g0-bg)) !important;
+        --tab-group-pink-text: var(--g0-on-accent) !important;
+        --tab-group-pink-text-invert: var(--g0-fg) !important;
+        --tab-group-purple: var(--g0-visited) !important;
+        --tab-group-purple-hover: color-mix(in srgb, var(--g0-visited) 85%, white) !important;
+        --tab-group-purple-invert: color-mix(in srgb, var(--g0-visited) 35%, var(--g0-bg)) !important;
+        --tab-group-purple-pale: color-mix(in srgb, var(--g0-visited) 15%, var(--g0-bg)) !important;
+        --tab-group-purple-text: var(--g0-on-accent) !important;
+        --tab-group-purple-text-invert: var(--g0-fg) !important;
+        --tab-group-gray: var(--g0-dim) !important;
+        --tab-group-gray-hover: color-mix(in srgb, var(--g0-dim) 85%, white) !important;
+        --tab-group-gray-invert: color-mix(in srgb, var(--g0-dim) 35%, var(--g0-bg)) !important;
+        --tab-group-gray-pale: color-mix(in srgb, var(--g0-dim) 15%, var(--g0-bg)) !important;
+        --tab-group-gray-text: var(--g0-on-accent) !important;
+        --tab-group-gray-text-invert: var(--g0-fg) !important;
+
+        /* side bars */
+        --sidebar-background-color: var(--g0-side) !important;
+        --sidebar-text-color: var(--g0-fg) !important;
+        --sidebar-border-color: var(--g0-sep) !important;
+    }
+
+    /* not the popups of a page (select, autocomplete) */
+    menupopup:not([style*="color-scheme"]),
+    panel:not([style*="color-scheme"]) {
+        --panel-background-color: var(--g0-popup) !important;
+        --panel-text-color: var(--g0-fg) !important;
+        --panel-border-color: var(--g0-line) !important;
+        --background-color-canvas: var(--g0-popup) !important;
+    }
+
+    ::selection {
+        background-color: var(--g0-accent) !important;
+        color: var(--g0-on-accent) !important;
+    }
+
+    input,
+    textarea,
+    [contenteditable] {
+        caret-color: var(--g0-accent) !important;
+    }
+}
