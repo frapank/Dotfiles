@@ -198,6 +198,12 @@ moz-message-bar {
     --message-bar-border-color: var(--g0-line) !important;
 }
 
+/* private windows */
+:root[privatebrowsingmode="temporary"] {
+    --g0-accent: var(--g0-visited) !important;
+    --tab-background-color-selected: color-mix(in srgb, var(--g0-visited) 20%, var(--g0-bg)) !important;
+}
+
 /* minimal */
 
 /* no window buttons, g0wm closes the windows */
@@ -207,7 +213,7 @@ moz-message-bar {
     display: none !important;
 }
 
-/* address bar icons only on hover or in use; the shield (the lock) stays */
+/* address bar icons only on hover or in use, the shield too; the lock stays */
 #urlbar:not(:hover, [focused], :has([open])) :is(
     #tracking-protection-icon-container,
     #reader-mode-button:not([readeractive]),
