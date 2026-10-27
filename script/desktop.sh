@@ -212,9 +212,44 @@ write_thunar_prefs() {
     rm -f -- "$new"
 }
 
+# link the chrome folder of each profile to the theme
+librewolf_chrome() {
+    local base=$THOME/.config/librewolf/librewolf rel path dir n=0
+    if [[ ! -f $base/profiles.ini ]]; then
+        warn "no LibreWolf profile yet: start it once and run the apps section again for its theme"
+        return 0
+    fi
+    while IFS=$'\t' read -r rel path; do
+        [[ $rel == 1 ]] && path=$base/$path
+        dir=$(readlink -f -- "$path") || continue
+        [[ $dir == "$base"/* && -d $dir ]] || {
+            warn "LibreWolf profile ${path/#$THOME/\~} is not in ${base/#$THOME/\~}, no theme there"
+            continue
+        }
+        n=$((n + 1))
+        if [[ -L $dir/chrome && $(readlink -- "$dir/chrome") == ../chrome ]]; then
+            skip "${dir/#$THOME/\~}/chrome"
+            continue
+        fi
+        if [[ -e $dir/chrome || -L $dir/chrome ]]; then
+            move_aside "$dir/chrome"
+        else
+            jot hremove "$dir/chrome"
+        fi
+        as_user ln -s ../chrome "$dir/chrome"
+        ok "${dir/#$THOME/\~}/chrome -> ../chrome"
+    done < <(awk -F= '
+		/^\[/ { if (p != "") print r "\t" p; p = ""; r = 0; prof = /^\[Profile[0-9]+\]/; next }
+		prof && $1 == "IsRelative" { r = $2 }
+		prof && $1 == "Path" { p = substr($0, 6) }
+		END { if (p != "") print r "\t" p }' "$base/profiles.ini")
+    ((n)) || warn "no LibreWolf profile in ${base/#$THOME/\~}/profiles.ini"
+}
+
 do_apps() {
     step "User apps"
     do_home "${HOME_APPS[@]}"
+    librewolf_chrome
     write_mimeapps
     write_thunar_prefs
     # GTK reads it from gsettings, not settings.ini
