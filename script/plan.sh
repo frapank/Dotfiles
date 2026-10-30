@@ -31,6 +31,7 @@ plan() {
 		~/.bashrc and ~/.bash_profile get one line on top that sources ~/.bashrc_dotfile and ~/.bash_profile_dotfile, what programs add under it stays.
 		Files in the way, ~/.vimrc and ~/.tmux.conf go to ~/_backup/$TS.
 		zoxide learns the folders from the prompt (not ~ and ~/Private, traces deletes the list, the sandboxed apps cannot read it), tmux prefix f picks a session per folder. git diffs go through delta, lazygit never checks for updates.
+		apt install, remove, purge, autoremove, autopurge, update, upgrade, full-upgrade, show, search, list, clean and history run nala (also after doas), every other apt command stays apt. nala runs the DPkg hooks (snapshot, nosuid, aa-packages) and checks the hash of each package against the signed lists, but downloads it as root without the seccomp filter of the apt methods.
 		No phoning home: DO_NOT_TRACK, Go downloads straight from the source instead of Google's proxy and never fetches a toolchain, no pip and npm update checks, no npm audit. wget and curl send no version and wget keeps no list of sites (HSTS) and no download URL on files.
 	EOF
     section lsp "Language servers for nvim" <<-EOF
