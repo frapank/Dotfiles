@@ -663,15 +663,18 @@ def librewolf_colors():
            "accent": ACCENT, "on-accent": ON_ACCENT, "green": GREEN, "red": RED, "link": LINK,
            "visited": VISITED}
     # userContent.css has only some
+    pages = {}
     for name, every in (("g0wm.css", True), ("userContent.css", False)):
         p = os.path.join(LIBREWOLF, "chrome", name)
         with open(p, encoding="utf-8") as f:
             text = f.read()
+        pages[name] = re.search(r"@-moz-document([^{]*)\{", text)[1].split()
         for k, v in css.items():
             text, n = re.subn(rf"^(\s*--g0-{k}: ).*;$", lambda m, v=v: f"{m[1]}{v};", text, flags=re.M)
             assert n or not every, f"--g0-{k} missing in {p}"
         with open(p, "w", encoding="utf-8") as f:
             f.write(text)
+    assert pages["g0wm.css"] == pages["userContent.css"], "g0wm.css and userContent.css list other pages"
 
     prefs = {"ui.accentcolor": ACCENT, "ui.accentcolortext": ON_ACCENT, "ui.highlight": ACCENT,
              "ui.highlighttext": ON_ACCENT, "ui.selecteditem": SEL, "ui.selecteditemtext": FG,
@@ -680,7 +683,8 @@ def librewolf_colors():
              "reader.custom_colors.unvisited-links": LINK, "reader.custom_colors.visited-links": VISITED,
              "reader.custom_colors.selection-highlight": ACCENT, "ui.textSelectAttentionBackground": ACCENT,
              "ui.textSelectAttentionForeground": ON_ACCENT, "ui.textHighlightBackground": GREEN,
-             "ui.textHighlightForeground": ON_ACCENT}
+             "ui.textHighlightForeground": ON_ACCENT, "pdfjs.pageColorsBackground": BG,
+             "pdfjs.pageColorsForeground": FG}
     p = os.path.join(LIBREWOLF, "librewolf.overrides.cfg")
     with open(p, encoding="utf-8") as f:
         text = f.read()

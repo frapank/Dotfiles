@@ -189,7 +189,7 @@ plan() {
 		Default apps: images Loupe, video Showtime, PDF Papers, web librewolf, folders Thunar, archives xarchiver, documents LibreOffice, text vim (nvim in Open With).
 		GTK apps keep no list of recently used files.
 		LibreWolf: letterboxing on, so the window size the tiling layout gives it does not identify it (~/.config/librewolf/librewolf/librewolf.overrides.cfg).
-		LibreWolf: the G0wm theme in its window and about: pages (userChrome.css and userContent.css in ~/.config/librewolf/librewolf/chrome, linked in each profile; start LibreWolf once before, so it has a profile). Sites keep their own colors and cannot see the theme; reader view and PDFs are dark.
+		LibreWolf: the G0wm theme in its window and about: pages (userChrome.css and userContent.css in ~/.config/librewolf/librewolf/chrome, linked in each profile; start LibreWolf once before, so it has a profile). Sites keep their own colors and cannot see the theme; reader view and PDFs are dark, the text of the PDF pages too (images unchanged). Private windows have a purple accent and selected tab.
 		Vesktop: the G0wm theme (~/.config/vesktop/themes/g0wm.theme.css, turned on in its settings.json): the same colors and lines, no top bar (g0wm moves and closes the window), quiet server icons, no Nitro, shop, quests, gift and sticker buttons.
 		LibreWolf, minimal: no window buttons (g0wm closes the windows), the address bar shows example.org/page and its icons on hover, the AI buttons and menu items stay hidden (LibreWolf already blocks the AI features).
 	EOF
