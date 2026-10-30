@@ -19,6 +19,8 @@ profile tumblerd /usr/lib/@{multiarch}/tumbler-1/tumblerd flags=(attach_disconne
   owner @{HOME}/.config/tumbler/{,**} r,
   /{mnt,media}/{,**} r,
   @{run}/media/{,**} r,
+  # GIO's mount monitor
+  @{run}/mount/utab r,
   owner /tmp/** rwk,
   owner /dev/shm/** rwk,
 
