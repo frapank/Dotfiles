@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate colors.css, the GTK base.css files, the Kvantum theme and the colors of
-foot, fzf and LibreWolf from the palette.
+foot, fzf, LibreWolf and Vesktop from the palette.
 
 GTK: Adwaita's greys are mapped onto the palette and :backdrop is dropped.
 Kvantum: frame pieces are s x s, scaled to half of frame.expansion.
@@ -39,6 +39,7 @@ KVANTUM = os.path.join(REPO, "home/qt/.config/Kvantum/G0wm")
 FOOT = os.path.join(REPO, "home/foot/.config/foot/foot.ini")
 BASHRC = os.path.join(REPO, "home/bash/.bashrc_dotfile")
 LIBREWOLF = os.path.join(REPO, "home/librewolf/.config/librewolf/librewolf")
+VESKTOP = os.path.join(REPO, "home/vesktop/.config/vesktop/themes/g0wm.theme.css")
 
 PARTS = ("topleft", "top", "topright", "left", "", "right", "bottomleft", "bottom", "bottomright")
 
@@ -691,6 +692,20 @@ def librewolf_colors():
         f.write(text)
 
 
+def vesktop_colors():
+    css = {"bg": BG, "side": SIDE, "popup": POPUP, "hover": HOVER, "press": PRESS, "sel": SEL,
+           "trough": TROUGH, "sep": SEP, "line": LINE, "fg": FG, "dim": DIM, "mute": MUTE,
+           "accent": ACCENT, "on-accent": ON_ACCENT, "green": GREEN, "red": RED, "link": LINK,
+           "visited": VISITED}
+    with open(VESKTOP, encoding="utf-8") as f:
+        text = f.read()
+    for k, v in css.items():
+        text, n = re.subn(rf"^(\s*--g0-{k}: ).*;$", lambda m, v=v: f"{m[1]}{v};", text, flags=re.M)
+        assert n == 1, f"--g0-{k} missing in {VESKTOP}"
+    with open(VESKTOP, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
 def lib(name):
     # /usr/lib/<triplet> on Debian, /usr/lib elsewhere
     for p in sorted(glob.glob(f"/usr/lib/*-linux-gnu/{name}")) + [f"/usr/lib/{name}"]:
@@ -704,6 +719,7 @@ def main():
     foot_colors()
     fzf_colors()
     librewolf_colors()
+    vesktop_colors()
     gtk_base(lib("libgtk-3.so.0"), "/org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css",
              "/org/gtk/libgtk/theme/Adwaita/assets", os.path.join(THEME, "gtk-3.0/base.css"))
     gtk_base(lib("libgtk-4.so.1"), "/org/gtk/libgtk/theme/Default/Default-dark.css",

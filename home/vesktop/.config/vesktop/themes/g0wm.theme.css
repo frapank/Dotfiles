@@ -1,0 +1,991 @@
+/**
+ * @name G0wm
+ * @author frapank
+ * @version 1.1.0
+ * @description Flat, near-black, amber accent: the look of the rest of the system, for Discord
+ */
+
+/* G0wm for Vesktop: the --g0-* colors are written by script/g0wm-theme.py.
+   Discord (2026) paints almost everything from its own tokens (--background-*, --text-*,
+   --interactive-*, --control-*, --border-*, --input-*), so they are the whole theme;
+   below them only what no token reaches: radii, scrollbars, selection, a few shapes.
+   Class names are hashed (name_abc123) and change at every build: only [class*="name_"]. */
+
+:root {
+    --g0-bg: #0a0a0a;
+    --g0-side: #0a0a0a;
+    --g0-popup: #0e0e0e;
+    --g0-hover: #121212;
+    --g0-press: #1c1c1c;
+    --g0-sel: #1c1c1c;
+    --g0-trough: #2a2a2a;
+    --g0-sep: #1a1a1a;
+    --g0-line: #2a2a2a;
+    --g0-fg: #e9e9e9;
+    --g0-dim: #8a8a8a;
+    --g0-mute: #555555;
+    --g0-accent: #e0a86a;
+    --g0-on-accent: #0a0a0a;
+    --g0-green: #7fa88a;
+    --g0-red: #d8625e;
+    --g0-link: #8ab0c6;
+    --g0-visited: #c59dc8;
+    --g0-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    /* by hand, as in LibreWolf */
+    --g0-yellow: #ffe066;
+    --g0-cyan: #8cc8c7;
+    --g0-pink: #d97e7e;
+    --g0-purple: #a6829c;
+
+    --g0-radius: 8px;
+    --g0-radius-sm: 6px;
+    --g0-radius-lg: 12px;
+}
+
+/* The :not(#g0) is only for specificity: Discord defines its tokens on .theme-dark,
+   .theme-darker, .theme-midnight and again on .high-contrast-mode.theme-*, and the
+   --custom-theme-* mixes sit on top. One id beats all of them without !important.
+   Not only on :root: Discord puts .theme-dark again on inner elements (profiles,
+   layers) and .visual-refresh points --brand-500 back to blurple; each of them
+   would bring the stock tokens back below it. */
+:is(:root, .theme-dark, .theme-darker, .theme-midnight, .theme-light, .theme-onyx, .visual-refresh):not(#g0) {
+    color-scheme: dark;
+
+    /* radii (stock: 4 8 12 16 24 32) */
+    --radius-xs: 4px;
+    --radius-sm: var(--g0-radius-sm);
+    --radius-md: var(--g0-radius);
+    --radius-lg: var(--g0-radius-lg);
+    --radius-xl: var(--g0-radius-lg);
+    --radius-xxl: var(--g0-radius-lg);
+
+    /* shadows: flat, one for the popups */
+    --shadow-border: 0 0 0 1px var(--g0-line);
+    --shadow-low: none;
+    --shadow-medium: var(--g0-shadow);
+    --shadow-high: var(--g0-shadow);
+    --shadow-ledge: none;
+    --shadow-border-filter: none;
+    --shadow-high-filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
+    --shadow-button-overlay: var(--g0-shadow);
+    --shadow-button-overlay-filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
+
+    /* surfaces: the whole app is one plane, the popups one step up */
+    --background-base-lowest: var(--g0-bg);
+    --background-base-lower: var(--g0-bg);
+    --background-base-low: var(--g0-bg);
+    --background-surface-high: var(--g0-popup);
+    --background-surface-higher: var(--g0-popup);
+    --background-surface-highest: var(--g0-popup);
+    --background-accent: var(--g0-popup);
+    --background-secondary-alt: var(--g0-popup);
+    --bg-surface-raised: var(--g0-popup);
+    --background-gradient-chat: var(--g0-bg);
+    --background-gradient-app-frame: var(--g0-bg);
+    --background-gradient-lowest: var(--g0-bg);
+    --background-gradient-lower: var(--g0-bg);
+    --background-gradient-low: var(--g0-bg);
+    --background-gradient-high: var(--g0-bg);
+    --background-gradient-higher: var(--g0-bg);
+    --background-gradient-highest: var(--g0-bg);
+    --app-frame-background: var(--g0-bg);
+    --chat-background: var(--g0-bg);
+    --chat-background-default: var(--g0-bg);
+    --home-background: var(--g0-bg);
+    --card-background-default: var(--g0-popup);
+    --card-primary-pressed-bg: var(--g0-press);
+    --card-secondary-bg: var(--g0-hover);
+    --card-secondary-pressed-bg: var(--g0-press);
+    --modal-background: var(--g0-popup);
+    --modal-footer-background: var(--g0-popup);
+    --guild-profile-banner-background-default: var(--g0-popup);
+
+    /* hover / pressed / selected are overlays on whatever is below: fg at 3, 7, 17% is
+       #121212, #1c1c1c, #2a2a2a over #0a0a0a, as the rest of the system */
+    --background-mod-muted: color-mix(in srgb, var(--g0-fg) 3%, transparent);
+    --background-mod-subtle: color-mix(in srgb, var(--g0-fg) 3%, transparent);
+    --background-mod-normal: color-mix(in srgb, var(--g0-fg) 7%, transparent);
+    --background-mod-strong: color-mix(in srgb, var(--g0-fg) 17%, transparent);
+    --interactive-background-default: transparent;
+    --interactive-background-hover: color-mix(in srgb, var(--g0-fg) 3%, transparent);
+    --interactive-background-active: color-mix(in srgb, var(--g0-fg) 7%, transparent);
+    --interactive-background-selected: color-mix(in srgb, var(--g0-fg) 7%, transparent);
+    --redesign-button-tertiary-background: transparent;
+    --redesign-button-tertiary-pressed-background: color-mix(in srgb, var(--g0-fg) 7%, transparent);
+
+    /* scrim behind modals, lightbox */
+    --background-scrim: rgba(0, 0, 0, 0.6);
+    --background-scrim-lightbox: rgba(0, 0, 0, 0.9);
+
+    /* borders: hairlines */
+    --border-muted: var(--g0-sep);
+    --border-subtle: var(--g0-sep);
+    --border-normal: var(--g0-line);
+    --border-strong: var(--g0-mute);
+    --border-focus: var(--g0-accent);
+    --app-frame-border: var(--g0-sep);
+    --chat-border: var(--g0-sep);
+    --card-border-default: var(--g0-line);
+    --control-secondary-border-default: var(--g0-line);
+    --control-secondary-border-hover: var(--g0-line);
+    --control-secondary-border-active: var(--g0-line);
+
+    /* text and icons: fg, dim, mute */
+    --text-strong: var(--g0-fg);
+    --text-default: var(--g0-fg);
+    --text-muted: var(--g0-dim);
+    --text-subtle: var(--g0-dim);
+    --text-invert: var(--g0-bg);
+    --text-link: var(--g0-link);
+    --text-brand: var(--g0-accent);
+    --text-code: var(--g0-fg);
+    --text-overlay-dark: var(--g0-on-accent);
+    --text-overlay-light: var(--g0-fg);
+    --channels-default: var(--g0-dim);
+    --chat-text-muted: var(--g0-dim);
+    --textbox-markdown-syntax: var(--g0-mute);
+    --icon-strong: var(--g0-fg);
+    --icon-default: var(--g0-dim);
+    --icon-subtle: var(--g0-dim);
+    --icon-muted: var(--g0-mute);
+    --icon-invert: var(--g0-bg);
+    --icon-link: var(--g0-link);
+    --icon-brand: var(--g0-accent);
+    --icon-overlay-dark: var(--g0-on-accent);
+    --icon-overlay-light: var(--g0-fg);
+    --interactive-text-default: var(--g0-dim);
+    --interactive-text-hover: var(--g0-fg);
+    --interactive-text-active: var(--g0-fg);
+    --interactive-icon-default: var(--g0-dim);
+    --interactive-icon-hover: var(--g0-fg);
+    --interactive-icon-active: var(--g0-fg);
+    --interactive-muted: var(--g0-mute);
+    --control-icon-only-icon-default: var(--g0-dim);
+    --control-icon-only-icon-hover: var(--g0-fg);
+    --control-icon-only-icon-active: var(--g0-fg);
+    --control-icon-only-background-hover: color-mix(in srgb, var(--g0-fg) 3%, transparent);
+    --control-icon-only-background-active: color-mix(in srgb, var(--g0-fg) 7%, transparent);
+    --control-icon-only-border-hover: transparent;
+    --control-icon-only-border-active: transparent;
+
+    /* accent: where Discord is blurple, we are amber, text on it is the bg */
+    --brand-100: color-mix(in srgb, var(--g0-accent) 12%, var(--g0-bg));
+    --brand-260: color-mix(in srgb, var(--g0-accent) 35%, var(--g0-bg));
+    --brand-360: var(--g0-accent);
+    --brand-500: var(--g0-accent);
+    --brand-530: color-mix(in srgb, var(--g0-accent) 85%, white);
+    --brand-560: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --brand-600: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --background-brand: var(--g0-accent);
+    --control-brand-foreground: var(--g0-accent);
+    --control-brand-foreground-new: var(--g0-accent);
+    --control-primary-background-default: var(--g0-accent);
+    --control-primary-background-hover: color-mix(in srgb, var(--g0-accent) 85%, white);
+    --control-primary-background-active: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --control-primary-border-default: transparent;
+    --control-primary-border-hover: transparent;
+    --control-primary-border-active: transparent;
+    --control-primary-text-default: var(--g0-on-accent);
+    --control-primary-text-hover: var(--g0-on-accent);
+    --control-primary-text-active: var(--g0-on-accent);
+    --control-primary-icon-default: var(--g0-on-accent);
+    --control-primary-icon-hover: var(--g0-on-accent);
+    --control-primary-icon-active: var(--g0-on-accent);
+    --button-outline-brand-background-hover: var(--g0-accent);
+    --button-outline-brand-border-active: var(--g0-accent);
+    --interactive-accent-background-default: color-mix(in srgb, var(--g0-accent) 12%, transparent);
+    --interactive-accent-background-hover: var(--g0-accent);
+    --interactive-accent-background-active: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --interactive-accent-background-selected: var(--g0-accent);
+    --mention-background: color-mix(in srgb, var(--g0-accent) 18%, transparent);
+    --mention-foreground: var(--g0-accent);
+    --brand-160: color-mix(in srgb, var(--g0-accent) 30%, var(--g0-fg));
+    --brand-200: color-mix(in srgb, var(--g0-accent) 45%, var(--g0-fg));
+    --brand-230: color-mix(in srgb, var(--g0-accent) 60%, var(--g0-fg));
+    --brand-300: color-mix(in srgb, var(--g0-accent) 75%, var(--g0-fg));
+    --brand-330: color-mix(in srgb, var(--g0-accent) 85%, var(--g0-fg));
+    --brand-400: var(--g0-accent);
+    --brand-430: var(--g0-accent);
+    --brand-460: var(--g0-accent);
+    --brand-700: color-mix(in srgb, var(--g0-accent) 30%, var(--g0-bg));
+    --brand-05a: color-mix(in srgb, var(--g0-accent) 5%, transparent);
+    --brand-10a: color-mix(in srgb, var(--g0-accent) 10%, transparent);
+    --brand-15a: color-mix(in srgb, var(--g0-accent) 15%, transparent);
+    --brand-50a: color-mix(in srgb, var(--g0-accent) 50%, transparent);
+
+    /* blurple by name, under the tokens: the same amber, pale / plain / pressed / deep */
+    --blurple-1: color-mix(in srgb, var(--g0-accent) 25%, var(--g0-fg));
+    --blurple-12: color-mix(in srgb, var(--g0-accent) 25%, var(--g0-fg));
+    --blurple-15: color-mix(in srgb, var(--g0-accent) 25%, var(--g0-fg));
+    --blurple-20: color-mix(in srgb, var(--g0-accent) 25%, var(--g0-fg));
+    --blurple-21: color-mix(in srgb, var(--g0-accent) 25%, var(--g0-fg));
+    --blurple-24: var(--g0-accent);
+    --blurple-26: var(--g0-accent);
+    --blurple-28: var(--g0-accent);
+    --blurple-29: var(--g0-accent);
+    --blurple-30: var(--g0-accent);
+    --blurple-36: var(--g0-accent);
+    --blurple-38: var(--g0-accent);
+    --blurple-45: var(--g0-accent);
+    --blurple-49: var(--g0-accent);
+    --blurple-50: var(--g0-accent);
+    --blurple-53: var(--g0-accent);
+    --blurple-60: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --blurple-61: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --blurple-63: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --blurple-65: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --blurple-70: color-mix(in srgb, var(--g0-accent) 20%, var(--g0-bg));
+    --blurple-71: color-mix(in srgb, var(--g0-accent) 20%, var(--g0-bg));
+    --blurple-75: color-mix(in srgb, var(--g0-accent) 20%, var(--g0-bg));
+    --blurple-82: color-mix(in srgb, var(--g0-accent) 20%, var(--g0-bg));
+    --blurple-85: color-mix(in srgb, var(--g0-accent) 20%, var(--g0-bg));
+    --blurple-91: color-mix(in srgb, var(--g0-accent) 20%, var(--g0-bg));
+    --blurple-95: color-mix(in srgb, var(--g0-accent) 20%, var(--g0-bg));
+    --opacity-blurple-8: color-mix(in srgb, var(--g0-accent) 8%, transparent);
+    --opacity-blurple-12: color-mix(in srgb, var(--g0-accent) 12%, transparent);
+    --opacity-blurple-16: color-mix(in srgb, var(--g0-accent) 16%, transparent);
+    --opacity-blurple-32: color-mix(in srgb, var(--g0-accent) 32%, transparent);
+    --opacity-blurple-60: color-mix(in srgb, var(--g0-accent) 60%, transparent);
+    --opacity-blurple-64: color-mix(in srgb, var(--g0-accent) 64%, transparent);
+
+    /* by hand: --g0-accent as "h s l", for the hsl(var(--brand-500-hsl) / a) Discord
+       still writes (own reactions, polls, quests); redo it if the accent changes */
+    --brand-500-hsl: 31.525 65.556% 64.706%;
+    --blurple-50-hsl: 31.525 65.556% 64.706%;
+
+    /* focus rings: amber, not blue */
+    --blue-345: var(--g0-accent);
+    --focus-primary: var(--g0-accent);
+
+    /* green: connected, positive */
+    --control-connected-background-default: var(--g0-green);
+    --control-connected-background-hover: color-mix(in srgb, var(--g0-green) 85%, white);
+    --control-connected-background-active: color-mix(in srgb, var(--g0-green) 85%, black);
+    --control-connected-text-default: var(--g0-on-accent);
+    --control-connected-text-hover: var(--g0-on-accent);
+    --control-connected-text-active: var(--g0-on-accent);
+    --control-connected-icon-default: var(--g0-on-accent);
+    --control-connected-icon-hover: var(--g0-on-accent);
+    --control-connected-icon-active: var(--g0-on-accent);
+    --control-connected-border-default: transparent;
+    --control-connected-border-hover: transparent;
+    --control-connected-border-active: transparent;
+
+    /* red: danger */
+    --control-critical-primary-background-default: var(--g0-red);
+    --control-critical-primary-background-hover: color-mix(in srgb, var(--g0-red) 85%, white);
+    --control-critical-primary-background-active: color-mix(in srgb, var(--g0-red) 85%, black);
+    --control-critical-primary-text-default: var(--g0-on-accent);
+    --control-critical-primary-text-hover: var(--g0-on-accent);
+    --control-critical-primary-text-active: var(--g0-on-accent);
+    --control-critical-primary-icon-default: var(--g0-on-accent);
+    --control-critical-primary-icon-hover: var(--g0-on-accent);
+    --control-critical-primary-icon-active: var(--g0-on-accent);
+    --control-critical-primary-border-default: transparent;
+    --control-critical-primary-border-hover: transparent;
+    --control-critical-primary-border-active: transparent;
+    --control-critical-secondary-text-default: var(--g0-red);
+    --control-critical-secondary-text-hover: var(--g0-red);
+    --control-critical-secondary-text-active: var(--g0-red);
+    --control-critical-secondary-icon-default: var(--g0-red);
+    --control-critical-secondary-icon-hover: var(--g0-red);
+    --control-critical-secondary-icon-active: var(--g0-red);
+    --status-danger: var(--g0-red);
+    --button-danger-background-disabled: var(--g0-red);
+
+    /* secondary / expressive / overlay buttons: outlined, no fills */
+    --control-secondary-background-default: transparent;
+    --control-secondary-background-hover: color-mix(in srgb, var(--g0-fg) 3%, transparent);
+    --control-secondary-background-active: color-mix(in srgb, var(--g0-fg) 7%, transparent);
+    --control-secondary-text-default: var(--g0-fg);
+    --control-secondary-text-hover: var(--g0-fg);
+    --control-secondary-text-active: var(--g0-fg);
+    --control-secondary-icon-default: var(--g0-fg);
+    --control-secondary-icon-hover: var(--g0-fg);
+    --control-secondary-icon-active: var(--g0-fg);
+    --control-expressive-background-default: var(--g0-fg);
+    --control-expressive-background-hover: color-mix(in srgb, var(--g0-fg) 85%, black);
+    --control-expressive-background-active: color-mix(in srgb, var(--g0-fg) 70%, black);
+    --control-expressive-text-default: var(--g0-bg);
+    --control-expressive-text-hover: var(--g0-bg);
+    --control-expressive-text-active: var(--g0-bg);
+    --control-expressive-icon-default: var(--g0-bg);
+    --control-expressive-icon-hover: var(--g0-bg);
+    --control-expressive-icon-active: var(--g0-bg);
+    --control-expressive-border-default: transparent;
+    --control-expressive-border-hover: transparent;
+    --control-expressive-border-active: transparent;
+    --control-overlay-primary-background-default: var(--g0-popup);
+    --control-overlay-primary-background-hover: var(--g0-hover);
+    --control-overlay-primary-background-active: var(--g0-press);
+    --control-overlay-primary-border-default: var(--g0-line);
+    --control-overlay-primary-border-hover: var(--g0-line);
+    --control-overlay-primary-border-active: var(--g0-line);
+    --control-overlay-primary-text-default: var(--g0-fg);
+    --control-overlay-primary-text-hover: var(--g0-fg);
+    --control-overlay-primary-text-active: var(--g0-fg);
+    --control-overlay-primary-icon-default: var(--g0-fg);
+    --control-overlay-primary-icon-hover: var(--g0-fg);
+    --control-overlay-primary-icon-active: var(--g0-fg);
+    --control-overlay-secondary-background-default: rgba(10, 10, 10, 0.8);
+    --control-overlay-secondary-background-hover: rgba(10, 10, 10, 0.9);
+    --control-overlay-secondary-background-active: var(--g0-bg);
+    --control-overlay-secondary-border-default: var(--g0-line);
+    --control-overlay-secondary-border-hover: var(--g0-line);
+    --control-overlay-secondary-border-active: var(--g0-line);
+    --control-overlay-secondary-text-default: var(--g0-fg);
+    --control-overlay-secondary-text-hover: var(--g0-fg);
+    --control-overlay-secondary-text-active: var(--g0-fg);
+    --control-overlay-secondary-icon-default: var(--g0-fg);
+    --control-overlay-secondary-icon-hover: var(--g0-fg);
+    --control-overlay-secondary-icon-active: var(--g0-fg);
+
+    /* inputs: bg with a line, amber when focused */
+    --input-background-default: var(--g0-bg);
+    --input-background-error-default: color-mix(in srgb, var(--g0-red) 8%, var(--g0-bg));
+    --input-border-default: var(--g0-line);
+    --input-border-hover: var(--g0-mute);
+    --input-border-active: var(--g0-accent);
+    --input-border-readonly: var(--g0-sep);
+    --input-border-error-default: var(--g0-red);
+    --input-text-default: var(--g0-fg);
+    --input-text-error-default: var(--g0-fg);
+    --input-placeholder-text-default: var(--g0-mute);
+    --input-icon-default: var(--g0-dim);
+
+    --status-online: var(--g0-green);
+    --status-positive: var(--g0-green);
+    --status-speaking: var(--g0-green);
+    --status-positive-background: var(--g0-green);
+    --status-positive-text: var(--g0-on-accent);
+    --status-warning: var(--g0-yellow);
+    --status-warning-background: var(--g0-yellow);
+    --status-warning-text: var(--g0-on-accent);
+    --icon-status-online: var(--g0-green);
+    --icon-status-idle: var(--g0-yellow);
+    --icon-status-dnd: var(--g0-red);
+    --icon-status-offline: var(--g0-mute);
+    --text-status-online: var(--g0-green);
+    --text-status-idle: var(--g0-yellow);
+    --text-status-dnd: var(--g0-red);
+    --text-status-offline: var(--g0-mute);
+
+    --icon-voice-connected: var(--g0-green);
+    --icon-voice-speaking: var(--g0-green);
+    --icon-voice-disconnected: var(--g0-red);
+    --icon-voice-muted: var(--g0-red);
+    --text-voice-connected: var(--g0-green);
+    --text-voice-speaking: var(--g0-green);
+    --text-voice-disconnected: var(--g0-red);
+    --background-voice-muted: color-mix(in srgb, var(--g0-red) 12%, transparent);
+    --border-voice-muted: color-mix(in srgb, var(--g0-red) 12%, transparent);
+
+    /* feedback: tinted bg, colored text, as the info bars of LibreWolf */
+    --background-feedback-info: color-mix(in srgb, var(--g0-link) 12%, var(--g0-bg));
+    --background-feedback-positive: color-mix(in srgb, var(--g0-green) 12%, var(--g0-bg));
+    --background-feedback-warning: color-mix(in srgb, var(--g0-yellow) 10%, var(--g0-bg));
+    --background-feedback-critical: color-mix(in srgb, var(--g0-red) 12%, var(--g0-bg));
+    --background-feedback-notification: var(--g0-red);
+    --border-feedback-info: var(--g0-link);
+    --border-feedback-positive: var(--g0-green);
+    --border-feedback-warning: var(--g0-yellow);
+    --border-feedback-critical: var(--g0-red);
+    --text-feedback-info: var(--g0-link);
+    --text-feedback-positive: var(--g0-green);
+    --text-feedback-warning: var(--g0-yellow);
+    --text-feedback-critical: var(--g0-red);
+    --icon-feedback-info: var(--g0-link);
+    --icon-feedback-positive: var(--g0-green);
+    --icon-feedback-warning: var(--g0-yellow);
+    --icon-feedback-critical: var(--g0-red);
+    --icon-feedback-notification: var(--g0-red);
+
+    /* code blocks: the ANSI colors of foot */
+    --background-code: var(--g0-popup);
+    --background-code-addition: color-mix(in srgb, var(--g0-green) 14%, transparent);
+    --background-code-deletion: color-mix(in srgb, var(--g0-red) 14%, transparent);
+    --text-code-addition: #afd7af;
+    --text-code-deletion: #d97e7e;
+    --text-code-comment: var(--g0-mute);
+    --text-code-keyword: #d97e7e;
+    --text-code-operator: var(--g0-dim);
+    --text-code-section: #d97e7e;
+    --text-code-error: #d97e7e;
+    --text-code-string: #afd7af;
+    --text-code-regexp: #afd7af;
+    --text-code-number: var(--g0-accent);
+    --text-code-builtin: var(--g0-yellow);
+    --text-code-decorator: var(--g0-yellow);
+    --text-code-attribute: #8ab0c6;
+    --text-code-link: #8ab0c6;
+    --text-code-namespace: #8ab0c6;
+    --text-code-bullet: #8ab0c6;
+    --text-code-property: #8cc8c7;
+    --text-code-tag: #c59dc8;
+    --text-code-type: #c59dc8;
+    --text-code-escape: #c59dc8;
+    --text-code-title: var(--g0-accent);
+    --text-code-variable: var(--g0-fg);
+
+    /* scrollbars (also read as --scrollbar-thin-thumb etc. by the app) */
+    --scrollbar-thin-thumb: color-mix(in srgb, var(--g0-dim) 45%, transparent);
+    --scrollbar-thin-track: transparent;
+    --scrollbar-auto-thumb: color-mix(in srgb, var(--g0-dim) 45%, transparent);
+    --scrollbar-auto-track: transparent;
+    --scrollbar-auto-scrollbar-color-thumb: color-mix(in srgb, var(--g0-dim) 45%, transparent);
+    --scrollbar-auto-scrollbar-color-track: transparent;
+
+    /* ANSI colors of the terminal-ish bits (the voice debug panel) */
+    --ansi-black: var(--g0-bg);
+    --ansi-red: #cc6666;
+    --ansi-green: #8c9a8c;
+    --ansi-yellow: #ffee8f;
+    --ansi-blue: #708a99;
+    --ansi-magenta: #a6829c;
+    --ansi-cyan: #70a09f;
+    --ansi-white: var(--g0-dim);
+    --ansi-bright-black: var(--g0-mute);
+    --ansi-bright-red: #d97e7e;
+    --ansi-bright-green: #afd7af;
+    --ansi-bright-yellow: #ffe066;
+    --ansi-bright-blue: #8ab0c6;
+    --ansi-bright-magenta: #c59dc8;
+    --ansi-bright-cyan: #8cc8c7;
+    --ansi-bright-white: #ffffff;
+
+    /* messages: hover is the hover grey; replies, jumps and mentions an amber wash */
+    --message-background-hover: color-mix(in srgb, var(--g0-fg) 3%, transparent);
+    --message-highlight-background-default: color-mix(in srgb, var(--g0-accent) 8%, transparent);
+    --message-highlight-background-hover: color-mix(in srgb, var(--g0-accent) 12%, transparent);
+    --message-mentioned-background-default: color-mix(in srgb, var(--g0-accent) 8%, transparent);
+    --message-mentioned-background-hover: color-mix(in srgb, var(--g0-accent) 12%, transparent);
+    --message-automod-background-default: color-mix(in srgb, var(--g0-red) 6%, transparent);
+    --message-automod-background-hover: color-mix(in srgb, var(--g0-red) 10%, transparent);
+
+    /* reactions: outlined chips, amber when yours */
+    --reaction-background-default: transparent;
+    --reaction-background-hover: color-mix(in srgb, var(--g0-fg) 3%, transparent);
+    --reaction-background-active: color-mix(in srgb, var(--g0-fg) 7%, transparent);
+    --reaction-background-reacted-default: color-mix(in srgb, var(--g0-accent) 12%, transparent);
+    --reaction-background-reacted-hover: color-mix(in srgb, var(--g0-accent) 18%, transparent);
+    --reaction-border-default: var(--g0-line);
+    --reaction-border-hover: var(--g0-mute);
+    --reaction-border-active: var(--g0-mute);
+    --reaction-border-reacted-default: var(--g0-accent);
+    --reaction-text-default: var(--g0-dim);
+    --reaction-text-hover: var(--g0-fg);
+    --reaction-text-active: var(--g0-fg);
+    --reaction-text-reacted-default: var(--g0-accent);
+
+    /* switches, checkboxes, radios: the trough when off, amber when on */
+    --switch-background-default: var(--g0-trough);
+    --switch-background-hover: var(--g0-trough);
+    --switch-background-active: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --switch-background-selected-default: var(--g0-accent);
+    --switch-background-selected-hover: color-mix(in srgb, var(--g0-accent) 85%, white);
+    --switch-border-default: transparent;
+    --switch-border-hover: transparent;
+    --switch-border-selected-default: transparent;
+    --switch-border-selected-hover: transparent;
+    --switch-thumb-background-default: var(--g0-fg);
+    --switch-thumb-background-selected-default: var(--g0-fg);
+    --switch-thumb-icon-default: var(--g0-trough);
+    --switch-thumb-icon-active: var(--g0-accent);
+    --checkbox-background-default: transparent;
+    --checkbox-background-hover: transparent;
+    --checkbox-background-active: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --checkbox-background-selected-default: var(--g0-accent);
+    --checkbox-background-selected-hover: color-mix(in srgb, var(--g0-accent) 85%, white);
+    --checkbox-border-default: var(--g0-mute);
+    --checkbox-border-hover: var(--g0-dim);
+    --checkbox-border-active: var(--g0-accent);
+    --checkbox-border-selected-default: var(--g0-accent);
+    --checkbox-border-selected-hover: color-mix(in srgb, var(--g0-accent) 85%, white);
+    --checkbox-icon-active: var(--g0-on-accent);
+    --radio-background-default: transparent;
+    --radio-background-hover: transparent;
+    --radio-background-active: color-mix(in srgb, var(--g0-accent) 85%, black);
+    --radio-background-selected-default: var(--g0-accent);
+    --radio-background-selected-hover: color-mix(in srgb, var(--g0-accent) 85%, white);
+    --radio-border-default: var(--g0-mute);
+    --radio-border-hover: var(--g0-dim);
+    --radio-border-active: var(--g0-accent);
+    --radio-border-selected-default: var(--g0-accent);
+    --radio-border-selected-hover: color-mix(in srgb, var(--g0-accent) 85%, white);
+    --radio-foreground-default: transparent;
+    --radio-foreground-hover: transparent;
+    --radio-foreground-active: var(--g0-accent);
+    --radio-thumb-background-active: var(--g0-on-accent);
+
+    /* the other bits of accent: bars, tabs, toggles, ranges, polls, charts */
+    --progressbar-indicator-background: var(--g0-accent);
+    --progressbar-track-background: var(--g0-trough);
+    --slider-track-background: var(--g0-trough);
+    --tabs-indicator-default: var(--g0-accent);
+    --togglebutton-background-selected: color-mix(in srgb, var(--g0-accent) 12%, transparent);
+    --togglebutton-background-selected-hover: color-mix(in srgb, var(--g0-accent) 18%, transparent);
+    --togglebutton-background-selected-active: color-mix(in srgb, var(--g0-accent) 24%, transparent);
+    --togglebutton-border-selected: var(--g0-accent);
+    --togglebutton-border-active: var(--g0-accent);
+    --datepicker-range-background-default: color-mix(in srgb, var(--g0-accent) 25%, transparent);
+    --datepicker-range-background-hover: color-mix(in srgb, var(--g0-accent) 35%, transparent);
+    --polls-voted-fill: color-mix(in srgb, var(--g0-accent) 20%, transparent);
+    --chart-brand: var(--g0-accent);
+    --chart-categorical-1: var(--g0-accent);
+
+    /* badges: amber with dark text (the white NEW), red / green / yellow likewise */
+    --badge-primary-background: var(--g0-accent);
+    --badge-primary-border: transparent;
+    --badge-primary-text: var(--g0-on-accent);
+    --badge-expressive-background: var(--g0-accent);
+    --badge-expressive-border: transparent;
+    --badge-expressive-text: var(--g0-on-accent);
+    --badge-inverted-background: var(--g0-accent);
+    --badge-inverted-border: transparent;
+    --badge-inverted-text: var(--g0-on-accent);
+    --badge-secondary-background: var(--g0-press);
+    --badge-secondary-border: transparent;
+    --badge-secondary-text: var(--g0-fg);
+    --badge-notification-background: var(--g0-red);
+    --badge-notification-border: transparent;
+    --badge-notification-text: var(--g0-on-accent);
+    --badge-critical-background: var(--g0-red);
+    --badge-critical-border: transparent;
+    --badge-critical-text: var(--g0-on-accent);
+    --badge-success-background: var(--g0-green);
+    --badge-success-border: transparent;
+    --badge-success-text: var(--g0-on-accent);
+    --badge-warning-background: var(--g0-yellow);
+    --badge-warning-border: transparent;
+    --badge-warning-text: var(--g0-on-accent);
+
+    /* profiles (side panel, popouts): one flat popup, lines for the cards */
+    --user-profile-overlay-background: var(--g0-popup);
+    --user-profile-overlay-background-hover: color-mix(in srgb, var(--g0-fg) 3%, transparent);
+    --user-profile-background-hover: color-mix(in srgb, var(--g0-fg) 3%, transparent);
+    --user-profile-border: var(--g0-line);
+    --user-profile-toolbar-background: var(--g0-popup);
+    --user-profile-toolbar-border: var(--g0-line);
+    --user-profile-activity-toolbar-background: var(--g0-popup);
+    --user-profile-note-background-focus: var(--g0-bg);
+
+    /* the last stock surfaces */
+    --embed-background: var(--g0-popup);
+    --embed-background-alternate: var(--g0-popup);
+    --channeltextarea-background: var(--g0-bg);
+    --channel-background-default: var(--g0-bg);
+    --panel-bg: var(--g0-bg);
+    --spoiler-hidden-background: var(--g0-press);
+    --spoiler-hidden-background-hover: var(--g0-line);
+    --spoiler-revealed-background: var(--g0-popup);
+    --spine-default: var(--g0-line);
+    --thread-channel-spine: var(--g0-line);
+    --channel-icon: var(--g0-dim);
+    --channel-text-area-placeholder: var(--g0-mute);
+    --app-message-embed-secondary-text: var(--g0-dim);
+
+    /* no top bar (arrows, title, inbox, help, window buttons): its row is 0 high */
+    --custom-app-top-bar-height: 0px;
+}
+
+/* ---- what the tokens do not reach ---- */
+
+::selection {
+    background: var(--g0-accent);
+    color: var(--g0-on-accent);
+}
+
+/* scrollbars: Discord draws its own (thin, auto, none) from the tokens above; this
+   is for the rest. No scrollbar-color: in Chromium it turns every ::-webkit-scrollbar
+   rule off, and the hidden scrollers (the server column) come back with arrows */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+    background: transparent;
+    border: none;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--g0-dim) 45%, transparent);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--g0-dim);
+}
+
+input,
+textarea {
+    caret-color: var(--g0-accent);
+}
+
+/* the dark title bar of the app and the loading screen */
+html,
+body {
+    background: var(--g0-bg);
+}
+
+/* popups and menus: the one raised surface, with a line and the shadow */
+[class*="menu_"][role="menu"],
+[class*="popout_"],
+[class*="autocomplete_"] {
+    border: 1px solid var(--g0-line);
+    border-radius: var(--g0-radius-lg);
+    box-shadow: var(--g0-shadow);
+}
+
+/* tooltips: the same, smaller */
+[class*="layer_"] [class*="tooltip_"] {
+    border: 1px solid var(--g0-line);
+    border-radius: var(--g0-radius-sm);
+    box-shadow: var(--g0-shadow);
+}
+
+/* the amber tooltip (new features): dark text, no line */
+[class*="tooltipBrand_"]:not(#g0) {
+    border-color: transparent;
+    color: var(--g0-on-accent);
+}
+
+/* menu items: 6px, the pressed grey under the pointer, as in LibreWolf */
+[class*="menu_"][role="menu"] [class*="item_"] {
+    border-radius: var(--g0-radius-sm);
+}
+
+[class*="menu_"][role="menu"] [class*="colorDefault_"][class*="focused_"] {
+    background: var(--g0-press);
+    color: var(--g0-fg);
+}
+
+[class*="modal_"][role="dialog"],
+[class*="root_"][role="dialog"] {
+    border: 1px solid var(--g0-line);
+    border-radius: var(--g0-radius-lg);
+    box-shadow: var(--g0-shadow);
+}
+
+/* the message box: a line instead of a filled pill; amber when typing */
+[class*="channelTextArea_"] [class*="scrollableContainer_"] {
+    background: var(--g0-bg);
+    border: 1px solid var(--g0-line);
+    border-radius: var(--g0-radius);
+    box-shadow: none;
+}
+
+[class*="channelTextArea_"] [class*="scrollableContainer_"]:focus-within {
+    border-color: var(--g0-accent);
+}
+
+/* the line beside a mention is amber as the rest (stock: yellow); replies and
+   highlights take theirs from the brand tokens */
+[class*="message_"][class*="mentioned_"]::before {
+    background: var(--g0-accent);
+}
+
+[class*="embedWrapper_"],
+[class*="messageAttachment_"] {
+    border-radius: var(--g0-radius);
+}
+
+[class*="numberBadge_"] {
+    background: var(--g0-red);
+    color: var(--g0-on-accent);
+}
+
+[class*="reaction_"] {
+    border-radius: var(--g0-radius-sm);
+}
+
+[class*="reaction_"][class*="reactionMe_"] {
+    background: color-mix(in srgb, var(--g0-accent) 12%, transparent);
+    border-color: var(--g0-accent);
+}
+
+/* text on amber is dark: the bars over the chat, the settings notice, bot tags,
+   a hovered mention */
+[class*="newMessagesBar_"]:not(#g0),
+[class*="newTopicsBarContainer_"]:not(#g0),
+[class*="settingsWrapper_"] [class*="notice_"]:not(#g0),
+[class*="botTagRegular_"]:not(#g0),
+.mention.interactive:hover:not(#g0) {
+    color: var(--g0-on-accent);
+}
+
+/* the app notice on top, when amber */
+[class*="colorBrand_"]:not(#g0) {
+    --custom-notice-text: var(--g0-on-accent);
+}
+
+/* ---- the server column ---- */
+
+/* Discord cuts every icon with an svg mask that JS morphs from circle to squircle,
+   with notches for the badges. No mask: plain tiles, 8px as the tabs and fields;
+   the open folder around them is 12px, 8 + its 4px padding */
+[class*="guilds_"] [class*="svg_"] :is(foreignObject, [mask]) {
+    mask: none;
+}
+
+[class*="guilds_"] foreignObject > *,
+[class*="guilds_"] foreignObject img {
+    border-radius: var(--g0-radius);
+    overflow: hidden;
+}
+
+/* room above the first icon of the column (home), now that the top bar is gone */
+[class*="guilds_"]:not(#g0) {
+    box-sizing: border-box;
+    padding-top: 12px;
+}
+
+/* and for the line of the first server */
+[class*="guilds_"] [class*="scroller_"]:not(#g0) {
+    padding-top: 4px;
+}
+
+/* the lines go on the blob, outside the svg (which clips what it holds) */
+[class*="guilds_"] [class*="wrapper_"]:has(> [class*="svg_"]) {
+    border-radius: var(--g0-radius);
+    outline: 1px solid transparent;
+    outline-offset: 2px;
+    transition: outline-color 0.15s ease-out;
+}
+
+/* hover: a quiet line, as a field on hover */
+[class*="guilds_"] [class*="wrapper_"]:has(> [class*="svg_"]):hover {
+    outline-color: var(--g0-mute);
+}
+
+/* selected, and the closed folder that holds it: a thin amber line */
+[class*="guilds_"] [class*="wrapper_"]:has(> [class*="svg_"] foreignObject [class*="selected_"]),
+[class*="guilds_"] [class*="listItem_"]:has(> [class*="wrapper_"] > [class*="item_"][class*="selected_"]) [class*="wrapper_"]:has(> [class*="svg_"]) {
+    outline: 1.5px solid var(--g0-accent);
+}
+
+/* keyboard focus: the same line, not the blue stroke around the blob */
+[class*="guilds_"] [class*="focusStroke_"]:not(#g0) {
+    stroke: transparent;
+}
+
+[class*="guilds_"] [class*="simpleFocused_"]:not(#g0) {
+    box-shadow: none;
+}
+
+[class*="guilds_"] [class*="wrapper_"]:has(> [class*="svg_"]):has(:focus-visible) {
+    outline: 1.5px solid var(--g0-accent);
+}
+
+/* home, add, discover and the servers without a picture: an outlined tile, dim
+   glyph; grey on hover, the pressed grey when selected, the glyph fg */
+[class*="guilds_"] [class*="childWrapper_"]:not(#g0),
+[class*="guilds_"] [class*="circleIconButton_"]:not(#g0) {
+    background: transparent;
+    color: var(--g0-dim);
+    border-radius: var(--g0-radius);
+    box-shadow: inset 0 0 0 1px var(--g0-line);
+}
+
+[class*="guilds_"] [class*="childWrapper_"]:hover:not(#g0),
+[class*="guilds_"] [class*="circleIconButton_"]:hover:not(#g0) {
+    background: var(--g0-hover);
+    color: var(--g0-fg);
+}
+
+[class*="guilds_"] [class*="selected_"] [class*="childWrapper_"]:not(#g0),
+[class*="guilds_"] [class*="circleIconButton_"][class*="selected_"]:not(#g0) {
+    background: var(--g0-sel);
+    color: var(--g0-fg);
+}
+
+[class*="guilds_"] [class*="childWrapperHoverScale_"]:not(#g0) {
+    scale: 1;
+}
+
+/* behind a picture while it loads */
+[class*="guilds_"] [class*="icon_"]::before {
+    background-color: var(--g0-hover);
+}
+
+/* the pill: unread and hover stay fg, the selected one is amber */
+[class*="guilds_"] [class*="item_"][class*="selected_"] {
+    background-color: var(--g0-accent);
+}
+
+/* no notch for the badges any more: a ring of the background instead */
+[class*="guilds_"] :is([class*="numberBadge_"], [class*="iconBadge_"], [class*="textBadge_"]) {
+    box-shadow: 0 0 0 3px var(--g0-bg);
+}
+
+/* folders: no color of their own (inline style, hence the !important) */
+[class*="folderGroup_"],
+[class*="guilds_"] [style*="--custom-folder-color"] {
+    --custom-folder-color: var(--g0-dim) !important;
+}
+
+/* open: a line around the folder, no fill */
+[class*="guilds_"] [class*="folderGroupBackground_"]:not(#g0) {
+    background: transparent;
+    border: 1px solid var(--g0-line);
+    border-radius: var(--g0-radius-lg);
+}
+
+/* closed: the same tile as the others, the small icons in it */
+[class*="guilds_"] [class*="folderPreviewWrapper_"]:not(#g0),
+[class*="guilds_"] [class*="folderButtonInner_"]:not(#g0),
+[class*="guilds_"] [class*="folderIcon_"]:not(#g0) {
+    background: transparent;
+    border-radius: var(--g0-radius);
+}
+
+[class*="guilds_"] [class*="folderPreviewWrapper_"]:not(#g0) {
+    box-shadow: inset 0 0 0 1px var(--g0-line);
+}
+
+[class*="guilds_"] [class*="folderIcon_"]:not(#g0) {
+    color: var(--g0-dim);
+}
+
+[class*="guilds_"] [class*="folderButton_"]:hover [class*="folderPreviewWrapper_"]:not(#g0),
+[class*="guilds_"] [class*="folderIcon_"]:hover:not(#g0) {
+    background: var(--g0-hover);
+    color: var(--g0-fg);
+}
+
+[class*="guilds_"] [class*="folderPreviewGuildIcon_"]:not(#g0) {
+    border-radius: var(--radius-xs);
+    overflow: hidden;
+}
+
+/* the list of an open folder clips at its edge, and the line of the first icon with it:
+   clip with a margin instead */
+[class*="guilds_"] [class*="folderGuildsList_"]:not(#g0) {
+    overflow: clip;
+    overflow-clip-margin: 4px;
+}
+
+/* the closed folder: the line is the tile's own edge, nothing outside it, so the box
+   never grows on hover */
+[class*="guilds_"] [class*="folderButton_"] [class*="wrapper_"]:has(> [class*="svg_"]) {
+    outline: none;
+}
+
+[class*="guilds_"] [class*="folderButton_"]:hover [class*="folderPreviewWrapper_"]:not(#g0),
+[class*="guilds_"] [class*="folderButton_"]:hover [class*="folderIcon_"]:not(#g0) {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--g0-mute);
+    color: var(--g0-fg);
+}
+
+[class*="guilds_"] [class*="listItem_"]:has(> [class*="wrapper_"] > [class*="item_"][class*="selected_"]) [class*="folderPreviewWrapper_"]:not(#g0) {
+    box-shadow: inset 0 0 0 1.5px var(--g0-accent);
+}
+
+/* ---- minimal: less of Discord's gui ---- */
+
+/* the server column: quiet icons, the pill says which one you are in. No outlines,
+   no borders; dimmed until hovered or selected */
+[class*="guilds_"] [class*="svg_"] :is(foreignObject, [mask]) {
+    mask: none;
+}
+
+[class*="guilds_"] foreignObject > *,
+[class*="guilds_"] foreignObject img {
+    border-radius: var(--g0-radius-sm);
+}
+
+[class*="guilds_"] [class*="wrapper_"]:has(> [class*="svg_"]),
+[class*="guilds_"] [class*="listItem_"]:has(> [class*="wrapper_"] > [class*="item_"][class*="selected_"]) [class*="wrapper_"]:has(> [class*="svg_"]) {
+    outline: none;
+    border-radius: var(--g0-radius-sm);
+    opacity: 0.6;
+    transition: opacity 0.15s ease-out;
+}
+
+[class*="guilds_"] [class*="wrapper_"]:has(> [class*="svg_"]):hover,
+[class*="guilds_"] [class*="wrapper_"]:has(> [class*="svg_"] foreignObject [class*="selected_"]),
+[class*="guilds_"] [class*="listItem_"]:has(> [class*="wrapper_"] > [class*="item_"][class*="selected_"]) [class*="wrapper_"]:has(> [class*="svg_"]) {
+    outline: none;
+    opacity: 1;
+}
+
+[class*="guilds_"] [class*="childWrapper_"]:not(#g0),
+[class*="guilds_"] [class*="circleIconButton_"]:not(#g0) {
+    border-radius: var(--g0-radius-sm);
+    box-shadow: none;
+}
+
+[class*="guilds_"] [class*="folderGroupBackground_"]:not(#g0) {
+    border-radius: var(--g0-radius-lg);
+}
+
+[class*="guilds_"] [class*="folderPreviewWrapper_"]:not(#g0),
+[class*="guilds_"] [class*="folderButtonInner_"]:not(#g0),
+[class*="guilds_"] [class*="folderIcon_"]:not(#g0) {
+    border-radius: var(--g0-radius-sm);
+    box-shadow: none;
+}
+
+[class*="guilds_"] [class*="folderButton_"]:hover [class*="folderPreviewWrapper_"]:not(#g0),
+[class*="guilds_"] [class*="folderButton_"]:hover [class*="folderIcon_"]:not(#g0),
+[class*="guilds_"] [class*="listItem_"]:has(> [class*="wrapper_"] > [class*="item_"][class*="selected_"]) [class*="folderPreviewWrapper_"]:not(#g0) {
+    background: var(--g0-hover);
+    box-shadow: none;
+}
+
+[class*="guilds_"] [class*="guildSeparator_"] {
+    display: none;
+}
+
+/* the pill is the selection: amber, Discord's own size */
+[class*="guilds_"] [class*="item_"][class*="selected_"] {
+    background-color: var(--g0-accent);
+}
+
+/* the DM list: only people. Nitro, shop and quests go */
+[class*="privateChannels_"] [class*="channel_"]:has([href="/store"]),
+[class*="privateChannels_"] [class*="channel_"]:has([href="/shop"]),
+[class*="privateChannels_"] [class*="channel_"]:has([href="/quest-home"]) {
+    display: none;
+}
+
+/* the message box: no gift, no stickers (the labels are the English ones) */
+[class*="channelTextArea_"] :is([aria-label="Send a gift"], [aria-label="Open sticker picker"]) {
+    display: none;
+}
+
+/* the account panel: a floating card, opaque (it floats over the line of the server
+   column and has to hide it), with a line, the shadow and room around it */
+[class*="sidebar_"] [class*="panels_"]:not(#g0) {
+    --custom-panels-spacing: 8px;
+    background: var(--g0-popup);
+    border: 1px solid var(--g0-line);
+    border-radius: var(--g0-radius-lg);
+    box-shadow: var(--g0-shadow);
+}
+
+/* the line between the channels and the chat */
+[class*="sidebar_"]:has([class*="panels_"]):not(#g0) {
+    border-inline-end: 1px solid var(--g0-sep);
+}
+
+/* messages: no grey box on hover, a thin line at the start instead */
+[class*="message_"]:hover:not([class*="mentioned_"]):not([class*="replying_"]) {
+    background: transparent;
+    box-shadow: inset 2px 0 0 var(--g0-line);
+}
+
+/* the top bar itself: the window is moved and closed by the window manager */
+[class*="bar_"]:has([class*="winButtons_"]):not(#g0) {
+    display: none;
+}
