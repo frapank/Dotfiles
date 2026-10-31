@@ -1,7 +1,8 @@
 # shellcheck shell=bash
 # checks
 
-installed() { [[ $(dpkg-query -W -f='${db:Status-Status}' -- "$1" 2>/dev/null) == installed ]]; }
+# one line per architecture (multiarch packages like libgl1-mesa-dri:i386), any installed counts
+installed() { grep -qx installed <<<"$(dpkg-query -W -f='${db:Status-Status}\n' -- "$1" 2>/dev/null)"; }
 in_group() { [[ " $(id -nG -- "$TUSER") " == *" $1 "* ]]; }
 join() {
     local IFS=$1

@@ -297,6 +297,24 @@ hex() {
     fi
 }
 
+_setup_apt() {
+    _has nala || return 0
+    # nala does only these, the rest of apt (policy, depends, reinstall...) stays apt
+    _apt_nala() {
+        case $1 in
+        install | remove | purge | autoremove | autopurge | update | upgrade | full-upgrade | show | search | list | clean | history) ;;
+        *) return 1 ;;
+        esac
+    }
+    apt() {
+        if _apt_nala "$1"; then nala "$@"; else command apt "$@"; fi
+    }
+    # an alias does not reach the word after doas, a function does
+    doas() {
+        if [[ $1 == apt ]] && _apt_nala "$2"; then command doas nala "${@:2}"; else command doas "$@"; fi
+    }
+}
+
 # INIT ALL
 _setup_history
 _setup_prompt
@@ -307,5 +325,6 @@ _setup_fzf
 _setup_zoxide
 _setup_ls
 _setup_man
+_setup_apt
 
-unset -f _setup_history _setup_prompt _setup_env _setup_path _setup_completion _setup_fzf _setup_zoxide _setup_ls _setup_man
+unset -f _setup_history _setup_prompt _setup_env _setup_path _setup_completion _setup_fzf _setup_zoxide _setup_ls _setup_man _setup_apt
