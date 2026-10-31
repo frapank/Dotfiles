@@ -24,6 +24,11 @@ profile steam /{usr/games/steam,usr/lib/steam/bin_steam.sh,home/*/.local/share/S
   umount,
   pivot_root,
 
+  # workshop mods can carry a .git, and git never runs in the library
+  priority=1 @{HOME}/{.steam,.local/share/Steam}/**/.git/{config,hooks/{,**}} wl,
+  # the launcher shortcuts it tries to add for the games at every start: denied, not logged
+  priority=1 deny @{HOME}/.local/share/applications/{,**} wl,
+
   # links open in librewolf under its own profile
   /usr/share/librewolf/{librewolf,librewolf-bin} Px,
 

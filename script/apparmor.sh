@@ -21,6 +21,8 @@ do_apparmor() {
     done
     # Debian's chrony profile, with what local/usr.sbin.chronyd adds
     [[ ! -f /etc/apparmor.d/usr.sbin.chronyd ]] || prof+=(/etc/apparmor.d/usr.sbin.chronyd)
+    # and its unix-chkpwd one, with the terminal doas asks on
+    [[ ! -f /etc/apparmor.d/unix-chkpwd ]] || prof+=(/etc/apparmor.d/unix-chkpwd)
     run "AppArmor profiles compile" apparmor_parser -QK -- "${prof[@]}"
     run "aa-packages parses" sh -n /usr/local/libexec/aa-packages
     aa_wlsandbox

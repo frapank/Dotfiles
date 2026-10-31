@@ -1,0 +1,2 @@
+  # file_inherit: the terminal doas asks the password on
+  /dev/pts/[0-9]* rw,

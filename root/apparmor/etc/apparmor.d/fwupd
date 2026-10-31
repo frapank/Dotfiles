@@ -35,7 +35,8 @@ profile fwupd /usr/libexec/fwupd/fwupd {
   /dev/** rw,
   /boot/{,**} rw,
   @{run}/motd.d/{,**} rw,
-  # the other disks' ESPs, which fwupd has udisks mount to look for capsules
+  # the other disks' ESPs, which fwupd has udisks mount to look for capsules (Debian's udisks: /media)
+  /media/root/{,**} r,
   @{run}/media/root/{,**} r,
 
   /usr/libexec/fwupd/** ix,
