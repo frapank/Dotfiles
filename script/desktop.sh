@@ -246,10 +246,46 @@ librewolf_chrome() {
     ((n)) || warn "no LibreWolf profile in ${base/#$THOME/\~}/profiles.ini"
 }
 
+# turn the theme on: its file comes with do_home, the switch is in Vencord's settings.json
+vesktop_theme() {
+    local sf=$THOME/.config/vesktop/settings/settings.json new
+    new=$(mktemp -p "$BAK")
+    # keeps every other setting; a new file gets only this, Vencord fills in the defaults
+    python3 -I - "$sf" "$new" <<-'EOF' || die "${sf/#$THOME/\~} is not valid JSON"
+		import json, os, sys
+		src, out = sys.argv[1:]
+		s = {}
+		if os.path.exists(src):
+		    with open(src, encoding="utf-8") as f:
+		        s = json.load(f)
+		themes = s.setdefault("enabledThemes", [])
+		if "g0wm.theme.css" not in themes:
+		    themes.append("g0wm.theme.css")
+		with open(out, "w", encoding="utf-8") as f:
+		    json.dump(s, f, indent=4)
+		    f.write("\n")
+	EOF
+    if [[ -f $sf && ! -L $sf ]] && python3 -I -c 'import json, sys; a, b = (json.load(open(p)) for p in sys.argv[1:]); sys.exit(a != b)' "$sf" "$new" &&
+        [[ $(stat -c '%a %U' -- "$sf") == "600 $TUSER" ]]; then
+        skip "Vesktop theme g0wm on"
+    else
+        stash "$sf"
+        as_user rm -f -- "$sf"
+        umkdir "${sf%/*}"
+        as_user sh -c 'umask 077 && cat >"$1"' _ "$sf" <"$new"
+        ok "Vesktop theme g0wm on (~/.config/vesktop/settings/settings.json)"
+        # it writes its settings back on exit and would drop the change
+        pgrep -u "$TUSER" -x vesktop >/dev/null &&
+            warn "Vesktop is running: close it and run the apps section again, or turn the theme on in Settings > Themes"
+    fi
+    rm -f -- "$new"
+}
+
 do_apps() {
     step "User apps"
     do_home "${HOME_APPS[@]}"
     librewolf_chrome
+    vesktop_theme
     write_mimeapps
     write_thunar_prefs
     # GTK reads it from gsettings, not settings.ini
