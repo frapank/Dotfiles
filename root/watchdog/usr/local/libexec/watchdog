@@ -9,6 +9,8 @@ rm -rf "$st"
 mkdir -p "$st"
 
 as_user() { /usr/local/libexec/as-session-user "$@"; }
+# from the user manager: under NoNewPrivileges AppArmor stops foot from running anything
+open_logs() { as_user systemd-run --user --quiet --collect -E WAYLAND_DISPLAY -- foot -- /usr/local/bin/logs -p "$@"; }
 
 notify() {
     u=$1 g=$2 app=$3 text=$4
@@ -17,7 +19,7 @@ notify() {
         as_user notify-send -u "$u" -a "$g $app" -h "string:desktop-entry:$app" "$text"
     elif [ "$(as_user notify-send -u "$u" -a "$g $app" -h "string:desktop-entry:$app" \
         -A default=Open "$text")" = default ]; then
-        as_user foot -- /usr/local/bin/logs -p "$@"
+        open_logs "$@"
     fi
 }
 
@@ -29,7 +31,7 @@ notify_level() {
 svfail() {
     case $(as_user notify-send -u critical -a " ${1%.service}" -h "string:desktop-entry:${1%.service}" \
         -A default=Log -A restart=Restart "failed and stopped") in
-    default) as_user foot -- /usr/local/bin/logs -p service "${1%.service}" ;;
+    default) open_logs service "${1%.service}" ;;
     restart) systemctl restart -- "$1" ;;
     esac
 }
