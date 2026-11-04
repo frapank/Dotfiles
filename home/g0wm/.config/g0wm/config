@@ -6,7 +6,7 @@ look {
         # fg bg border
         norm #8a8a8aff #070707ff #070707ff
         sel #e9e9e9ff #070707ff #070707ff
-        urg #e0a86aff #070707ff #070707ff
+        urg #e0a86aff #070707ff #e0a86aff
         title #7a7a7aff #070707ff #070707ff
         titlesel #e9e9e9ff #070707ff #070707ff
         status #8a8a8aff #070707ff #070707ff
@@ -31,13 +31,20 @@ windows {
     cornerpx 12
     gaps 2
     gappx 2
-    titlepadding 15
+    titlepadding 8
+    alwaysprivate false
+    privatetitle "G0wm is hiding this window"
 }
 
 bar {
     barpadding 4
     # times the font height, 0 for automatic
     barheight 1.5
+    # same corner as the bar: cornerpx 12 on a ~30px tall bar is 0.8 of its
+    # half height, the dots get that share of theirs
+    bartagdotround 0.6
+    runner_pillheight 1
+    runner_pillpadding 1
     notification_actionsign 
 }
 
@@ -58,9 +65,8 @@ input {
     touchpad_natural_scrolling true
 }
 
-# layout: symbol, then tile, float or tabbed
+# layout: symbol, then tile or tabbed
 layout "[ ]" tile
-layout "< >" float
 layout "| |" tabbed
 
 # monitor: the first matching name wins
@@ -92,6 +98,7 @@ key logo+ctrl+shift+n notifydismissall
 key logo+a notifyactions
 key logo+c killclient
 key logo+v togglefloating
+key logo+shift+p toggleprivate
 key logo+shift+g togglegaps
 key logo+shift+t toggletitlebar
 key logo+t toggletabbed "| |"
