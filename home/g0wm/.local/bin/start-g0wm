@@ -70,6 +70,27 @@ cleanup() {
     done
 }
 
+# restart the portals once systemd has the new socket
+restart_portals() {
+    command -v systemctl >/dev/null 2>&1 || return 0
+    stamp=$XDG_RUNTIME_DIR/start-g0wm.stamp
+    touch "$stamp" || return 0
+    systemctl --user reset-failed xdg-desktop-portal xdg-desktop-portal-gtk \
+        xdg-desktop-portal-wlr 2>/dev/null || true
+
+    i=0
+    while [ "$i" -lt 30 ]; do
+        sleep 1
+        i=$((i + 1))
+        sock=$(systemctl --user show-environment 2>/dev/null | sed -n 's/^WAYLAND_DISPLAY=//p')
+        [ -n "$sock" ] || continue
+        [ -n "$(find "$XDG_RUNTIME_DIR/$sock" -newer "$stamp" 2>/dev/null)" ] || continue
+        systemctl --user stop xdg-desktop-portal-gtk xdg-desktop-portal-wlr 2>/dev/null || true
+        systemctl --user restart xdg-desktop-portal 2>/dev/null || true
+        return 0
+    done
+}
+
 # restart the status script while g0wm runs
 # 141 means g0wm closed the pipe
 status_loop() {
@@ -115,6 +136,8 @@ main() {
 
     trap cleanup EXIT
     trap 'exit 143' HUP INT TERM
+
+    [ -z "${XDG_RUNTIME_DIR:-}" ] || restart_portals 9>&- >/dev/null 2>&1 &
 
     # g0wm-login reads it from the journal
     rc=0
