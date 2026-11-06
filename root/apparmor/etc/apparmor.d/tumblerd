@@ -23,8 +23,15 @@ profile tumblerd /usr/lib/@{multiarch}/tumbler-1/tumblerd flags=(attach_disconne
   @{run}/mount/utab r,
   owner /tmp/** rwk,
   owner /dev/shm/** rwk,
+  # GStreamer's ORC JIT tries these locations for its generated code.
+  owner /tmp/orcexec.* mrw,
+  owner @{run}/user/@{uid}/orcexec.* mrw,
+  owner @{HOME}/orcexec.* mrw,
+  # Plugin discovery probes video hardware; thumbnails only use files.
+  deny /dev/media* rw,
 
   /usr/bin/** ix,
+  /usr/lib/@{multiarch}/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner ix,
   owner @{run}/user/@{uid}/.dbus-filter/tumblerd/* rw,
 
   include if exists <local/tumblerd>

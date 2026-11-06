@@ -47,7 +47,11 @@ vesktop)
 		--broadcast=$P.Desktop=$P.Session.Closed@$D/session/*"
     net=1 ns=1
     ;;
-showtime) rules="$common --own=org.gnome.Showtime.* --own=org.mpris.MediaPlayer2.*" hm=1 ;;
+showtime)
+    rules="$common --own=org.gnome.Showtime.* --own=org.mpris.MediaPlayer2.*" hm=1
+    # Use system Python modules without probing ~/.local/lib/python*/site-packages.
+    export PYTHONNOUSERSITE=1
+    ;;
 papers) rules="$common --own=org.gnome.Papers.*" av=0 hm=1 ;;
 libreoffice) rules="$common --own=org.libreoffice.*" av=0 ;;
 xarchiver) rules=$common av=0 hm=1 ;;
