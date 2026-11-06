@@ -27,6 +27,8 @@ profile librewolf /usr/share/librewolf/{librewolf,librewolf-bin} flags=(attach_d
   /dev/video* rw,
   /dev/media* rw,
   /dev/hidraw* rw,
+  # AppArmor's replacement for an inherited descriptor denied at exec.
+  /apparmor/.null rw,
 
   /usr/share/librewolf/** ix,
   /usr/{bin,lib,libexec,local/bin}/** ix,

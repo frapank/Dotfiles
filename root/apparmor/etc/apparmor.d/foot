@@ -2,7 +2,8 @@ abi <abi/4.0>,
 
 include <tunables/global>
 
-profile foot /usr/bin/foot{,client} {
+# Children may enter a bwrap mount namespace while inheriting the terminal.
+profile foot /usr/bin/foot{,client} flags=(attach_disconnected) {
   include <abstractions/dotfiles/app-read>
   include <abstractions/dotfiles/other-shm>
   include <abstractions/dotfiles/secrets>
