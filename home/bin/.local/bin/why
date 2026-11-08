@@ -1,0 +1,160 @@
+#!/bin/sh
+set -u
+
+usage() {
+    cat <<EOF
+Usage: why PACKAGE | FILE | COMMAND
+Why something is on the system.
+  PACKAGE  installed by hand or as a dependency, the installed packages that
+           need it, and a chain up to one installed by hand
+  FILE     the package that ships it (with a / in it, or an existing file)
+  COMMAND  a command on PATH: its file, then its package
+EOF
+}
+
+die() {
+    echo "why: $*" >&2
+    exit 1
+}
+
+file() {
+    f=$1
+    out=$(dpkg-query -S -- "$f" 2>/dev/null)
+    if [ -z "$out" ]; then
+        # /bin is a link to /usr/bin, dpkg knows only one of the two
+        r=$(readlink -f -- "$f") || r=
+        [ -n "$r" ] && out=$(dpkg-query -S -- "$r" 2>/dev/null) && f=$r
+    fi
+    if [ -z "$out" ]; then
+        case $f in
+        /usr/local/* | "$HOME"/*) die "$f is not from a package (it is a local file)" ;;
+        esac
+        die "no package ships $f"
+    fi
+    echo "$out" | while IFS= read -r l; do
+        case $l in
+        diversion\ *) echo "$l" ;;
+        *) echo "$f: ${l%%: *}" ;;
+        esac
+    done
+}
+
+pkg() {
+    dpkg-query -W -f='${db:Status-Abbrev}' -- "$1" 2>/dev/null | grep -q '^ii' || return 1
+    manual=$(apt-mark showmanual 2>/dev/null)
+    dpkg-query -W -f='${db:Status-Abbrev}\t${Package}\t${Version}\t${Pre-Depends}, ${Depends}\t${Recommends}\t${Provides}\n' |
+        awk -F'\t' -v want="$1" -v manual="$manual" '
+	function names(s, kind, from,   n, i, a, alt, j, d) {
+		n = split(s, a, /,/)
+		for (i = 1; i <= n; i++) {
+			split(a[i], alt, /\|/)
+			for (j in alt) {
+				d = alt[j]
+				gsub(/\(.*\)|\[.*\]|<.*>/, "", d)
+				gsub(/[ \t]/, "", d)
+				sub(/:.*/, "", d)
+				if (d == "") continue
+				if (kind == "p") prov[d] = prov[d] " " from
+				else if (!((d, from) in edge)) {
+					edge[d, from] = kind
+					rdep[d] = rdep[d] " " from
+				}
+			}
+		}
+	}
+	BEGIN {
+		n = split(manual, m, /\n/)
+		for (i = 1; i <= n; i++) { sub(/:.*/, "", m[i]); man[m[i]] = 1 }
+	}
+	$1 !~ /^ii/ { next }
+	{
+		ver[$2] = $3
+		names($4, "d", $2)
+		names($5, "r", $2)
+		names($6, "p", $2)
+	}
+	# who needs p, also through the virtual packages it provides
+	function needers(p, out,   k, i, j, nv, v, nf, f) {
+		k = 0
+		nf = split(rdep[p], f, " ")
+		for (i = 1; i <= nf; i++) if (f[i] != p) { out[++k] = f[i]; how[f[i], p] = edge[p, f[i]] }
+		nv = split(prov[p], v, " ")
+		for (i = 1; i <= nv; i++) {
+			if (v[i] == p) continue
+			nf = split(rdep[v[i]], f, " ")
+			for (j = 1; j <= nf; j++) if (f[j] != p) {
+				out[++k] = f[j]
+				how[f[j], p] = edge[v[i], f[j]] "v:" v[i]
+			}
+		}
+		return k
+	}
+	function tag(x, p,   h, s) {
+		h = how[x, p]
+		s = (h ~ /^r/ ? "recommends" : "depends")
+		if (h ~ /v:/) { sub(/.*v:/, "", h); s = s " (as " h ")" }
+		return s
+	}
+	END {
+		p = want
+		printf "%s %s, installed %s\n", p, ver[p], man[p] ? "by hand" : "as a dependency"
+		k = needers(p, direct)
+		if (!k) { print "Nothing installed needs it."; exit }
+		print "Needed by:"
+		delete seen
+		for (i = 1; i <= k; i++) {
+			if (direct[i] in seen) continue
+			seen[direct[i]] = 1
+			printf "  %-32s %s%s\n", direct[i], tag(direct[i], p), man[direct[i]] ? "  [by hand]" : ""
+		}
+		if (man[p]) exit
+		# breadth first up to the nearest package installed by hand
+		delete seen
+		q[1] = p; seen[p] = 1; head = 1; tail = 1; found = ""
+		while (head <= tail && found == "") {
+			c = q[head++]
+			delete out
+			k = needers(c, out)
+			for (i = 1; i <= k && found == ""; i++) {
+				x = out[i]
+				if (x in seen) continue
+				seen[x] = 1; parent[x] = c; q[++tail] = x
+				if (man[x]) found = x
+			}
+		}
+		if (found == "") { print "No package installed by hand pulls it in: apt autoremove would take it."; exit }
+		s = p
+		for (x = found; x != p; x = parent[x]) chain[++d] = x
+		for (i = 1; i <= d; i++) s = s " <- " chain[i]
+		print "Chain: " s
+	}'
+}
+
+case ${1:-} in
+'' | -h | --help)
+    [ $# -eq 1 ] && {
+        usage
+        exit 0
+    }
+    usage >&2
+    exit 2
+    ;;
+esac
+[ $# -eq 1 ] || {
+    usage >&2
+    exit 2
+}
+
+case $1 in
+*/*) file "$1" ;;
+*)
+    pkg "$1" && exit 0
+    if [ -e "$1" ]; then
+        file "$(readlink -f -- "$1")"
+    elif c=$(command -v -- "$1" 2>/dev/null) && [ "${c#/}" != "$c" ]; then
+        file "$c"
+    else
+        die "$1 is no installed package, file or command"
+    fi
+    ;;
+esac

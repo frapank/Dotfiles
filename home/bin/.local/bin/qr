@@ -1,0 +1,100 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat <<EOF
+Usage: qr [TEXT]
+  or:  qr -c
+  or:  qr -o FILE.png [TEXT]
+  or:  qr -s | -d IMAGE
+Show TEXT (default: standard input) as a QR code on the terminal, to pass a
+link or a password to the phone with no cloud in between.
+
+  -c        encode the clipboard
+  -o FILE   write a png instead
+  -s        read a QR code from a region of the screen
+  -d IMAGE  read a QR code from IMAGE
+What -s and -d read is printed and copied, notified if there is no terminal.
+EOF
+}
+
+die() {
+    echo "qr: $*" >&2
+    exit 1
+}
+
+need() {
+    command -v "$1" >/dev/null 2>&1 || die "$1 is missing (apt install $2)"
+}
+
+decode() {
+    need zbarimg zbar-tools
+    out=$(zbarimg -q --raw -- "$1") || {
+        [ -t 1 ] || notify-send -a " qr" -u low "No QR code found" 2>/dev/null
+        die "no QR code found"
+    }
+    printf '%s' "$out" | wl-copy
+    if [ -t 1 ]; then
+        printf '%s\n' "$out"
+    else
+        notify-send -a " qr" -u low "QR code copied" "$out" 2>/dev/null || :
+    fi
+}
+
+encode() {
+    need qrencode qrencode
+    if [ -n "$file" ]; then
+        qrencode -s 8 -m 2 -o "$file"
+    else
+        qrencode -t ANSIUTF8 -m 2
+    fi
+}
+
+file=
+case ${1:-} in
+-h | --help)
+    usage
+    exit 0
+    ;;
+-s)
+    [ $# -eq 1 ] || exit 2
+    geo=$(slurp 2>/dev/null) || exit 0
+    tmp=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/qr.XXXXXX")
+    trap 'rm -f -- "$tmp"' EXIT
+    grim -g "$geo" -t png "$tmp"
+    decode "$tmp"
+    exit
+    ;;
+-d)
+    [ $# -eq 2 ] || exit 2
+    [ -r "$2" ] || die "cannot read $2"
+    decode "$2"
+    exit
+    ;;
+-c)
+    [ $# -eq 1 ] || exit 2
+    wl-paste -n | encode
+    exit
+    ;;
+-o)
+    [ $# -ge 2 ] || exit 2
+    file=$2
+    shift 2
+    ;;
+-?*)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+case $# in
+0)
+    [ -t 0 ] && die "no TEXT and nothing on standard input (try 'qr --help')"
+    encode
+    ;;
+1) printf '%s' "$1" | encode ;;
+*)
+    usage >&2
+    exit 2
+    ;;
+esac

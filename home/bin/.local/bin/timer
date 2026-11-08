@@ -1,0 +1,136 @@
+#!/bin/sh
+set -u
+
+usage() {
+    cat <<EOF
+Usage: timer [-b] DURATION|@HH:MM [MESSAGE]
+  or:  timer -l | -k
+Count down to the end, then a critical notification with MESSAGE and a bell.
+The end is wall-clock time, so a timer survives a suspend and fires on resume.
+
+  DURATION  90, 90s, 25m, 1h30m, 1h2m3s
+  @HH:MM    until that time, tomorrow if it has already passed
+  -b        in the background, the terminal stays free
+  -l        list the background timers
+  -k        cancel the background timers
+EOF
+}
+
+die() {
+    echo "timer: $*" >&2
+    exit 1
+}
+
+# seconds as 1h02m03s, 2m03s, 3s
+fmt() {
+    awk -v t="$1" 'BEGIN {
+		h = int(t / 3600); m = int(t % 3600 / 60); s = t % 60
+		if (h) printf "%dh%02dm%02ds\n", h, m, s
+		else if (m) printf "%dm%02ds\n", m, s
+		else printf "%ds\n", s
+	}'
+}
+
+ring() {
+    msg=${2:-} t=$(date +%H:%M)
+    [ -n "$msg" ] || msg="Time is up"
+    notify-send -a " Timer" -u critical "$msg" "$1 · ended at $t" 2>/dev/null
+    { printf '\a' >/dev/tty; } 2>/dev/null
+    return 0
+}
+
+# wait until the epoch $1, the countdown on the terminal if there is one
+wait_until() {
+    tty=0
+    [ -t 2 ] && tty=1
+    while :; do
+        left=$(($1 - $(date +%s)))
+        [ "$left" -gt 0 ] || break
+        if [ "$tty" = 1 ]; then
+            printf '\r\033[K %s' "$(fmt "$left")" >&2
+            sleep 1
+        else
+            # a short sleep, the monotonic clock stops during a suspend
+            sleep $((left < 30 ? left : 30))
+        fi
+    done
+    [ "$tty" = 1 ] && printf '\r\033[K' >&2
+}
+
+list() {
+    pgrep -u "$(id -u)" -af -- '/timer --until [0-9]' | awk '{
+		for (i = 1; i <= NF; i++) if ($i == "--until") break
+		cmd = "date -d @" $(i + 1) " +%H:%M"; cmd | getline at; close(cmd)
+		msg = ""
+		for (j = i + 3; j <= NF; j++) msg = msg (msg == "" ? "" : " ") $j
+		lab = $(i + 2) ~ /^@/ ? "until " at : $(i + 2) ", rings at " at
+		printf "%-8s %s%s\n", $1, lab, msg == "" ? "" : "  " msg
+		n++
+	}
+	END { if (!n) print "No background timers." }'
+}
+
+case ${1:-} in
+-h | --help)
+    usage
+    exit 0
+    ;;
+-l)
+    list
+    exit 0
+    ;;
+-k)
+    pkill -u "$(id -u)" -f -- '/timer --until [0-9]' || die "no background timers"
+    exit 0
+    ;;
+--until)
+    # what -b starts: --until EPOCH LABEL [MESSAGE]
+    [ $# -ge 3 ] || exit 2
+    wait_until "$2"
+    ring "$3" "${4:-}"
+    exit 0
+    ;;
+esac
+
+bg=0
+if [ "${1:-}" = -b ]; then
+    bg=1
+    shift
+fi
+[ $# -ge 1 ] && [ $# -le 2 ] || {
+    usage >&2
+    exit 2
+}
+
+now=$(date +%s)
+case $1 in
+@[0-9]*:[0-9]*)
+    end=$(date -d "${1#@}" +%s 2>/dev/null) || die "not a time: ${1#@}"
+    [ "$end" -gt "$now" ] || end=$(date -d "tomorrow ${1#@}" +%s)
+    label=$1
+    ;;
+*)
+    secs=$(awk -v d="$1" 'BEGIN {
+		if (d == "" || d !~ /^([0-9]+h)?([0-9]+m)?([0-9]+s?)?$/) exit 1
+		while (match(d, /^[0-9]+[hms]?/)) {
+			p = substr(d, 1, RLENGTH); d = substr(d, RLENGTH + 1)
+			u = substr(p, length(p)); n = p + 0
+			t += u == "h" ? n * 3600 : u == "m" ? n * 60 : n
+		}
+		if (t <= 0) exit 1
+		print t
+	}') || die "not a duration: $1"
+    end=$((now + secs))
+    label=$1
+    ;;
+esac
+
+if [ "$bg" = 1 ]; then
+    setsid -f "$0" --until "$end" "$label" "${2:-}" </dev/null >/dev/null 2>&1
+    echo "Timer $label, rings at $(date -d "@$end" +%H:%M:%S)."
+    exit 0
+fi
+
+trap 'printf "\r\033[K" >&2; exit 130' INT TERM
+wait_until "$end"
+ring "$label" "${2:-}"

@@ -42,6 +42,10 @@ _setup_prompt() {
     PROMPT_COMMAND='__set_bash_prompt; history -a'
     __mark= __zoxide= __zoxide_pwd=
 
+    # when the command line started, for ding: the subscript sets it, the
+    # unset element expands to nothing
+    PS0='${__ding_x[__ding_t=EPOCHSECONDS]}'
+
     # tell foot the folder and where prompts and outputs start
     [[ $TERM == foot* ]] || return 0
     __osc7() {
@@ -86,7 +90,7 @@ _setup_prompt() {
     __title_armed='' __title_pid=''
     trap '[[ -z $__title_armed ]] || __title_cmd' DEBUG
     __mark='\[\e]133;A\e\\\]'
-    PS0=$'\e]133;C\e\\'
+    PS0+=$'\e]133;C\e\\'
     PROMPT_COMMAND='__set_bash_prompt; printf "\e]133;D\e\\\\"; __osc7; __title_dir; history -a; __title_armed=1'
 }
 
@@ -295,6 +299,21 @@ hex() {
     else
         od -A x -t x1z "$@" | _pager
     fi
+}
+
+# "make; ding" notifies about the whole line, "ding make" runs make itself
+ding() {
+    local s=$?
+    (($#)) && {
+        command ding "$@"
+        return
+    }
+    local c
+    c=$(HISTTIMEFORMAT= history 1)
+    c=${c#*[0-9]  }
+    c=${c%;*ding*}
+    c=${c%&&*ding*}
+    command ding -s "$s" ${__ding_t:+-t $((EPOCHSECONDS - __ding_t))} -c "$c"
 }
 
 _setup_apt() {

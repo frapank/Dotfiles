@@ -23,10 +23,15 @@ isolate|run a command in a sandbox: empty home, no network
 logins|the wrong passwords since the last login, told at every login
 Shell
 tmux-project|a tmux session per folder, from zoxide (prefix f)
+ding|notify when a command ends: ding make, or make; ding
+timer|a countdown with a notification: timer 25m tea, timer @14:30
+qr|show text as a QR code, read one from the screen (-s)
+colorpick|click a pixel, copy its color as #rrggbb
 Snapshots of /home
 snap|the older versions of a file, copy one back, what changed since a day
 forget|delete a file from every snapshot, for good
 System
+why|why a package is installed, or which package ships a file
 logs|system logs in local time: errors, crashes, AppArmor, firewall
 services|the programs g0wm keeps running: idle lock, nightlight...
 maint|snapshots, updates and cleanup, run by itself (doas maint status)

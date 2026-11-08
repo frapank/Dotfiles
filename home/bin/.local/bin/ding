@@ -1,0 +1,65 @@
+#!/bin/sh
+set -u
+
+usage() {
+    cat <<EOF
+Usage: ding COMMAND [ARG]...
+  or:  COMMAND; ding
+Notify when COMMAND ends, with its exit status and how long it took; the
+terminal also rings, so foot marks itself urgent. ding exits as COMMAND did.
+In bash, a bare ding after ';' tells about the command line it ends.
+EOF
+}
+
+# seconds as 1h02m03s, 2m03s, 3s
+fmt() {
+    awk -v t="$1" 'BEGIN {
+		h = int(t / 3600); m = int(t % 3600 / 60); s = t % 60
+		if (h) printf "%dh%02dm%02ds\n", h, m, s
+		else if (m) printf "%dm%02ds\n", m, s
+		else printf "%ds\n", s
+	}'
+}
+
+# -s STATUS -t SECONDS -c TEXT, what the bash function passes
+st= secs= cmd=
+while [ $# -gt 0 ]; do
+    case $1 in
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    -s | -t | -c)
+        [ $# -ge 2 ] || exit 2
+        case $1 in -s) st=$2 ;; -t) secs=$2 ;; -c) cmd=$2 ;; esac
+        shift 2
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *) break ;;
+    esac
+done
+
+if [ $# -gt 0 ]; then
+    cmd=$*
+    t0=$(date +%s)
+    "$@"
+    st=$?
+    secs=$(($(date +%s) - t0))
+elif [ -z "$st" ]; then
+    usage >&2
+    exit 2
+fi
+
+body=${secs:+"took $(fmt "$secs")"}
+if [ "$st" = 0 ]; then
+    title="Done" urg=normal
+else
+    title="Failed ($st)" urg=critical
+fi
+[ -n "$cmd" ] && body="$cmd${body:+ · $body}"
+notify-send -a " ding" -u "$urg" "$title" "$body" 2>/dev/null
+{ printf '\a' >/dev/tty; } 2>/dev/null
+exit "$st"

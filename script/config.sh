@@ -115,6 +115,8 @@ PKG_APPS=(
     # terminal tools
     tree bat htop unzip zip 7zip wget curl rsync jq file lsof strace psmisc
     ncdu fastfetch
+    # qr
+    qrencode zbar-tools
     # archives
     tar gzip bzip2 xz-utils zstd lz4 lzip libarchive-tools cpio unrar gnupg age
     # metadata-remover

@@ -5,7 +5,7 @@ These are my personal dotfiles, made for my PC and for the way I use it, not mea
 This repo contains my dotfiles and the installer of them, for Debian 13 (trixie). My dotfiles aim to guarantee an environment that is consistent, secure and that gives priority to privacy.
 The script provides a pre-installation of several programs, among which:
 - G0wm, my personal window manager, originally based on dwl.
-- Several utils scripts: open, extract, compress, metadata-remover, traces, conns, isolate, snap, forget, logs etc.
+- Several utils scripts: open, extract, compress, metadata-remover, traces, conns, isolate, snap, forget, logs, why, qr, timer, ding, colorpick etc.
 - There are several custom services, among them watchdog that checks crashes, errors and various problems and maint that handles the maintenance of the system automatically. All integrated with the G0wm notification system.
 - Many of these scripts are tied to g0wm keybinds and to the statusbar icons, for example awake that keeps gtklock from starting and nightlight that is the blue light filter. This comes with record, screenshot, volume manager etc.
 - Many programs, especially the ones that open files, are completely sandboxed through AppArmor and dbus-filter.

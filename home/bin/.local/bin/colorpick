@@ -1,0 +1,47 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat <<EOF
+Usage: colorpick [-r]
+Click a pixel on the screen: its color is copied as #rrggbb, printed with a
+swatch on a terminal, and notified.
+
+  -r  copy rgb(r, g, b) instead
+EOF
+}
+
+rgb=0
+case ${1:-} in
+'') ;;
+-r) rgb=1 ;;
+-h | --help)
+    usage
+    exit 0
+    ;;
+*)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+geo=$(slurp -p 2>/dev/null) || exit 0
+# one pixel at scale 1 as binary ppm: its last 3 bytes are r g b
+# shellcheck disable=SC2046
+set -- $(grim -s 1 -g "$geo" -t ppm - | tail -c 3 | od -An -tu1)
+[ $# -eq 3 ] || {
+    echo "colorpick: could not read the pixel" >&2
+    exit 1
+}
+
+hex=$(printf '#%02x%02x%02x' "$1" "$2" "$3")
+rgbs="rgb($1, $2, $3)"
+if [ "$rgb" = 1 ]; then out=$rgbs; else out=$hex; fi
+
+printf '%s' "$out" | wl-copy
+if [ -t 1 ]; then
+    printf '\033[48;2;%s;%s;%sm      \033[0m %s  %s\n' "$1" "$2" "$3" "$hex" "$rgbs"
+else
+    echo "$out"
+fi
+notify-send -a " colorpick" -u low "$hex" "$rgbs · copied" 2>/dev/null || :
