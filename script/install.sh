@@ -87,35 +87,11 @@ main() {
     check_repo
     plan
 
-    do_repos
-    ((SEL[update])) && do_update
-    do_packages
-    ((SEL[hw])) && do_hw
-    ((SEL[locale])) && do_locale
-    ((SEL[harden])) && do_harden
-    ((SEL[usb])) && do_usb
-    ((SEL[apparmor])) && do_apparmor
-    ((SEL[net])) && do_net_files
-    do_groups
-    ((SEL[logs])) && do_logs
-    ((SEL[swap])) && do_swap
-    ((SEL[maint])) && do_maint
-    ((SEL[dirs])) && do_dirs
-    ((SEL[maint])) && do_nosnap
-    ((SEL[cli])) && do_home_cli
-    ((SEL[desktop])) && do_g0wm
-    ((SEL[media])) && do_media
-    ((SEL[apps])) && do_apps
-    ((SEL[games])) && do_games
-    ((SEL[session])) && do_session
-    ((SEL[fonts])) && do_fonts
-    ((SEL[theme])) && do_theme
-    ((SEL[boot])) && do_boot
-    do_services
-    do_post
-    ((SEL[net])) && do_net_services
-    verify
-    ((SEL[doas])) && do_doas
+    local st
+    for st in "${STEPS[@]}"; do
+        [[ ${st%%:*} == - ]] || ((SEL[${st%%:*}])) || continue
+        "${st#*:}"
+    done
 
     trap - ERR INT TERM HUP
     flush_skips

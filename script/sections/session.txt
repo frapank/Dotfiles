@@ -1,0 +1,5 @@
+Keyring, polkit, network and bluetooth
+The keyring unlocks with your login password (pam_gnome_keyring in /etc/pam.d/login). Polkit agent in g0wm (mate-polkit: Debian 13 has no polkit-gnome).
+No tray icons: 'wifi' and 'bluetooth' open their managers.
+Bluetooth is off at every boot: 'bluetooth on' or 'bluetooth off'.
+Bluetooth shows itself as 'Computer' instead of the hostname, uses a random address that changes (Privacy=device) and stays discoverable 30 seconds.

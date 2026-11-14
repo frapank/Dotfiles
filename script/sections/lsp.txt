@@ -1,0 +1,3 @@
+Language servers for nvim
+Installs ${PKG_LSP[*]}
+taplo, zls, bash-language-server and yaml-language-server are not in Debian: nvim uses them once they are in PATH.

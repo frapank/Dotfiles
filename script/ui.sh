@@ -4,10 +4,11 @@
 if [[ -t 1 ]]; then
     C_R=$'\e[31m' C_G=$'\e[32m' C_Y=$'\e[33m' C_C=$'\e[36m' C_B=$'\e[1m' C_D=$'\e[2m' C_0=$'\e[0m'
     C_CL=$'\r\e[K'
-    COLS=$(stty size </dev/tty 2>/dev/null | cut -d' ' -f2) || COLS=
+    read -r ROWS COLS < <(stty size </dev/tty 2>/dev/null) || ROWS= COLS=
 else
-    C_R= C_G= C_Y= C_C= C_B= C_D= C_0= C_CL= COLS=
+    C_R= C_G= C_Y= C_C= C_B= C_D= C_0= C_CL= ROWS= COLS=
 fi
+[[ $ROWS =~ ^[0-9]+$ ]] || ROWS=24
 [[ $COLS =~ ^[0-9]+$ ]] && ((COLS >= 40)) || COLS=80
 ((COLS <= 80)) || COLS=80
 # the Linux console font has no ✓ ✗ · …

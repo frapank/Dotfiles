@@ -1,0 +1,3 @@
+System upgrade
+Upgrades the whole system (apt-get full-upgrade). Recommended.
+On btrfs it first takes a read-only snapshot of / in /.snapshots, like maint does, so a bad upgrade can be booted away from GRUB.

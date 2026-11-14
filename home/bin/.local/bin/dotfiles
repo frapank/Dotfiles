@@ -47,7 +47,8 @@ power|the power key: sleep, reboot, shut down
 photo video pdf office browser files audio|the default app
 wifi bluetooth|their manager, or on/off
 open-default|what photo, video, pdf... run
-g0wm-status.sh|the text of the bar'
+g0wm-status.sh|the text of the bar
+start-g0wm|g0wm after the login on tty1'
 
 if [ -t 1 ]; then
     B=$(printf '\033[1m') D=$(printf '\033[2m') O=$(printf '\033[0m')

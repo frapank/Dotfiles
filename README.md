@@ -17,7 +17,7 @@ Debian from the netinst image, in the text installer:
 - partitioning "Guided - use entire disk and set up encrypted LVM", or by hand LUKS with btrfs on it: / has to be btrfs for the snapshots. The installer puts / in a @rootfs subvolume, the script makes /home a subvolume of its own.
 - a password for your user. A root password is not needed: doas replaces sudo.
 
-Then on tty1, from the cloned repo: `doas ./install.sh`, or `sudo ./install.sh` the first time. It asks what to apply, shows the plan and rolls everything back if a step fails.
+Then on tty1, from the cloned repo: `doas ./install.sh`, or `sudo ./install.sh` the first time. It asks what to apply, shows the plan and rolls everything back if a step fails. What each choice does is in script/sections/, one file per section.
 
 What Debian does not have is built or downloaded at fixed commits and checksums: wlroots 0.20 with the newer wayland, libdrm, xkbcommon, wayland-protocols and pixman it needs and libscfg for the g0wm config, in /usr/local/lib/wlroots-0.20 (only g0wm uses them, by its rpath), grub-btrfs, hardened_malloc, the Geist and Nerd symbols fonts, the cursor and icon themes. LibreWolf comes from its own repository, with the key Debian's extrepo lists for it.
 

@@ -1,0 +1,3 @@
+Screen sharing and audio
+PipeWire with wireplumber and pipewire-pulse, ALSA through PipeWire. The services command runs them.
+Screen sharing via the wlr portal, pick the output with slurp.

@@ -94,6 +94,15 @@ c=$(find script home root src \( -name __pycache__ -o -name '*.pyc' \))
 [[ $(readlink install.sh) == script/install.sh ]] || fail "install.sh is not a link to script/install.sh"
 ((bad)) || pass "json, modes, no symlinks"
 
+# 'dotfiles' is the list of the commands: each one in a ~/.local/bin is in it
+listed=$(awk -F'|' "/^(TOOLS|HELPERS)='/ { on = 1; sub(/^[A-Z]+='/, \"\") } on && NF > 1 { print \$1 } on && /'\$/ { on = 0 }" \
+    home/bin/.local/bin/dotfiles | tr ' ' '\n')
+missing=()
+for f in home/*/.local/bin/*; do
+    grep -qxF -- "${f##*/}" <<<"$listed" || missing+=("${f##*/}")
+done
+if ((${#missing[@]})); then fail "not in the list of home/bin/.local/bin/dotfiles: ${missing[*]}"; else pass "dotfiles lists every command"; fi
+
 echo "c"
 xml=/usr/share/wayland-protocols/staging/security-context/security-context-v1.xml
 wl=$(mktemp -d)

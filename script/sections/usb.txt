@@ -1,0 +1,6 @@
+USB devices: usbguard
+The devices plugged in now are allowed. Later a new one stays blocked, and a notification asks: Allow or Block, what the device says it is and a warning when a storage or network device can also type.
+With the screen locked it waits for the unlock, then asks. Hubs are allowed by themselves, what is plugged into them is asked about.
+Allowed devices are remembered in any port and after reboots, blocked ones are asked about again.
+'usb' lists the devices, 'usb allow|block PORT', 'usb rules', 'usb forget N'.
+Without a keyboard and a mouse here now it asks before going on, also with -y.

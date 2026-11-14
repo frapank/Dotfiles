@@ -1,0 +1,3 @@
+Power profiles (as in GNOME)
+power-profiles-daemon on balanced, replaces tlp.
+Change it with 'powerprofilesctl set performance'.

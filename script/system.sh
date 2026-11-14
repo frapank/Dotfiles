@@ -70,7 +70,7 @@ root_snapshot() {
 
 do_packages() {
     step "Packages"
-    local want=("${PKG_CORE[@]}") new=() old=() auto=() p showauto
+    local want=("${PKG_CORE[@]}") new=() old=() auto=() p k showauto
     if ((SEL[power])); then
         for p in tlp-rdw tlp; do installed "$p" && old+=("$p"); done
         if ((${#old[@]})); then
@@ -79,28 +79,13 @@ do_packages() {
             run "remove ${old[*]}" "${APT[@]}" remove "${old[@]}"
         fi
     fi
-    ((SEL[cli])) && want+=("${PKG_CLI[@]}")
-    ((SEL[lsp])) && want+=("${PKG_LSP[@]}")
-    ((SEL[harden])) && want+=("${PKG_HARDEN[@]}")
-    ((SEL[usb])) && want+=("${PKG_USB[@]}")
-    ((SEL[apparmor])) && want+=("${PKG_APPARMOR[@]}")
-    ((SEL[net])) && want+=("${PKG_NET[@]}")
-    ((SEL[boot])) && want+=("${PKG_BOOT[@]}")
-    ((SEL[desktop])) && want+=("${PKG_DESKTOP[@]}")
-    ((SEL[media])) && want+=("${PKG_MEDIA[@]}")
-    ((SEL[apps])) && want+=("${PKG_APPS[@]}")
-    ((SEL[session])) && want+=("${PKG_SESSION[@]}")
-    ((SEL[theme])) && want+=("${PKG_THEME[@]}")
-    ((SEL[locale])) && want+=("${PKG_LOCALE[@]}")
-    ((SEL[hw])) && want+=("${PKG_HW[@]}" "${HW_PKGS[@]}")
-    ((SEL[power])) && want+=("${PKG_POWER[@]}")
-    ((SEL[logs])) && want+=("${PKG_LOGS[@]}")
-    ((SEL[dirs])) && want+=("${PKG_DIRS[@]}")
-    ((SEL[swap])) && want+=("${PKG_SWAP[@]}")
-    ((SEL[maint])) && want+=("${PKG_MAINT[@]}")
+    for k in "${SECTIONS[@]}"; do
+        ((SEL[$k])) || continue
+        p="PKG_${k^^}[@]"
+        want+=("${!p}")
+    done
+    ((SEL[hw])) && want+=("${HW_PKGS[@]}")
     ((SEL[maint])) && [[ -f /etc/default/grub ]] && want+=("${PKG_SNAPBOOT[@]}")
-    ((SEL[fonts])) && want+=("${PKG_FONTS[@]}")
-    ((SEL[doas])) && want+=(opendoas)
     showauto=" $(apt-mark showauto | tr '\n' ' ') "
     for p in $(printf '%s\n' "${want[@]}" | sort -u); do
         if ! installed "$p"; then
@@ -281,284 +266,73 @@ do_doas() {
     ok "sudo is gone"
 }
 
+# the final state, past what put, run and svc_enable already made sure of:
+# warn MESSAGE when the rest of the arguments, run as a command, fails
+expect() {
+    "${@:2}" </dev/null >/dev/null 2>&1 || {
+        warn "$1"
+        VERIFY_BAD=1
+    }
+}
+sysctl_is() { [[ $(<"/proc/sys/$1") == "$2" ]]; }
+subvol() { [[ $(stat -c %i -- "$1" 2>/dev/null) == 256 ]]; }
+first_line() { [[ $(head -n1 -- "$1" 2>/dev/null) == "$2" ]]; }
+journal_on_disk() { [[ $(systemd-analyze cat-config systemd/journald.conf | grep -E '^Storage=' | tail -n1) == Storage=persistent ]]; }
+login_draws() { TERM=linux G0WM_LOGIN_CAT=${2:-} sh /usr/local/libexec/g0wm-login "$1"; }
+not() { ! "$@"; }
+
 verify() {
     step "Final check"
-    local bad=0 c cat
+    local u c
+    VERIFY_BAD=0
+    for u in "${ENABLED[@]}"; do expect "$u is not enabled" systemctl -q is-enabled -- "$u"; done
     if ((SEL[cli])); then
-        for c in vim nvim tmux fzf rg fd bat; do
-            command -v "$c" >/dev/null || {
-                warn "$c missing"
-                bad=1
-            }
-        done
-        for c in .bashrc:"$BASHRC_LINE" .bash_profile:"$PROFILE_LINE"; do
-            cmp -s "$REPO/home/bash/${c%%:*}_dotfile" "$THOME/${c%%:*}_dotfile" && [[ ! -L $THOME/${c%%:*}_dotfile ]] ||
-                {
-                    warn "~/${c%%:*}_dotfile is not the repo's copy"
-                    bad=1
-                }
-            [[ $(head -n1 -- "$THOME/${c%%:*}" 2>/dev/null) == "${c#*:}" ]] ||
-                {
-                    warn "~/${c%%:*} does not source ~/${c%%:*}_dotfile in its first line"
-                    bad=1
-                }
-        done
+        expect "~/.bashrc does not source ~/.bashrc_dotfile in its first line" first_line "$THOME/.bashrc" "$BASHRC_LINE"
+        expect "~/.bash_profile does not source ~/.bash_profile_dotfile in its first line" \
+            first_line "$THOME/.bash_profile" "$PROFILE_LINE"
     fi
     if ((SEL[desktop])); then
-        g0wm_where >/dev/null || {
-            warn "g0wm or start-g0wm missing from $TUSER's PATH"
-            bad=1
-        }
-        [[ -f $WLR_PREFIX/lib/libwlroots-0.20.so ]] || {
-            warn "wlroots 0.20 missing from $WLR_PREFIX"
-            bad=1
-        }
-        [[ -f $THOME/.config/g0wm/config && ! -L $THOME/.config/g0wm/config ]] ||
-            {
-                warn "g0wm settings not installed"
-                bad=1
-            }
-    fi
-    if ((SEL[apps])); then
-        for c in librewolf loupe papers showtime soffice pavucontrol gtklock tree thunar xdg-open gtk-launch; do
-            command -v "$c" >/dev/null || {
-                warn "$c missing"
-                bad=1
-            }
-        done
-        [[ -x $THOME/.local/bin/open ]] || {
-            warn "~/.local/bin/open missing"
-            bad=1
-        }
-    fi
-    if ((SEL[power])); then
-        command -v tlp >/dev/null && {
-            warn "tlp still installed"
-            bad=1
-        }
-        systemctl -q is-enabled power-profiles-daemon.service || {
-            warn "power-profiles-daemon not enabled"
-            bad=1
-        }
-    fi
-    if ((SEL[swap])); then
-        [[ -f /etc/systemd/zram-generator.conf ]] || {
-            warn "zram-generator not configured"
-            bad=1
-        }
-        systemctl -q is-enabled earlyoom.service || {
-            warn "earlyoom not enabled"
-            bad=1
-        }
-        [[ $(stat -c '%a %U' /usr/local/libexec/earlyoom-closed) == '755 root' ]] || {
-            warn "/usr/local/libexec/earlyoom-closed permissions"
-            bad=1
-        }
-    fi
-    if ((SEL[maint] || SEL[logs])); then
-        [[ $(stat -c '%a %U' /usr/local/libexec/as-session-user) == '755 root' ]] || {
-            warn "/usr/local/libexec/as-session-user permissions"
-            bad=1
-        }
+        expect "g0wm or start-g0wm missing from $TUSER's PATH" g0wm_where
+        expect "wlroots 0.20 missing from $WLR_PREFIX" test -f "$WLR_PREFIX/lib/libwlroots-0.20.so"
     fi
     if ((SEL[maint])); then
-        systemctl -q is-enabled maint.service || {
-            warn "maint not enabled"
-            bad=1
-        }
-        [[ $(stat -c '%a %U' /usr/local/sbin/maint) == '755 root' ]] || {
-            warn "/usr/local/sbin/maint permissions"
-            bad=1
-        }
-        [[ $(stat -c %i "$THOME/Private" 2>/dev/null) == 256 ]] || {
-            warn "~/Private is not a subvolume"
-            bad=1
-        }
-        [[ $(stat -c %i "$THOME/.cache" 2>/dev/null) == 256 ]] || {
-            warn "~/.cache is not a subvolume"
-            bad=1
-        }
-        for c in Games .local/share/Steam; do
-            [[ $(stat -c %i "$THOME/$c" 2>/dev/null) == 256 ]] || {
-                warn "~/$c is not a subvolume"
-                bad=1
-            }
-        done
-        [[ $(stat -c '%a %U' /usr/local/libexec/thumbs-clean) == '755 root' ]] || {
-            warn "/usr/local/libexec/thumbs-clean permissions"
-            bad=1
-        }
-        [[ $(stat -c '%a %U' /usr/local/libexec/trash-clean) == '755 root' ]] || {
-            warn "/usr/local/libexec/trash-clean permissions"
-            bad=1
-        }
-        [[ $(stat -c '%a %U' /usr/local/bin/snap) == '755 root' ]] || {
-            warn "/usr/local/bin/snap permissions"
-            bad=1
-        }
-        [[ $(stat -c '%a %U' /usr/local/bin/forget) == '755 root' ]] || {
-            warn "/usr/local/bin/forget permissions"
-            bad=1
-        }
+        for c in Private .cache Games .local/share/Steam; do expect "~/$c is not a subvolume" subvol "$THOME/$c"; done
     fi
-    if ((SEL[usb])); then
-        systemctl -q is-enabled usbguard.service && systemctl -q is-enabled usbguard-notify.service || {
-            warn "usbguard or usbguard-notify not enabled"
-            bad=1
-        }
-        [[ $(stat -c '%a %U' /usr/local/bin/usb) == '755 root' ]] || {
-            warn "/usr/local/bin/usb permissions"
-            bad=1
-        }
-        for c in /etc/usbguard/rules.conf /etc/usbguard/usbguard-daemon.conf; do
-            [[ $(stat -c '%a %U' "$c") == '600 root' ]] || {
-                warn "$c permissions, usbguard refuses it"
-                bad=1
-            }
-        done
-    fi
-    if ((SEL[games])); then
-        [[ $(</proc/sys/vm/max_map_count) == 1048576 ]] || {
-            warn "vm.max_map_count is not 1048576"
-            bad=1
-        }
-    fi
+    ((SEL[games] == 0)) || expect "vm.max_map_count is not 1048576" sysctl_is vm/max_map_count 1048576
     if ((SEL[logs])); then
-        systemctl -q is-enabled watchdog.service || {
-            warn "watchdog not enabled"
-            bad=1
-        }
-        [[ $(</proc/sys/kernel/panic) == 10 && $(</proc/sys/kernel/panic_on_oops) == 1 ]] || {
-            warn "the kernel does not reboot after a panic"
-            bad=1
-        }
-        [[ -x /usr/local/bin/logs ]] || {
-            warn "/usr/local/bin/logs missing"
-            bad=1
-        }
-        [[ $(systemd-analyze cat-config systemd/journald.conf 2>/dev/null | grep -E '^Storage=' | tail -n1) == Storage=persistent ]] || {
-            warn "the journal is not kept on disk"
-            bad=1
-        }
-        [[ ! -d /sys/firmware/efi ]] || systemctl -q is-enabled systemd-pstore.service || {
-            warn "systemd-pstore not enabled: a kernel panic leaves no log"
-            bad=1
-        }
+        expect "the kernel does not reboot after a panic" sysctl_is kernel/panic 10
+        expect "the kernel does not reboot after an oops" sysctl_is kernel/panic_on_oops 1
+        expect "the journal is not kept on disk" journal_on_disk
     fi
     if ((SEL[session])); then
-        for c in nm-connection-editor blueman-manager gnome-keyring-daemon; do
-            command -v "$c" >/dev/null || {
-                warn "$c missing"
-                bad=1
-            }
-        done
-        grep -q pam_gnome_keyring /etc/pam.d/login && grep -q pam_gnome_keyring /etc/pam.d/common-password || {
-            warn "keyring not in /etc/pam.d/login"
-            bad=1
-        }
-        grep -qx AutoEnable=false /etc/bluetooth/main.conf || {
-            warn "bluetooth still turns on at boot"
-            bad=1
-        }
-        grep -qx Privacy=device /etc/bluetooth/main.conf || {
-            warn "bluetooth uses the fixed address of the card"
-            bad=1
-        }
+        for c in login common-password; do expect "keyring not in /etc/pam.d/$c" grep -q pam_gnome_keyring "/etc/pam.d/$c"; done
+        expect "bluetooth still turns on at boot" grep -qx AutoEnable=false /etc/bluetooth/main.conf
+        expect "bluetooth uses the fixed address of the card" grep -qx Privacy=device /etc/bluetooth/main.conf
     fi
-    if ((SEL[media])); then
-        [[ -f $THOME/.config/xdg-desktop-portal/g0wm-portals.conf ]] || {
-            warn "portal config not installed"
-            bad=1
-        }
-    fi
-    if ((SEL[hw])); then
-        ! grep -qs '^ReportURI=.' /etc/fwupd/remotes.d/*.conf || {
-            warn "fwupd can still send reports"
-            bad=1
-        }
-    fi
-    if ((SEL[harden])); then
-        [[ $(stat -c '%a %U' /etc/nftables.conf) == '600 root' ]] || {
-            warn "/etc/nftables.conf permissions"
-            bad=1
-        }
-        [[ $(stat -c '%a %U' "$THOME/.ssh") == "700 $TUSER" ]] || {
-            warn "~/.ssh permissions"
-            bad=1
-        }
-        [[ -f /etc/modprobe.d/30-harden.conf ]] || {
-            warn "modprobe blocklist missing"
-            bad=1
-        }
-        modprobe -n -v hfs 2>/dev/null | grep -q false || {
-            warn "modprobe does not block hfs"
-            bad=1
-        }
-    fi
+    ((SEL[hw] == 0)) || expect "fwupd can still send reports" not grep -qs '^ReportURI=.' /etc/fwupd/remotes.d/*.conf
+    ((SEL[harden] == 0)) || expect "modprobe does not block hfs" grep -q false <(modprobe -n -v hfs 2>/dev/null)
     if ((SEL[boot])); then
         # agetty on tty1 runs it as root: a broken one leaves tty1 without a login
-        [[ -x /usr/local/libexec/g0wm-login ]] && sh -n /usr/local/libexec/g0wm-login &&
-            TERM=linux sh /usr/local/libexec/g0wm-login --preview </dev/null >/dev/null 2>&1 || {
-            warn "g0wm-login does not draw: tty1 has no login, use tty2"
-            bad=1
-        }
-        TERM=linux sh /usr/local/libexec/g0wm-login --starting </dev/null >/dev/null 2>&1 || {
-            warn "g0wm-login --starting does not draw: a blank screen until g0wm"
-            bad=1
-        }
-        for cat in awake grumpy; do
-            [[ -f /etc/g0wm-login/$cat ]] && TERM=linux G0WM_LOGIN_CAT=$cat \
-                sh /usr/local/libexec/g0wm-login --preview </dev/null >/dev/null 2>&1 || {
-                warn "g0wm-login does not draw the $cat cat"
-                bad=1
-            }
-        done
-        grep -qE '^LOGIN_RETRIES[[:space:]]+1$' /etc/login.defs || {
-            warn "login.defs: LOGIN_RETRIES is not 1, a wrong password breaks the tty1 screen"
-            bad=1
-        }
-        faillock_on /etc/pam.d/common-auth || {
-            warn "common-auth has no pam_faillock: no lock out, no \"Login incorrect\" on tty1"
-            bad=1
-        }
-        grep -qE '^deny = 5$' /etc/security/faillock.conf || {
-            warn "faillock.conf: deny is not 5"
-            bad=1
-        }
-    fi
-    if ((SEL[boot])) && [[ -f /etc/default/grub && -f /boot/grub/grub.cfg ]] && grub_gfx; then
-        grep -qE '^[[:space:]]*set theme=.*/themes/minimal/theme\.txt' /boot/grub/grub.cfg || {
-            warn "grub.cfg does not load the minimal theme"
-            bad=1
-        }
-    fi
-    if ((SEL[apparmor])); then
-        systemctl -q is-enabled apparmor.service || {
-            warn "apparmor.service not enabled"
-            bad=1
-        }
-        for c in dotfiles-librewolf foot dnscrypt-proxy usr.sbin.wpa_supplicant abstractions/dotfiles/app; do
-            [[ -f /etc/apparmor.d/$c ]] || {
-                warn "/etc/apparmor.d/$c missing"
-                bad=1
-            }
-        done
-        [[ -x /usr/local/libexec/wl-sandbox ]] || {
-            warn "/usr/local/libexec/wl-sandbox missing"
-            bad=1
-        }
-        [[ -f $HMALLOC_LIB ]] || {
-            warn "$HMALLOC_LIB missing"
-            bad=1
-        }
-        if [[ -f /etc/default/grub && -f /boot/grub/grub.cfg ]]; then
-            grep -qE '[[:space:]]lsm=[a-z0-9_,]*apparmor' /boot/grub/grub.cfg || {
-                warn "grub.cfg has no lsm= with apparmor"
-                bad=1
-            }
+        expect "g0wm-login does not draw: tty1 has no login, use tty2" login_draws --preview
+        expect "g0wm-login --starting does not draw: a blank screen until g0wm" login_draws --starting
+        for c in awake grumpy; do expect "g0wm-login does not draw the $c cat" login_draws --preview "$c"; done
+        expect "login.defs: LOGIN_RETRIES is not 1, a wrong password breaks the tty1 screen" \
+            grep -qE '^LOGIN_RETRIES[[:space:]]+1$' /etc/login.defs
+        expect "common-auth has no pam_faillock: no lock out, no \"Login incorrect\" on tty1" faillock_on /etc/pam.d/common-auth
+        expect "faillock.conf: deny is not 5" grep -qE '^deny = 5$' /etc/security/faillock.conf
+        if [[ -f /etc/default/grub && -f /boot/grub/grub.cfg ]] && grub_gfx; then
+            expect "grub.cfg does not load the minimal theme" \
+                grep -qE '^[[:space:]]*set theme=.*/themes/minimal/theme\.txt' /boot/grub/grub.cfg
         fi
     fi
-    ((bad == 0)) || die "final check failed"
+    if ((SEL[apparmor])); then
+        expect "/usr/local/libexec/wl-sandbox missing" test -x /usr/local/libexec/wl-sandbox
+        expect "$HMALLOC_LIB missing" test -f "$HMALLOC_LIB"
+        if [[ -f /etc/default/grub && -f /boot/grub/grub.cfg ]]; then
+            expect "grub.cfg has no lsm= with apparmor" grep -qE '[[:space:]]lsm=[a-z0-9_,]*apparmor' /boot/grub/grub.cfg
+        fi
+    fi
+    ((VERIFY_BAD == 0)) || die "final check failed"
     ok "all good"
 }
 

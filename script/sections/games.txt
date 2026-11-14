@@ -1,0 +1,3 @@
+Games: Steam and Lutris work once you install them
+vm.max_map_count 1048576 as on SteamOS: many Proton games crash with the default 65530.
+Steam and Lutris are not installed. Once you install them AppArmor confines them (apparmor) and ~/Games and ~/.local/share/Steam stay out of the snapshots (maint).

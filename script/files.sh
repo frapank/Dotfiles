@@ -188,6 +188,7 @@ svc_reload() {
 
 svc_enable() {
     local u=$1
+    ENABLED+=("$u")
     svc_reload
     [[ -n $(systemctl list-unit-files --no-legend -- "$u" 2>/dev/null) ]] || die "unit $u not found"
     if systemctl -q is-enabled -- "$u" 2>/dev/null; then

@@ -98,13 +98,8 @@ hide_pids() {
 		!/^[[:space:]]*#/ && $2 == "/proc" { next }
 		{ print }
 		END { print "proc /proc proc nosuid,nodev,noexec,hidepid=invisible,gid=" g " 0 0" }' /etc/fstab)
-    if [[ $new == "$(cat /etc/fstab)" ]]; then
-        skip "/proc hidepid=invisible in /etc/fstab"
-        return 0
-    fi
-    put_text /etc/fstab 0644 <<<"$new"
-    run "fstab is valid" findmnt --verify
-    ok "/proc hides the processes of other users after the reboot"
+    fstab_put "/proc hidepid=invisible in /etc/fstab" "$new"
+    ((FSTAB_NEW == 0)) || ok "/proc hides the processes of other users after the reboot"
 }
 
 # empty: at every boot systemd puts a new random one over it, in RAM, and nothing saves it
@@ -159,7 +154,7 @@ no_suid() {
 # Debian has an ext4 /boot and a vfat /boot/efi: no device, setuid or program files on
 # either, and /boot readable by root only
 boot_mask() {
-    local new m t
+    local new m
     new=$(awk '
 		!/^[[:space:]]*#/ && ($2 == "/boot" || $2 == "/boot/efi") {
 			n = split($4, o, ","); $4 = ""
@@ -169,16 +164,7 @@ boot_mask() {
 			if ($3 == "vfat") $4 = $4 ",fmask=0077,dmask=0077"
 		}
 		{ print }' /etc/fstab)
-    if [[ $new == "$(cat /etc/fstab)" ]]; then
-        skip "/boot nosuid,nodev,noexec in /etc/fstab"
-    else
-        put_text /etc/fstab 0644 <<<"$new"
-        run "fstab is valid" findmnt --verify
-        for t in /boot /boot/efi; do
-            findmnt -n "$t" >/dev/null || continue
-            try "remount $t" mount -o remount "$t"
-        done
-    fi
+    fstab_put "/boot nosuid,nodev,noexec in /etc/fstab" "$new" /boot /boot/efi
     [[ $(stat -f -c %T /boot) != msdos ]] || return 0
     m=$(stat -c '%a %u:%g' /boot)
     if [[ ${m% *} == 700 ]]; then
@@ -191,7 +177,7 @@ boot_mask() {
 }
 
 tmp_mount() {
-    local cur new
+    local cur new t=()
     cur=$(awk '!/^[[:space:]]*#/ && $2 == "/tmp" { print $3; exit }' /etc/fstab)
     if [[ -n $cur && $cur != tmpfs ]]; then
         warn "/tmp is $cur in /etc/fstab, left alone"
@@ -205,17 +191,28 @@ tmp_mount() {
     else
         new=$(fstab_nosuid /tmp)
     fi
+    [[ $(findmnt -no FSTYPE /tmp) != tmpfs ]] || t=(/tmp)
+    fstab_put "/tmp tmpfs nosuid,nodev" "$new" "${t[@]}"
+    ((FSTAB_NEW == 0 || ${#t[@]})) || ok "/tmp becomes a tmpfs after the reboot"
+}
+
+# put NEW as /etc/fstab, check it and remount the TARGETs that are mounted;
+# DESC names what is in place when NEW is the same. FSTAB_NEW tells if it changed
+fstab_put() {
+    local desc=$1 new=$2 t
+    shift 2
+    FSTAB_NEW=0
     if [[ $new == "$(cat /etc/fstab)" ]]; then
-        skip "/tmp tmpfs nosuid,nodev"
+        skip "$desc"
         return 0
     fi
+    FSTAB_NEW=1
     put_text /etc/fstab 0644 <<<"$new"
     run "fstab is valid" findmnt --verify
-    if [[ $(findmnt -no FSTYPE /tmp) == tmpfs ]]; then
-        try "remount /tmp" mount -o remount /tmp
-    else
-        ok "/tmp becomes a tmpfs after the reboot"
-    fi
+    for t; do
+        findmnt -n "$t" >/dev/null || continue
+        try "remount $t" mount -o remount "$t"
+    done
 }
 
 # /etc/fstab with nosuid,nodev added to the entry of $1
@@ -230,19 +227,11 @@ fstab_nosuid() {
 }
 
 home_mount() {
-    local new
     if ! awk '!/^[[:space:]]*#/ && $2 == "/home" { f = 1 } END { exit !f }' /etc/fstab; then
         skip "/home is not in /etc/fstab"
         return 0
     fi
-    new=$(fstab_nosuid /home)
-    if [[ $new == "$(cat /etc/fstab)" ]]; then
-        skip "/home nosuid,nodev"
-        return 0
-    fi
-    put_text /etc/fstab 0644 <<<"$new"
-    run "fstab is valid" findmnt --verify
-    try "remount /home" mount -o remount /home
+    fstab_put "/home nosuid,nodev" "$(fstab_nosuid /home)" /home
 }
 
 ssh_dir() {

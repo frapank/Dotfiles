@@ -1,0 +1,3 @@
+Home folders
+Custom user-dirs from home/{$(join , "${HOME_DIRS[@]}")}, creates those folders.
+Empty unused standard folders go to ~/_backup/$TS, others stay.

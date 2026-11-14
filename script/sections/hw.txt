@@ -1,0 +1,5 @@
+Hardware: microcode, GPU drivers, firmware updates
+Found: $(join , "${HW_DESC[@]}")
+Installs $(printf '%s\n' "${HW_PKGS[@]}" | sort -u | tr '\n' ' ')fwupd
+Microcode goes into the initramfs. Firmware: 'fwupdmgr get-updates'.
+The airplane mode key does nothing (udev rule).

@@ -161,16 +161,24 @@ zram_size() {
     ((ZRAM_MIB <= 16384)) || ZRAM_MIB=16384
 }
 
-sig_check() {
+# why module.sig_enforce=1 would block a module, nothing if it would not
+sig_problem() {
     local t m
     m=$(awk '{ print $1; exit }' /proc/modules)
-    [[ -z $m || -n $(modinfo -F sig_id -- "$m" 2>/dev/null) ]] ||
-        die "harden: kernel modules are not signed, module.sig_enforce=1 would block them all"
+    if [[ -n $m && -z $(modinfo -F sig_id -- "$m" 2>/dev/null) ]]; then
+        echo "kernel modules are not signed, module.sig_enforce=1 would block them all"
+        return 0
+    fi
     t=$(</proc/sys/kernel/tainted)
-    ((!(t & 8192))) || die "harden: an unsigned module is loaded (tainted $t), module.sig_enforce=1 would block it"
+    if ((t & 8192)); then
+        echo "an unsigned module is loaded (tainted $t), module.sig_enforce=1 would block it"
+        return 0
+    fi
     while IFS= read -r -d '' m; do
-        [[ -n $(modinfo -F sig_id -- "$m" 2>/dev/null) ]] ||
-            die "harden: ${m#/usr/lib/modules/} is not signed, module.sig_enforce=1 would block it"
+        if [[ -z $(modinfo -F sig_id -- "$m" 2>/dev/null) ]]; then
+            echo "${m#/usr/lib/modules/} is not signed, module.sig_enforce=1 would block it"
+            return 0
+        fi
     done < <(find /usr/lib/modules -name '*.ko*' \( -path '*/updates/*' -o -path '*/extra/*' \) -print0)
 }
 
@@ -188,19 +196,51 @@ aa_lsm() {
     echo "lsm=${l:+$l,}apparmor"
 }
 
-# an lsm= of the user goes before the drop-in's, the last one wins
-aa_check() {
+# why AppArmor cannot be turned on, nothing if it can; an lsm= of the user goes
+# before the drop-in's, the last one wins
+aa_problem() {
     local line w bad
     bad=$(grep -oE '(^|,)(selinux|smack)(,|$)' /sys/kernel/security/lsm 2>/dev/null | tr -d , || true)
-    [[ -z $bad ]] || die "apparmor: $bad is running, it cannot run next to AppArmor"
+    if [[ -n $bad ]]; then
+        echo "$bad is running, it cannot run next to AppArmor"
+        return 0
+    fi
     [[ -f /etc/default/grub ]] || return 0
     line=$(grep -hE '^GRUB_CMDLINE_LINUX(_DEFAULT)?=' /etc/default/grub "$GRUB_D"/*.cfg 2>/dev/null || true)
     for w in $(grep -oE '(^|["[:space:]])(security|apparmor)=[^"[:space:]]*' <<<"$line" | tr -d '"' || true); do
         case $w in
         apparmor=1 | security=apparmor) ;;
-        *) die "apparmor: $w on the kernel command line (/etc/default/grub), remove it first" ;;
+        *)
+            echo "$w on the kernel command line (/etc/default/grub), remove it first"
+            return 0
+            ;;
         esac
     done
+}
+
+# BLOCK[K]: why section K cannot be applied on this system
+find_blocks() {
+    local st r
+    BLOCK=()
+    if [[ $(stat -f -c %T /) != btrfs ]]; then
+        BLOCK[maint]="/ is not btrfs"
+    elif [[ $(stat -c %i /home) != 256 ]]; then
+        if [[ $(stat -f -c %T /home) != btrfs || $(findmnt -no TARGET -T /home) != / ]]; then
+            BLOCK[maint]="/home is not a btrfs subvolume, it cannot be snapshotted"
+        elif pgrep -u "$TUSER" -x g0wm >/dev/null; then
+            BLOCK[maint]="/home moves into a subvolume of its own: log out of g0wm, run this from a tty"
+        fi
+    fi
+    st=$(passwd -S -- "$TUSER" | awk '{print $2}')
+    [[ $st == P ]] || BLOCK[doas]="$TUSER has no usable password (passwd -S: $st), run 'passwd $TUSER' first"
+    r=$(sig_problem)
+    [[ -z $r ]] || BLOCK[harden]=$r
+    if [[ -z ${BLOCK[harden]:-} && -n ${BLOCK[doas]:-} ]] && ! command -v doas >/dev/null && ! command -v sudo >/dev/null; then
+        BLOCK[harden]="su loses setuid, and there is no doas or sudo to take its place"
+    fi
+    r=$(aa_problem)
+    [[ -z $r ]] || BLOCK[apparmor]=$r
+    return 0
 }
 
 usb_check() {

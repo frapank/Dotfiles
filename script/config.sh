@@ -60,82 +60,87 @@ readonly COMPONENTS='main contrib non-free non-free-firmware'
 APT=(env DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l apt-get -y -q
     -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold -o APT::Install-Recommends=false)
 
-PKG_CORE=(git build-essential ca-certificates)
-PKG_CLI=(bash bash-completion vim-nox neovim tmux universal-ctags fzf fd-find ripgrep bat
-    xxd less binutils gdb ncurses-term wl-clipboard tree
-    zoxide git-delta lazygit bear entr shellcheck nala)
-# taplo, zls, bash-language-server and yaml-language-server are not in Debian
-PKG_LSP=(clangd rust-analyzer)
-PKG_HARDEN=(nftables openssh-client)
-PKG_USB=(usbguard libnotify-bin)
-HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
-    randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
-    efi=disable_early_pci_dma lockdown=confidentiality module.sig_enforce=1 proc_mem.force_override=ptrace
-    iommu.passthrough=0 kfence.sample_interval=100 random.trust_cpu=off random.trust_bootloader=off
-    bdev_allow_write_mounted=0 intel_iommu=on amd_iommu=force_isolation tsx=off)
-PKG_APPARMOR=(apparmor apparmor-utils xdg-dbus-proxy bubblewrap python3-gi gir1.2-glib-2.0
-    libwayland-dev wayland-protocols pkgconf)
-# weaker or unconfined profiles of the same programs: papers and libreoffice-common ship
-# the Ubuntu ones, apparmor an unconfined steam, librewolf and vesktop unconfined ones
-AA_DISABLE=(usr.bin.papers usr.lib.libreoffice.program.soffice.bin steam librewolf vesktop)
-PKG_NET=(network-manager wpasupplicant wireless-regdb dnscrypt-proxy chrony dbus curl)
-PKG_BOOT=(plymouth plymouth-themes console-setup)
-PKG_DESKTOP=(
-    # g0wm build
-    pkgconf libwayland-dev wayland-protocols
-    libxkbcommon-dev libinput-dev libpixman-1-dev libfcft-dev libtllist-dev
-    libdbus-1-dev libxcb1-dev libxcb-icccm4-dev libgdk-pixbuf-2.0-dev
-    # wlroots build
-    meson ninja-build libegl-dev libgles-dev libgbm-dev libvulkan-dev glslang-tools libseat-dev
-    libudev-dev libdisplay-info-dev libliftoff-dev hwdata liblcms2-dev libxcb-composite0-dev
-    libxcb-ewmh-dev libxcb-render0-dev libxcb-res0-dev libxcb-xfixes0-dev libxcb-errors-dev
-    libffi-dev libexpat1-dev bison xkb-data
-    # session
-    dbus dbus-user-session libpam-systemd polkitd libgl1-mesa-dri xwayland pipewire wireplumber
-    xdg-utils xdg-user-dirs fontconfig
-    # the monitors of the g0wm config
-    python3
-    # apps
-    foot thunar grim slurp swappy swayidle gtklock
-    brightnessctl playerctl fonts-dejavu-core adwaita-icon-theme
-)
-PKG_MEDIA=(pipewire pipewire-pulse pipewire-alsa wireplumber rtkit xdg-desktop-portal
-    xdg-desktop-portal-wlr xdg-desktop-portal-gtk librsvg2-common slurp dbus)
-PKG_APPS=(
-    librewolf foot gtklock swayidle pavucontrol
-    loupe showtime papers libreoffice-writer libreoffice-calc libreoffice-impress libreoffice-gtk3 qt6-wayland
-    # thunar
-    thunar thunar-volman thunar-archive-plugin tumbler ffmpegthumbnailer
-    gvfs gvfs-backends udisks2 xarchiver
-    # default apps
-    xdg-utils libgtk-3-bin gtk-update-icon-cache desktop-file-utils shared-mime-info
-    gsettings-desktop-schemas dconf-gsettings-backend dconf-service libglib2.0-bin librsvg2-common
-    # screenshots, screen recording, night light
-    grim slurp swappy wl-clipboard wf-recorder libnotify-bin wlsunset
-    # terminal tools
-    tree bat htop unzip zip 7zip wget curl rsync jq file lsof strace psmisc
-    ncdu fastfetch
-    # qr
-    qrencode zbar-tools
-    # archives
-    tar gzip bzip2 xz-utils zstd lz4 lzip libarchive-tools cpio unrar gnupg age
-    # metadata-remover
-    mat2 libimage-exiftool-perl ffmpeg bubblewrap
-)
-PKG_SESSION=(gnome-keyring libsecret-1-0 libpam-gnome-keyring mate-polkit network-manager-gnome
-    bluez blueman libspa-0.2-bluetooth)
-PKG_THEME=(gnome-themes-extra adwaita-icon-theme papirus-icon-theme gsettings-desktop-schemas dconf-gsettings-backend
-    libglib2.0-bin qt-style-kvantum qt6ct git libgtk-3-bin gtk-update-icon-cache librsvg2-bin curl tar xz-utils python3)
-PKG_FONTS=(fontconfig curl unzip xz-utils fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk)
-PKG_LOCALE=(locales)
-PKG_HW=(fwupd fwupd-amd64-signed)
-PKG_POWER=(power-profiles-daemon)
-PKG_LOGS=(pulseaudio-utils gawk less)
-PKG_DIRS=(xdg-user-dirs)
-PKG_SWAP=(systemd-zram-generator earlyoom)
-PKG_MAINT=(btrfs-progs util-linux python3 smartmontools curl debsums debsecan needrestart)
-# the snapshots of / boot with a throwaway overlay in RAM
-PKG_SNAPBOOT=(overlayroot)
+# do_packages reads PKG_<SECTION> by name
+# shellcheck disable=SC2034
+{
+    PKG_CORE=(git build-essential ca-certificates)
+    PKG_CLI=(bash bash-completion vim-nox neovim tmux universal-ctags fzf fd-find ripgrep bat
+        xxd less binutils gdb ncurses-term wl-clipboard tree
+        zoxide git-delta lazygit bear entr shellcheck nala)
+    # taplo, zls, bash-language-server and yaml-language-server are not in Debian
+    PKG_LSP=(clangd rust-analyzer)
+    PKG_HARDEN=(nftables openssh-client)
+    PKG_USB=(usbguard libnotify-bin)
+    HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
+        randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
+        efi=disable_early_pci_dma lockdown=confidentiality module.sig_enforce=1 proc_mem.force_override=ptrace
+        iommu.passthrough=0 kfence.sample_interval=100 random.trust_cpu=off random.trust_bootloader=off
+        bdev_allow_write_mounted=0 intel_iommu=on amd_iommu=force_isolation tsx=off)
+    PKG_APPARMOR=(apparmor apparmor-utils xdg-dbus-proxy bubblewrap python3-gi gir1.2-glib-2.0
+        libwayland-dev wayland-protocols pkgconf)
+    # weaker or unconfined profiles of the same programs: papers and libreoffice-common ship
+    # the Ubuntu ones, apparmor an unconfined steam, librewolf and vesktop unconfined ones
+    AA_DISABLE=(usr.bin.papers usr.lib.libreoffice.program.soffice.bin steam librewolf vesktop)
+    PKG_NET=(network-manager wpasupplicant wireless-regdb dnscrypt-proxy chrony dbus curl)
+    PKG_BOOT=(plymouth plymouth-themes console-setup)
+    PKG_DESKTOP=(
+        # g0wm build
+        pkgconf libwayland-dev wayland-protocols
+        libxkbcommon-dev libinput-dev libpixman-1-dev libfcft-dev libtllist-dev
+        libdbus-1-dev libxcb1-dev libxcb-icccm4-dev libgdk-pixbuf-2.0-dev
+        # wlroots build
+        meson ninja-build libegl-dev libgles-dev libgbm-dev libvulkan-dev glslang-tools libseat-dev
+        libudev-dev libdisplay-info-dev libliftoff-dev hwdata liblcms2-dev libxcb-composite0-dev
+        libxcb-ewmh-dev libxcb-render0-dev libxcb-res0-dev libxcb-xfixes0-dev libxcb-errors-dev
+        libffi-dev libexpat1-dev bison xkb-data
+        # session
+        dbus dbus-user-session libpam-systemd polkitd libgl1-mesa-dri xwayland pipewire wireplumber
+        xdg-utils xdg-user-dirs fontconfig
+        # the monitors of the g0wm config
+        python3
+        # apps
+        foot thunar grim slurp swappy swayidle gtklock
+        brightnessctl playerctl fonts-dejavu-core adwaita-icon-theme
+    )
+    PKG_MEDIA=(pipewire pipewire-pulse pipewire-alsa wireplumber rtkit xdg-desktop-portal
+        xdg-desktop-portal-wlr xdg-desktop-portal-gtk librsvg2-common slurp dbus)
+    PKG_APPS=(
+        librewolf foot gtklock swayidle pavucontrol
+        loupe showtime papers libreoffice-writer libreoffice-calc libreoffice-impress libreoffice-gtk3 qt6-wayland
+        # thunar
+        thunar thunar-volman thunar-archive-plugin tumbler ffmpegthumbnailer
+        gvfs gvfs-backends udisks2 xarchiver
+        # default apps
+        xdg-utils libgtk-3-bin gtk-update-icon-cache desktop-file-utils shared-mime-info
+        gsettings-desktop-schemas dconf-gsettings-backend dconf-service libglib2.0-bin librsvg2-common
+        # screenshots, screen recording, night light
+        grim slurp swappy wl-clipboard wf-recorder libnotify-bin wlsunset
+        # terminal tools
+        tree bat htop unzip zip 7zip wget curl rsync jq file lsof strace psmisc
+        ncdu fastfetch
+        # qr
+        qrencode zbar-tools
+        # archives
+        tar gzip bzip2 xz-utils zstd lz4 lzip libarchive-tools cpio unrar gnupg age
+        # metadata-remover
+        mat2 libimage-exiftool-perl ffmpeg bubblewrap
+    )
+    PKG_SESSION=(gnome-keyring libsecret-1-0 libpam-gnome-keyring mate-polkit network-manager-gnome
+        bluez blueman libspa-0.2-bluetooth)
+    PKG_THEME=(gnome-themes-extra adwaita-icon-theme papirus-icon-theme gsettings-desktop-schemas dconf-gsettings-backend
+        libglib2.0-bin qt-style-kvantum qt6ct git libgtk-3-bin gtk-update-icon-cache librsvg2-bin curl tar xz-utils python3)
+    PKG_FONTS=(fontconfig curl unzip xz-utils fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk)
+    PKG_LOCALE=(locales)
+    PKG_HW=(fwupd fwupd-amd64-signed)
+    PKG_POWER=(power-profiles-daemon)
+    PKG_LOGS=(pulseaudio-utils gawk less)
+    PKG_DIRS=(xdg-user-dirs)
+    PKG_SWAP=(systemd-zram-generator earlyoom)
+    PKG_MAINT=(btrfs-progs util-linux python3 smartmontools curl debsums debsecan needrestart)
+    # the snapshots of / boot with a throwaway overlay in RAM
+    PKG_SNAPBOOT=(overlayroot)
+    PKG_DOAS=(opendoas)
+}
 XDG_DEFAULT_DIRS=(Desktop Documents Downloads Music Pictures Public Templates Videos)
 HOME_CLI=(bash ctags nvim vim tmux ripgrep fetch git lazygit)
 HOME_DESKTOP=(foot g0wm gtklock services)
@@ -147,7 +152,14 @@ HOME_FONTS=(fontconfig)
 HOME_MEDIA=(portal)
 HOME_DIRS=(xdg)
 USER_GROUPS=(wheel video)
+# a section K is asked with the text of sections/K.txt, installs PKG_K (upper case)
+# and runs the STEPS of K; '-' marks the steps that always run
 SECTIONS=(update locale cli lsp harden usb apparmor net boot hw power logs swap maint dirs desktop media apps games session theme fonts doas)
+STEPS=(-:do_repos update:do_update -:do_packages hw:do_hw locale:do_locale harden:do_harden
+    usb:do_usb apparmor:do_apparmor net:do_net_files -:do_groups logs:do_logs swap:do_swap
+    maint:do_maint dirs:do_dirs maint:do_nosnap cli:do_home_cli desktop:do_g0wm media:do_media
+    apps:do_apps games:do_games session:do_session fonts:do_fonts theme:do_theme boot:do_boot
+    -:do_services -:do_post net:do_net_services -:verify doas:do_doas)
 GEIST_DIR=/usr/local/share/fonts/Geist
 GEIST_MONO_DIR=/usr/local/share/fonts/GeistMono
 NERD_DIR=/usr/local/share/fonts/NerdFontsSymbolsOnly
@@ -291,7 +303,7 @@ MIME_DEFAULTS=(
     text/x-log=vim-foot.desktop
 )
 
-YES=0 ABORT=0 STAGE=preflight TUSER= TGID= THOME= REPO= UBAK=
+YES=0 ABORT=0 STAGE=preflight MENU_MSG= MENU_KEY= TUSER= TGID= THOME= REPO= UBAK=
 AS_USER=()
-HW_PKGS=() HW_DESC=() NEW_PKGS=() REGEN=0 WLR_NEW=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0 GRUB_STALE=0 USB_NEW=0 SD_RELOAD=0
-declare -A SEL=() BACKED=()
+HW_PKGS=() HW_DESC=() NEW_PKGS=() ENABLED=() REGEN=0 WLR_NEW=0 ZRAM_PCT=0 ZRAM_MIB=0 FONTS_NEW=0 DNS_NEW=0 GRUB_STALE=0 USB_NEW=0 SD_RELOAD=0 VERIFY_BAD=0 FSTAB_NEW=0
+declare -A SEL=() BACKED=() BLOCK=()
