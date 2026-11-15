@@ -3,4 +3,4 @@ Default: yes
 Priority: 1024
 Auth-Type: Primary
 Auth:
-	requisite			pam_faillock.so preauth
+    requisite			pam_faillock.so preauth

@@ -3,4 +3,4 @@ Default: yes
 Priority: 0
 Auth-Type: Additional
 Auth:
-	optional			pam_faillock.so authsucc
+    optional			pam_faillock.so authsucc

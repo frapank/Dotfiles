@@ -124,7 +124,7 @@ papirus_icons() {
     [[ -f $ICONS_DIR/index.theme && -f $places/folder-$ICONS_COLOR.svg ]] ||
         die "Papirus-Dark or its $ICONS_COLOR folders missing (papirus-icon-theme)"
     if [[ -f $FOLDERS_BIN && $(stat -c '%a %U %G' -- "$FOLDERS_BIN") == '755 root root' &&
-        $(cat -- "$STATE/papirus-folders" 2>/dev/null) == "$FOLDERS_REV" ]]; then
+    $(cat -- "$STATE/papirus-folders" 2>/dev/null) == "$FOLDERS_REV" ]]; then
         skip "$FOLDERS_BIN ($FOLDERS_TAG)"
     else
         tmp=$(mktemp -d)
@@ -139,7 +139,7 @@ papirus_icons() {
 		DPkg::Post-Invoke { "if [ -x $FOLDERS_BIN ]; then $FOLDERS_BIN -R >/dev/null || true; fi"; };
 	EOF
     if [[ $(readlink -- "$places/folder.svg") == "folder-$ICONS_COLOR.svg" &&
-        $(cat -- "$keep" 2>/dev/null) == "theme=${ICONS_DIR##*/}"$'\n'"color=$ICONS_COLOR" ]]; then
+    $(cat -- "$keep" 2>/dev/null) == "theme=${ICONS_DIR##*/}"$'\n'"color=$ICONS_COLOR" ]]; then
         skip "folders in $ICONS_COLOR"
     else
         run "folders in $ICONS_COLOR" "$FOLDERS_BIN" -t "$ICONS_DIR" -C "$ICONS_COLOR"

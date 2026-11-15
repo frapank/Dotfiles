@@ -15,7 +15,11 @@ do_net_files() {
     fi
     ((n == $(njot))) || DNS_NEW=1
     put_tree chrony
-    run "dnscrypt-proxy config is valid" env -C / -u PWD dnscrypt-proxy -config /etc/dnscrypt-proxy/dnscrypt-proxy.toml -check
+    # as the service runs it: root would touch the cache files of _dnscrypt-proxy (fowner,
+    # which its profile denies) and fetch them past the firewall, which lets only it out on 53
+    run "dnscrypt-proxy config is valid" env -C / -u PWD setpriv --reuid=_dnscrypt-proxy \
+        --regid="$(id -g _dnscrypt-proxy)" --clear-groups --inh-caps=-all --bounding-set=-all \
+        dnscrypt-proxy -config /etc/dnscrypt-proxy/dnscrypt-proxy.toml -check
     try "chrony config parses" env -C / -u PWD chronyd -p -f /etc/chrony/chrony.conf
     run "NetworkManager config parses" env -C / -u PWD NetworkManager --print-config
 }

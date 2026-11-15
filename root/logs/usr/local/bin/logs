@@ -25,7 +25,8 @@ another machine ID. Long output opens in less at the end: q quits, / searches.
                             or one of 'services': pipewire, idle...
   crashes [WHEN]            segfaults, fatal signals, out of memory, kernel bugs,
                             lockups, GPU hangs, hardware and disk errors
-  apparmor [WHEN]           what AppArmor blocked, counted per app
+  apparmor [WHEN|all]       what AppArmor blocked, counted per app (default:
+                            since the profiles last changed, all: everything)
   firewall [WHEN]           what the firewall dropped, counted per source
   usb [WHEN]                USB devices plugged in and out
   auth [WHEN]               logins, doas, passwords
@@ -40,7 +41,7 @@ another machine ID. Long output opens in less at the end: q quits, / searches.
 
 LOG: $LOGS
 WHEN: 30m 2h 3d 1w, boot, today, yesterday, or a date like '2026-09-28 14:00'.
-Without WHEN the whole history is shown.
+Without WHEN the whole history is shown, but for apparmor: since its profiles changed.
 EOF
 }
 
@@ -466,8 +467,19 @@ crashes)
     pick 'segfault at |traps: |potentially unexpected fatal signal|Out of memory|oom-kill:|Killed process|Oops|BUG: |kernel BUG|general protection fault|Kernel panic|blocked for more than|WARNING: CPU: |soft lockup|hard LOCKUP|self-detected stall|GPU HANG|ring [^ ]+ timeout|GPU reset|Hardware Error|Machine check|EDAC .* error|controller is down|failed command' _TRANSPORT=kernel
     ;;
 apparmor)
-    since "${1:-}"
+    # what was blocked before the profiles last changed may be allowed now
+    note=
+    case ${1:-} in
+    all) SINCE= ;;
+    '')
+        t=$(find /etc/apparmor.d -type f -printf '%T@\n' 2>/dev/null | sort -n | tail -n 1)
+        SINCE=@${t%.*}
+        note="Since the profiles last changed, $(date -d "$SINCE" '+%Y-%m-%d %H:%M'): 'logs apparmor all' for everything."
+        ;;
+    *) since "$1" ;;
+    esac
     apparmor
+    [ -z "$note" ] || echo "$note" >&2
     ;;
 firewall)
     since "${1:-}"

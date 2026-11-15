@@ -31,7 +31,10 @@ _logs() {
             COMPREPLY=($(compgen -W "$when" -- "$cur"))
         fi
         ;;
-    errors | crashes | apparmor | firewall | usb | auth)
+    apparmor)
+        ((COMP_CWORD != at + 1)) || COMPREPLY=($(compgen -W "all $when" -- "$cur"))
+        ;;
+    errors | crashes | firewall | usb | auth)
         ((COMP_CWORD != at + 1)) || COMPREPLY=($(compgen -W "$when" -- "$cur"))
         ;;
     esac
