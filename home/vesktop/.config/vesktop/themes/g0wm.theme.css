@@ -14,22 +14,22 @@
 :root {
     --g0-bg: #0a0a0a;
     --g0-side: #0a0a0a;
-    --g0-popup: #0e0e0e;
-    --g0-hover: #121212;
-    --g0-press: #1c1c1c;
-    --g0-sel: #1c1c1c;
-    --g0-trough: #2a2a2a;
-    --g0-sep: #1a1a1a;
-    --g0-line: #2a2a2a;
+    --g0-popup: #121212;
+    --g0-hover: #191919;
+    --g0-press: #2a2a2a;
+    --g0-sel: #222222;
+    --g0-trough: #333333;
+    --g0-sep: #191919;
+    --g0-line: #333333;
     --g0-fg: #e9e9e9;
     --g0-dim: #8a8a8a;
     --g0-mute: #555555;
     --g0-accent: #e0a86a;
     --g0-on-accent: #0a0a0a;
-    --g0-green: #7fa88a;
+    --g0-green: #93c2a0;
     --g0-red: #d8625e;
-    --g0-link: #8ab0c6;
-    --g0-visited: #c59dc8;
+    --g0-link: #88bcdb;
+    --g0-visited: #cba6ce;
     --g0-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
     /* by hand, as in LibreWolf */
     --g0-yellow: #ffe066;

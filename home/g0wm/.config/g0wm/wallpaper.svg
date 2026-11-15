@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+  <!-- G0: the colors are written by script/g0wm-theme.py. g0wm scales it to
+       cover the screen and crops the middle: 16:9, so a 3:2 or 16:10 screen
+       loses only background at the sides. -->
+  <style>
+    .bg { fill: #191919; }
+    .g { fill: #e0a86a; }
+    .o { fill: #e9e9e9; }
+  </style>
+  <rect class="bg" width="3840" height="2160"/>
+  <!-- the logo is 1230 x 576, 30% of the screen height -->
+  <g transform="translate(1920 1080) scale(1.125) translate(-615 -288)">
+    <rect class="g" width="576" height="576" rx="120"/>
+    <rect class="bg" x="125" y="125" width="326" height="326"/>
+    <rect class="bg" x="450" y="173" width="127" height="68"/>
+    <rect class="g" x="325" y="241" width="251" height="125"/>
+    <rect class="o" x="665" width="565" height="576" rx="120"/>
+    <polygon class="bg" points="788,125 1042,125 788,339"/>
+    <polygon class="bg" points="1108,231 1108,445 854,445"/>
+  </g>
+</svg>

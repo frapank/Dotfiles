@@ -25,18 +25,18 @@ g:colors_name = 'dot'
 const BG          = '#0a0a0a'
 const FG          = '#e9e9e9'
 const ACCENT      = '#9d9d9d'
-const MUTED       = '#a8a8a8'
-const NOISE       = '#737373'
-const DIM         = '#7d7d7d'
-const SPLIT       = '#1a1a1a'
-const PMENU_BG    = '#0f0f0f'
-const PMENU_FG    = '#e6e6e6'
-const PMENU_SE    = '#cccccc'
-const WILD_BG     = '#303030'
+const MUTED       = '#b1b1b1'
+const NOISE       = '#7d7d7d'
+const DIM         = '#8a8a8a'
+const SPLIT       = '#191919'
+const PMENU_BG    = '#121212'
+const PMENU_FG    = '#e9e9e9'
+const PMENU_SE    = '#b1b1b1'
+const WILD_BG     = '#333333'
 const SBAR_BG     = '#555555'
-const THUMB_BG    = '#aaaaaa'
-const CURSOR_BG   = '#141414'
-const STATUS_BG   = '#1a1a1a'
+const THUMB_BG    = '#b1b1b1'
+const CURSOR_BG   = '#191919'
+const STATUS_BG   = '#191919'
 const DIFF_ADD_BG = '#1a231a'
 const DIFF_CHG_BG = '#1a1a23'
 const DIFF_DEL_BG = '#231a1a'
@@ -147,7 +147,7 @@ Hi('VertSplit',      SPLIT,    BG)
 Hi('WinSeparator',   SPLIT,    BG)
 
 Hi('SignColumn',     DIM,      BG)
-Hi('Folded',         NOISE,    SPLIT,   'italic')
+Hi('Folded',         DIM,      SPLIT,   'italic')
 Hi('FoldColumn',     DIM,      BG)
 Hi('ColorColumn',    'NONE',   SPLIT)
 Hi('Conceal',        NOISE,    BG)
@@ -159,7 +159,7 @@ Hi('Whitespace',     SPLIT,    BG)
 Hi('PmenuKind',      ACCENT,     PMENU_BG)
 Hi('PmenuKindSel',   BG,       PMENU_SE)
 Hi('PmenuExtra',     NOISE,    PMENU_BG)
-Hi('PmenuExtraSel',  NOISE,    PMENU_SE)
+Hi('PmenuExtraSel',  WILD_BG,  PMENU_SE)
 
 Hi('NormalFloat',    PMENU_FG, PMENU_BG)
 Hi('FloatBorder',    NOISE,    PMENU_BG)

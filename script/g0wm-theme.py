@@ -1,37 +1,120 @@
 #!/usr/bin/env python3
 """Generate colors.css, the GTK base.css files, the Kvantum theme and the colors of
-foot, fzf, LibreWolf and Vesktop from the palette.
+foot, fzf, LibreWolf, Vesktop, g0wm, its status bar, gtklock, tmux, lazygit, vim
+and nvim from the palette.
 
 GTK: Adwaita's greys are mapped onto the palette and :backdrop is dropped.
 Kvantum: frame pieces are s x s, scaled to half of frame.expansion.
+
+--check writes nothing: it lists the files whose colors are not the palette's
+and exits 1. It skips the GTK base.css files, which follow the installed GTK.
 """
 
 import colorsys
 import glob
+import importlib.util
+import math
 import os
 import re
 import subprocess
+import sys
 
+# OKLab, the space where equal numbers look equally light: the rules below are in it
+def _lin(c):
+    c /= 255
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _gamma(c):
+    c = max(0.0, min(1.0, c))
+    return 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+
+
+def oklab(c):
+    r, g, b = (_lin(int(c[i:i + 2], 16)) for i in (1, 3, 5))
+    l, m, s = (v ** (1 / 3) for v in (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b,
+                                      0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b,
+                                      0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b))
+    return (0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s)
+
+
+def oklch(lightness, chroma, hue):
+    a, b = chroma * math.cos(math.radians(hue)), chroma * math.sin(math.radians(hue))
+    l, m, s = ((lightness + x * a + y * b) ** 3 for x, y in ((0.3963377774, 0.2158037573),
+                                                            (-0.1055613458, -0.0638541728),
+                                                            (-0.0894841775, -1.2914855480)))
+    rgb = (4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+           -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+           -0.0041960771 * l - 0.7034186147 * m + 1.7076147010 * s)
+    return "#" + "".join(f"{round(_gamma(v) * 255):02x}" for v in rgb)
+
+
+def contrast(a, b):
+    """WCAG contrast ratio: 4.5 for text, 3 for borders and focus."""
+    def lum(c):
+        r, g, b = (_lin(int(c[i:i + 2], 16)) for i in (1, 3, 5))
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    x, y = sorted((lum(a), lum(b)))
+    return (y + 0.05) / (x + 0.05)
+
+
+# Surfaces, one step of OKLab lightness (about 0.035) from each other
 BG = "#0a0a0a"
+POPUP = "#121212"
+HOVER = "#191919"
+SEL = "#222222"
+PRESS = "#2a2a2a"
+LINE = "#333333"
 SIDE = BG
-POPUP = "#0e0e0e"
 CTRL = BG
 CTRL_OFF = BG
-HOVER = "#121212"
-PRESS = "#1c1c1c"
-SEL = PRESS
-TROUGH = "#2a2a2a"
-SEP = "#1a1a1a"
-LINE = "#2a2a2a"
-FG = "#e9e9e9"
-DIM = "#8a8a8a"
+SEP = HOVER
+TROUGH = LINE
+# the bar of g0wm and the lock screen, the notifications and the runner float over it
+BAR = BG
+# the desktop under the windows: a step lighter than the bar and the titles, or they melt into it
+DESK = HOVER
+
+# Greys for text, all 4.5:1 on POPUP and BG but MUTE, which is only for what is
+# disabled, scrollbars and borders
 MUTE = "#555555"
+FAINT = "#7d7d7d"
+DIM = "#8a8a8a"
+# the accent of the terminal apps (tmux, vim, nvim): grey, the amber is the desktop's
+MONO = "#9d9d9d"
+SOFT = "#b1b1b1"
+FG = "#e9e9e9"
+
+# Colors: the accent sets the lightness, the others share it with a lower chroma.
+# Red is darker and stronger on purpose, it is the one for alarms.
 ACCENT = "#e0a86a"
-ON_ACCENT = "#0a0a0a"
-GREEN = "#7fa88a"
+ON_ACCENT = BG
 RED = "#d8625e"
-LINK = "#8ab0c6"
-VISITED = "#c59dc8"
+HUE_CHROMA = 0.07
+GREEN = oklch(oklab(ACCENT)[0], HUE_CHROMA, 153)
+LINK = oklch(oklab(ACCENT)[0], HUE_CHROMA, 234)
+VISITED = oklch(oklab(ACCENT)[0], HUE_CHROMA, 324)
+
+# The terminal's 16 colors: the six hues at one lightness, the bright ones one
+# step lighter; black and white from the greys
+ANSI_HUES = {1: 22, 2: 145, 3: 95, 4: 235, 5: 330, 6: 195}
+ANSI = {"regular0": BG, "regular7": MONO, "bright0": FAINT, "bright7": "#ffffff"}
+for n, h in ANSI_HUES.items():
+    ANSI[f"regular{n}"] = oklch(0.72, HUE_CHROMA, h)
+    ANSI[f"bright{n}"] = oklch(0.84, HUE_CHROMA, h)
+# red keeps the exception here too: errors in the terminal are the desktop's red
+ANSI["regular1"] = RED
+ANSI["bright1"] = oklch(0.78, 0.12, ANSI_HUES[1])
+
+# vim and nvim: their names, onto the greys above; only the diff tints are their own
+EDITOR = {
+    "BG": BG, "FG": FG, "ACCENT": MONO, "MUTED": SOFT, "NOISE": FAINT, "DIM": DIM,
+    "SPLIT": SEP, "PMENU_BG": POPUP, "PMENU_FG": FG, "PMENU_SE": SOFT, "WILD_BG": LINE,
+    "SBAR_BG": MUTE, "THUMB_BG": SOFT, "CURSOR_BG": HOVER, "STATUS_BG": SEP,
+    "DIFF_ADD_BG": "#1a231a", "DIFF_CHG_BG": "#1a1a23", "DIFF_DEL_BG": "#231a1a",
+}
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEME = os.path.join(REPO, "home/gtk/.local/share/themes/G0wm")
@@ -40,6 +123,36 @@ FOOT = os.path.join(REPO, "home/foot/.config/foot/foot.ini")
 BASHRC = os.path.join(REPO, "home/bash/.bashrc_dotfile")
 LIBREWOLF = os.path.join(REPO, "home/librewolf/.config/librewolf/librewolf")
 VESKTOP = os.path.join(REPO, "home/vesktop/.config/vesktop/themes/g0wm.theme.css")
+G0WM = os.path.join(REPO, "home/g0wm/.config/g0wm/config")
+STATUS = os.path.join(REPO, "home/g0wm/.config/g0wm/status.conf")
+GTKLOCK = os.path.join(REPO, "home/gtklock/.config/gtklock/style.css")
+TMUX = os.path.join(REPO, "home/tmux/.config/tmux/tmux.conf")
+LAZYGIT = os.path.join(REPO, "home/lazygit/.config/lazygit/config.yml")
+NVIM = os.path.join(REPO, "home/nvim/.config/nvim/colors/dot.lua")
+VIM = os.path.join(REPO, "home/vim/.vim/colors/dot.vim")
+
+CHECK = False
+STALE = []
+
+
+def read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def write(path, text):
+    if not CHECK:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+    elif read(path) != text:
+        STALE.append(os.path.relpath(path, REPO))
+
+
+def sub(path, text, pattern, repl, count=1):
+    """re.sub on the lines of path, which must match count times."""
+    text, n = re.subn(pattern, repl, text, flags=re.M)
+    assert n == count, f"{pattern} matches {n} times in {path}, not {count}"
+    return text
 
 PARTS = ("topleft", "top", "topright", "left", "", "right", "bottomleft", "bottom", "bottomright")
 
@@ -548,8 +661,7 @@ def gtk_base(lib, resource, assets, out):
     css = recolor_css(drop_backdrop(css))
     css = css.replace('url("assets/', f'url("resource://{assets}/')
     head = f"/* generated by script/g0wm-theme.py from {resource} */\n\n"
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(head + css)
+    write(out, head + css)
 
 
 def colors_css():
@@ -591,14 +703,12 @@ scrollbar_outline_color bg"""
         if pair.strip():
             name, value = pair.split()
             out.append(f"@define-color {name} @g0_{value};")
-    with open(os.path.join(THEME, "colors.css"), "w", encoding="utf-8") as f:
-        f.write("\n".join(out) + "\n")
+    write(os.path.join(THEME, "colors.css"), "\n".join(out) + "\n")
 
 
 def kvantum_colors():
     p = os.path.join(KVANTUM, "G0wm.kvconfig")
-    with open(p, encoding="utf-8") as f:
-        text = f.read()
+    text = read(p)
     colors = f"""[GeneralColors]
 window.color={BG}
 base.color={BG}
@@ -624,22 +734,18 @@ progress.indicator.text.color={FG}
 
 """
     text = re.sub(r"\[GeneralColors\]\n.*?\n\n", lambda m: colors, text, count=1, flags=re.S)
-    with open(p, "w", encoding="utf-8") as f:
-        f.write(text)
+    write(p, text)
 
 
 def foot_colors():
-    # ANSI colors stay as they are
     # color= is the one of [cursor]
     keys = {"background": BG, "foreground": FG, "color": f"{ON_ACCENT} {ACCENT}",
-            "selection-foreground": ON_ACCENT, "selection-background": ACCENT}
-    with open(FOOT, encoding="utf-8") as f:
-        text = f.read()
+            "selection-foreground": ON_ACCENT, "selection-background": ACCENT, **ANSI}
+    text = read(FOOT)
     for k, v in keys.items():
         text, n = re.subn(rf"^{k}=.*$", f"{k}={v.replace('#', '')}", text, count=1, flags=re.M)
         assert n == 1, f"{k}= missing in {FOOT}"
-    with open(FOOT, "w", encoding="utf-8") as f:
-        f.write(text)
+    write(FOOT, text)
 
 
 def fzf_colors():
@@ -648,12 +754,10 @@ def fzf_colors():
          ("pointer", ACCENT), ("marker", ACCENT), ("prompt", DIM), ("query", FG), ("separator", SEP),
          ("scrollbar", MUTE), ("label", DIM), ("disabled", MUTE), ("preview-fg", FG), ("preview-bg", POPUP)]
     rows = "".join("        " + " ".join(f"{k}:{v}" for k, v in c[i:i + 6]) + "\n" for i in range(0, len(c), 6))
-    with open(BASHRC, encoding="utf-8") as f:
-        text = f.read()
+    text = read(BASHRC)
     text, n = re.subn(r"(    local _colors=\(\n).*?(    \)\n)", lambda m: m[1] + rows + m[2], text, count=1, flags=re.S)
     assert n == 1, f"_colors=( missing in {BASHRC}"
-    with open(BASHRC, "w", encoding="utf-8") as f:
-        f.write(text)
+    write(BASHRC, text)
 
 
 def librewolf_colors():
@@ -666,14 +770,12 @@ def librewolf_colors():
     pages = {}
     for name, every in (("g0wm.css", True), ("userContent.css", False)):
         p = os.path.join(LIBREWOLF, "chrome", name)
-        with open(p, encoding="utf-8") as f:
-            text = f.read()
+        text = read(p)
         pages[name] = re.search(r"@-moz-document([^{]*)\{", text)[1].split()
         for k, v in css.items():
             text, n = re.subn(rf"^(\s*--g0-{k}: ).*;$", lambda m, v=v: f"{m[1]}{v};", text, flags=re.M)
             assert n or not every, f"--g0-{k} missing in {p}"
-        with open(p, "w", encoding="utf-8") as f:
-            f.write(text)
+        write(p, text)
     assert pages["g0wm.css"] == pages["userContent.css"], "g0wm.css and userContent.css list other pages"
 
     prefs = {"ui.accentcolor": ACCENT, "ui.accentcolortext": ON_ACCENT, "ui.highlight": ACCENT,
@@ -686,14 +788,12 @@ def librewolf_colors():
              "ui.textHighlightForeground": ON_ACCENT, "pdfjs.pageColorsBackground": BG,
              "pdfjs.pageColorsForeground": FG}
     p = os.path.join(LIBREWOLF, "librewolf.overrides.cfg")
-    with open(p, encoding="utf-8") as f:
-        text = f.read()
+    text = read(p)
     for k, v in prefs.items():
         text, n = re.subn(rf'^defaultPref\("{re.escape(k)}", ".*"\);$', f'defaultPref("{k}", "{v}");',
                           text, count=1, flags=re.M)
         assert n == 1, f"{k} missing in {p}"
-    with open(p, "w", encoding="utf-8") as f:
-        f.write(text)
+    write(p, text)
 
 
 def vesktop_colors():
@@ -701,13 +801,141 @@ def vesktop_colors():
            "trough": TROUGH, "sep": SEP, "line": LINE, "fg": FG, "dim": DIM, "mute": MUTE,
            "accent": ACCENT, "on-accent": ON_ACCENT, "green": GREEN, "red": RED, "link": LINK,
            "visited": VISITED}
-    with open(VESKTOP, encoding="utf-8") as f:
-        text = f.read()
+    text = read(VESKTOP)
     for k, v in css.items():
         text, n = re.subn(rf"^(\s*--g0-{k}: ).*;$", lambda m, v=v: f"{m[1]}{v};", text, flags=re.M)
         assert n == 1, f"--g0-{k} missing in {VESKTOP}"
-    with open(VESKTOP, "w", encoding="utf-8") as f:
-        f.write(text)
+    write(VESKTOP, text)
+
+
+def g0wm_colors():
+    # fg bg border, with the alpha g0wm wants
+    rows = {"norm": (DIM, BAR, BAR), "sel": (FG, BAR, BAR), "urg": (ACCENT, BAR, ACCENT),
+            "title": (DIM, BAR, BAR), "titlesel": (FG, BAR, BAR), "status": (DIM, BAR, BAR),
+            # the notifications and the runner are part of the bar: its background too
+            "notify": (FG, BAR, ACCENT), "notifylow": (FG, BAR, GREEN), "notifycrit": (FG, BAR, RED),
+            "runner": (FG, BAR, BAR), "runnersuggest": (DIM, BAR, BAR), "runnersel": (BAR, FG, FG),
+            "runnericon": (FG, LINE, MUTE)}
+    text = read(G0WM)
+    for k, cs in rows.items():
+        text = sub(G0WM, text, rf"^(\s+{k} )#\S+ #\S+ #\S+$",
+                   lambda m, cs=cs: m[1] + " ".join(c + "ff" for c in cs))
+    # behind the wallpaper while it loads, and around fullscreen windows
+    for k, v in (("rootcolor", DESK), ("fullscreen_bg", BG), ("titleclosecolor", RED),
+                 ("privatecolor", VISITED), ("publiccolor", LINK),
+                 ("notification_privatecolor", VISITED), ("notification_publiccolor", LINK),
+                 # the placeholder of private windows in screen sharing
+                 ("color", POPUP), ("textcolor", DIM)):
+        text = sub(G0WM, text, rf"^(\s+{k} )#\S+$", lambda m, v=v: m[1] + v + "ff")
+    write(G0WM, text)
+
+
+def status_colors():
+    # the icons that warn: recording and DNS down in red, mic and camera in use in amber
+    colors = {"rec": RED, "dns": RED, "mic": ACCENT, "cam": ACCENT}
+    text = read(STATUS)
+    for k, v in colors.items():
+        text = sub(STATUS, text, rf'^(color_{k} = )".*"$', lambda m, v=v: f'{m[1]}"{v}"')
+    write(STATUS, text)
+
+
+def gtklock_colors():
+    # GTK 3 CSS: the rest of style.css uses them as @g0_<name>
+    names = {"bar": BAR, "field": POPUP, "press": PRESS, "line": LINE, "fg": FG, "dim": DIM,
+             "accent": ACCENT, "red": RED}
+    text = read(GTKLOCK)
+    for k, v in names.items():
+        text = sub(GTKLOCK, text, rf"^(@define-color g0_{k} ).*;$", lambda m, v=v: f"{m[1]}{v};")
+    write(GTKLOCK, text)
+
+
+def tmux_colors():
+    # everything from ### APPEARANCE on is written here
+    look = f"""### APPEARANCE
+# the colors are written by script/g0wm-theme.py, grey like vim and nvim
+set -g status-position top
+set -g status-justify left
+set -g status-interval 5
+
+set -g status-style "bg={BG},fg={FG}"
+set -g pane-border-style "fg={MUTE}"
+set -g pane-active-border-style "fg={MONO}"
+set -g message-style "bg={BG},fg={MONO}"
+set -g mode-style "bg={MONO},fg={BG}"
+
+setw -g window-status-style "fg={FAINT}"
+setw -g window-status-current-style "fg={MONO}"
+setw -g window-status-format " #I:#W "
+setw -g window-status-current-format " #I:#W "
+
+set -g status-left ""
+set -g status-left-style "fg={FG}"
+set -g status-right "#H "
+set -g status-right-style "fg={DIM}"
+
+set -g clock-mode-colour "{MONO}"
+"""
+    text = read(TMUX)
+    text = sub(TMUX, text, r"^### APPEARANCE\n(?:.*\n)*.*\Z", lambda m: look)
+    write(TMUX, text)
+
+
+def lazygit_colors():
+    keys = {"activeBorderColor": ACCENT, "inactiveBorderColor": MUTE, "selectedLineBgColor": SEL,
+            "optionsTextColor": DIM}
+    text = read(LAZYGIT)
+    for k, v in keys.items():
+        text = sub(LAZYGIT, text, rf'^(\s+{k}:\n\s+- )"#\w+"$', lambda m, v=v: f'{m[1]}"{v}"')
+    write(LAZYGIT, text)
+
+
+def editor_colors():
+    for path, decl in ((NVIM, "local"), (VIM, "const")):
+        text = read(path)
+        for k, v in EDITOR.items():
+            text = sub(path, text, rf"^({decl} {k}\s*= )'#\w+'$", lambda m, v=v: f"{m[1]}'{v}'")
+        write(path, text)
+
+
+def readability():
+    """The rules of the palette: a color that breaks one stops the script."""
+    bad = []
+    text = {"FG": FG, "FAINT": FAINT, "DIM": DIM, "MONO": MONO, "SOFT": SOFT, "ACCENT": ACCENT,
+            "RED": RED, "GREEN": GREEN, "LINK": LINK, "VISITED": VISITED}
+    pairs = [(f, b, 4.5) for f in text for b in ("BG", "POPUP")]
+    pairs += [("FG", b, 4.5) for b in ("HOVER", "SEL", "PRESS")]
+    pairs += [("ON_ACCENT", b, 4.5) for b in ("ACCENT", "RED", "GREEN")]
+    # the selection of tmux, vim and nvim
+    pairs += [("BG", "MONO", 4.5)]
+    names = {**text, "BG": BG, "POPUP": POPUP, "HOVER": HOVER, "SEL": SEL, "PRESS": PRESS,
+             "ON_ACCENT": ON_ACCENT}
+    for f, b, need in pairs:
+        if contrast(names[f], names[b]) < need:
+            bad.append(f"{f} on {b}: {contrast(names[f], names[b]):.2f}, needs {need}")
+    for k, v in ANSI.items():
+        if k != "regular0" and contrast(v, BG) < 4.5:
+            bad.append(f"{k} on BG: {contrast(v, BG):.2f}, needs 4.5")
+    # each step lighter than the one before, enough to be seen
+    for ladder, step in (((BG, POPUP, HOVER, SEL, PRESS, LINE), 0.03),
+                         ((MUTE, FAINT, DIM, MONO, SOFT, FG), 0.03)):
+        for a, b in zip(ladder, ladder[1:]):
+            if oklab(b)[0] - oklab(a)[0] < step:
+                bad.append(f"{b} is not {step} lighter than {a}")
+    if oklab(DESK)[0] - oklab(BAR)[0] < 0.05:
+        bad.append(f"DESK {DESK} is not 0.05 lighter than BAR {BAR}: the bar melts into the desktop")
+    if bad:
+        raise SystemExit("the palette breaks its rules:\n  " + "\n  ".join(bad))
+
+
+def system():
+    """script/g0wm-theme-system.py: the console, cursors, GRUB, plymouth, wallpaper."""
+    # install.sh refuses a __pycache__ in script/
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location("g0wm_theme_system",
+                                                  os.path.join(REPO, "script/g0wm-theme-system.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def lib(name):
@@ -719,19 +947,36 @@ def lib(name):
 
 
 def main():
+    global CHECK
+    if sys.argv[1:] not in ([], ["--check"]):
+        raise SystemExit("usage: g0wm-theme.py [--check]")
+    CHECK = sys.argv[1:] == ["--check"]
+    readability()
+
     colors_css()
     foot_colors()
     fzf_colors()
     librewolf_colors()
     vesktop_colors()
-    gtk_base(lib("libgtk-3.so.0"), "/org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css",
-             "/org/gtk/libgtk/theme/Adwaita/assets", os.path.join(THEME, "gtk-3.0/base.css"))
-    gtk_base(lib("libgtk-4.so.1"), "/org/gtk/libgtk/theme/Default/Default-dark.css",
-             "/org/gtk/libgtk/theme/Default/assets", os.path.join(THEME, "gtk-4.0/base.css"))
+    g0wm_colors()
+    status_colors()
+    gtklock_colors()
+    tmux_colors()
+    lazygit_colors()
+    editor_colors()
+    system().run(sys.modules[__name__])
+    if not CHECK:
+        gtk_base(lib("libgtk-3.so.0"), "/org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css",
+                 "/org/gtk/libgtk/theme/Adwaita/assets", os.path.join(THEME, "gtk-3.0/base.css"))
+        gtk_base(lib("libgtk-4.so.1"), "/org/gtk/libgtk/theme/Default/Default-dark.css",
+                 "/org/gtk/libgtk/theme/Default/assets", os.path.join(THEME, "gtk-4.0/base.css"))
     kvantum_svg()
-    with open(os.path.join(KVANTUM, "G0wm.svg"), "w", encoding="utf-8") as f:
-        f.write(C.svg())
+    write(os.path.join(KVANTUM, "G0wm.svg"), C.svg())
     kvantum_colors()
+
+    if STALE:
+        print("not the colors of script/g0wm-theme.py, run it:", *STALE, sep="\n  ", file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -10,18 +10,18 @@ vim.g.colors_name = "dot"
 local BG          = '#0a0a0a'
 local FG          = '#e9e9e9'
 local ACCENT      = '#9d9d9d'
-local MUTED       = '#a8a8a8'
-local NOISE       = '#737373'
-local DIM         = '#7d7d7d'
-local SPLIT       = '#1a1a1a'
-local PMENU_BG    = '#0f0f0f'
-local PMENU_FG    = '#e6e6e6'
-local PMENU_SE    = '#cccccc'
-local WILD_BG     = '#303030'
+local MUTED       = '#b1b1b1'
+local NOISE       = '#7d7d7d'
+local DIM         = '#8a8a8a'
+local SPLIT       = '#191919'
+local PMENU_BG    = '#121212'
+local PMENU_FG    = '#e9e9e9'
+local PMENU_SE    = '#b1b1b1'
+local WILD_BG     = '#333333'
 local SBAR_BG     = '#555555'
-local THUMB_BG    = '#aaaaaa'
-local CURSOR_BG   = '#141414'
-local STATUS_BG   = '#1a1a1a'
+local THUMB_BG    = '#b1b1b1'
+local CURSOR_BG   = '#191919'
+local STATUS_BG   = '#191919'
 local DIFF_ADD_BG = '#1a231a'
 local DIFF_CHG_BG = '#1a1a23'
 local DIFF_DEL_BG = '#231a1a'
@@ -120,7 +120,7 @@ Hi('VertSplit',      SPLIT,    BG)
 Hi('WinSeparator',   SPLIT,    BG)
 
 Hi('SignColumn',     DIM,      BG)
-Hi('Folded',         NOISE,    SPLIT,   'italic')
+Hi('Folded',         DIM,      SPLIT,   'italic')
 Hi('FoldColumn',     DIM,      BG)
 Hi('ColorColumn',    'NONE',   SPLIT)
 Hi('Conceal',        NOISE,    BG)
@@ -132,7 +132,7 @@ Hi('Whitespace',     SPLIT,    BG)
 Hi('PmenuKind',      ACCENT,     PMENU_BG)
 Hi('PmenuKindSel',   BG,       PMENU_SE)
 Hi('PmenuExtra',     NOISE,    PMENU_BG)
-Hi('PmenuExtraSel',  NOISE,    PMENU_SE)
+Hi('PmenuExtraSel',  WILD_BG,  PMENU_SE)
 
 Hi('NormalFloat',    PMENU_FG, PMENU_BG)
 Hi('FloatBorder',    NOISE,    PMENU_BG)

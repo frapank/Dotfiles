@@ -119,6 +119,16 @@ grub_gfx() {
     [[ -z $out || $out == *gfxterm* ]]
 }
 
+# the palette in the theme: GRUB_COLORS is key=#rrggbb, each key once in theme.txt
+grub_colors() {
+    local kv re
+    for kv in "${GRUB_COLORS[@]}"; do
+        re="^([[:space:]]*${kv%%=*}[[:space:]]*[:=][[:space:]]*)\"#[0-9a-fA-F]{6}\""
+        [[ $(grep -cE "$re" -- "$1") == 1 ]] || die "no single ${kv%%=*} in the GRUB theme"
+        sed -i -E "s/$re/\1\"${kv#*=}\"/" -- "$1"
+    done
+}
+
 grub_theme() {
     local tmp stage perm clean=0 dir=$GRUB_THEME_DIR mark=$STATE/grub-theme
     if [[ ! -f /etc/default/grub || ! -d /boot/grub ]] || ! command -v update-grub >/dev/null; then
@@ -129,7 +139,7 @@ grub_theme() {
     perm=(-perm /022)
     [[ $(stat -f -c %T /boot/grub) != msdos ]] || perm=(-false)
     [[ -d $dir && ! -L $dir && -z $(find "$dir" \( -type l -o ! -user root -o "${perm[@]}" \) -print -quit) ]] && clean=1
-    if ((clean)) && [[ -f $dir/theme.txt && $(cat -- "$mark" 2>/dev/null) == "$GRUB_THEME_REV" ]]; then
+    if ((clean)) && [[ -f $dir/theme.txt && $(cat -- "$mark" 2>/dev/null) == "$GRUB_THEME_REV ${GRUB_COLORS[*]}" ]]; then
         skip "$dir"
     else
         tmp=$(mktemp -d)
@@ -148,6 +158,7 @@ grub_theme() {
             die "cannot copy the GRUB theme to ${dir%/*} (full?)"
         fi
         rm -rf -- "$tmp"
+        grub_colors "$stage/theme.txt"
         [[ ${perm[0]} == -false ]] || chmod 0755 -- "$stage"
         if ((clean)) && diff -rq --no-dereference "$stage" "$dir" >/dev/null; then
             rm -rf -- "$stage"
@@ -158,7 +169,7 @@ grub_theme() {
             mv -T -- "$stage" "$dir"
             ok "$dir (${GRUB_THEME_REV:0:12})"
         fi
-        put_text "$mark" 0644 <<<"$GRUB_THEME_REV"
+        put_text "$mark" 0644 <<<"$GRUB_THEME_REV ${GRUB_COLORS[*]}"
     fi
     grub_set GRUB_THEME "$dir/theme.txt"
     if ! grub_gfx; then

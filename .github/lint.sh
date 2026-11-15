@@ -94,6 +94,9 @@ c=$(find script home root src \( -name __pycache__ -o -name '*.pyc' \))
 [[ $(readlink install.sh) == script/install.sh ]] || fail "install.sh is not a link to script/install.sh"
 ((bad)) || pass "json, modes, no symlinks"
 
+# the colors of every config come from the palette in script/g0wm-theme.py
+if python3 -I script/g0wm-theme.py --check; then pass "colors from the palette"; else fail "colors"; fi
+
 # 'dotfiles' is the list of the commands: each one in a ~/.local/bin is in it
 listed=$(awk -F'|' "/^(TOOLS|HELPERS)='/ { on = 1; sub(/^[A-Z]+='/, \"\") } on && NF > 1 { print \$1 } on && /'\$/ { on = 0 }" \
     home/bin/.local/bin/dotfiles | tr ' ' '\n')

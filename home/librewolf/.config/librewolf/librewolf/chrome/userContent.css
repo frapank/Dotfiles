@@ -135,7 +135,7 @@
 /* reader view: colors in librewolf.overrides.cfg, only the borders here */
 @-moz-document url-prefix("about:reader") {
     body.custom {
-        --g0-line: #2a2a2a;
+        --g0-line: #333333;
         --toolbar-border: var(--g0-line) !important;
         --popup-border: var(--g0-line) !important;
         --popup-button-border: var(--g0-line) !important;
