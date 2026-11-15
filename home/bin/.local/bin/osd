@@ -34,17 +34,21 @@ battery() {
 		$1 ~ /_(POWER|CURRENT)_NOW$/ { rate += $2 < 0 ? -$2 : $2 }
 		END {
 			if (st == "") exit 1
-			if (st == "Full") { print "Fully charged"; exit }
-			if (rate <= 0) { print st == "Charging" ? "Charging" : "Not charging"; exit }
+			# the percentage, a tab, then the text
+			p = full > 0 ? int(now * 100 / full + 0.5) : 0
+			if (p > 100) p = 100
+			if (st == "Full") { print p "\tFully charged"; exit }
+			if (rate <= 0) { print p "\t" p "% · " (st == "Charging" ? "Charging" : "Not charging"); exit }
 			h = st == "Charging" ? (full - now) / rate : now / rate
 			m = int(h * 60 + 0.5)
 			left = m < 60 ? m "m" : int(m / 60) "h " sprintf("%02d", m % 60) "m"
-			print left, st == "Charging" ? "until full" : "remaining"
+			print p "\t" p "% · " left " " (st == "Charging" ? "until full" : "remaining")
 		}') || {
         show battery " Battery" "No battery"
         exit 0
     }
-    show battery " Battery" "$t" '' 3000
+    tab=$(printf '\t')
+    show battery " Battery" "${t#*"$tab"}" "${t%%"$tab"*}" 3000
 }
 
 player() {

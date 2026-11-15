@@ -87,6 +87,7 @@ defaults() {
     icon_date=
     icon_time=
     icon_battery=
+    icon_battery_charging=
     icon_volume=
     icon_volume_muted=
     icon_cpu=
@@ -170,7 +171,7 @@ read_config() { # reads $conf if present, then finalizes the timing settings
                 nightlight_interval | awake_interval | \
                 date_format | time_format | battery_format | cpu_format | ram_format | \
                 netdown_format | netup_format | net_interface | icon_date | icon_time | \
-                icon_battery | icon_cpu | icon_ram | icon_netdown | icon_netup | \
+                icon_battery | icon_battery_charging | icon_cpu | icon_ram | icon_netdown | icon_netup | \
                 color_date | color_time | color_battery | color_cpu | color_ram | \
                 color_netdown | color_netup | battery_low | color_battery_low | \
                 color_battery_charging | \
@@ -544,11 +545,17 @@ bat_color() { # capacity -> bc, the colour its level and its state ask for
     return 0
 }
 
-level_icon() { # icons percent -> bi, picked out of the icons by level
+level_icon() { # icons percent [round] -> bi, picked out of the icons by level
+    # in equal bands, or with round the nearest one, the icons being the
+    # levels from 0 to 100 (11 battery icons: 0, 10, ... 100)
     bi= bi_n=0
     for bi_g in $1; do bi_n=$((bi_n + 1)); done
     [ "$bi_n" -gt 0 ] || return 0
-    bi_k=$(($2 * bi_n / 100 + 1))
+    if [ "${3:-}" = round ]; then
+        bi_k=$((($2 * (bi_n - 1) + 50) / 100 + 1))
+    else
+        bi_k=$(($2 * bi_n / 100 + 1))
+    fi
     [ "$bi_k" -gt "$bi_n" ] && bi_k=$bi_n
     bi_i=0
     for bi_g in $1; do
@@ -812,8 +819,11 @@ render() {
     time) r=$clk_time ;;
     battery)
         rn_all=
+        # the charging set, when there is one, while the battery charges
+        rn_i=$icon_battery
+        [ "$bat_charging" = 1 ] && [ -n "$icon_battery_charging" ] && rn_i=$icon_battery_charging
         for rn_c in $bat_caps; do
-            level_icon "$icon_battery" "$rn_c"
+            level_icon "$rn_i" "$rn_c" round
             fmt "$battery_format" "$rn_c" "$bi"
             esc "$r"
             bat_color "$rn_c"
