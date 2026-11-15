@@ -34,6 +34,20 @@ windows {
     titlepadding 8
     alwaysprivate false
     privatetitle "G0wm is hiding this window"
+    # the close button, and the dots of private and public windows
+    titleclosecolor #d8625eff
+    privatecolor #cba6ceff
+    publiccolor #88bcdbff
+}
+
+# what screen sharing shows instead of a private window
+private {
+    text "G0wm is hiding this window"
+    # the logo of g0wm, twice the default size
+    image @HOME@/.config/g0wm/private.png
+    imagesize 128
+    color #121212ff
+    textcolor #8a8a8aff
 }
 
 bar {
@@ -45,6 +59,11 @@ bar {
     bartagdotround 0.6
     runner_pillheight 1
     runner_pillpadding 1
+    # the dot of the notifications, the colors of private and public windows
+    notification_privatecolor #cba6ceff
+    notification_publiccolor #88bcdbff
+    # a hidden notification is left out of screen sharing, with no placeholder
+    notification_privatehide true
     notification_actionsign 
 }
 
@@ -57,6 +76,9 @@ opacity {
 }
 
 input {
+    # keys per second, and milliseconds before a held key repeats
+    repeat_rate 40
+    repeat_delay 300
     cursor_theme Bibata-Modern-Classic
     cursor_size 20
     # none, flat or adaptive, speed from -1 to 1
@@ -68,6 +90,19 @@ input {
 # layout: symbol, then tile or tabbed
 layout "[ ]" tile
 layout "| |" tabbed
+
+# rule: id and title match any part of them
+# the volume, opened from the bar for a moment: floating
+rule {
+    id pavucontrol
+    isfloating true
+}
+# the password prompt of polkit: floating, and never in screen sharing
+rule {
+    id polkit-mate
+    isfloating true
+    private true
+}
 
 # monitor: the first matching name wins
 @MONITOR@
@@ -191,3 +226,8 @@ button tagbar wheel-down shiftview 1
 button client logo+left moveresize move
 button client logo+middle togglefloating
 button client logo+right moveresize resize
+
+# gesture: motion, fingers, action, argument
+gesture swipe-left 3 shiftview 1
+gesture swipe-right 3 shiftview -1
+gesture swipe-up 3 togglefullscreen
