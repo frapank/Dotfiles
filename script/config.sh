@@ -32,7 +32,7 @@ readonly OLD_ICONS_DIR=/usr/share/icons/AdwaitaLegacy
 readonly CURSOR_URL=https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata-Modern-Classic.tar.xz
 readonly CURSOR_SHA256=7d3495864e5bbef02f5e77de760b2905903b63c71495a78ef6306d19a3b556d8
 readonly CURSOR_DIR=/usr/share/icons/Bibata-Modern-Classic
-readonly CURSOR_COLORS='0a0a0a e9e9e9 d8625e e0a86a b2a572 afd7af 93d9d9 88bcdb cba6ce'
+readonly CURSOR_COLORS='0a0a0a e9e9e9 d8625e e0a86a c29d75 a8d8b5 93d9d9 88bcdb cba6ce'
 readonly CURSOR_SIZE=20
 readonly GRUB_THEME_URL=https://github.com/tomdewildt/minimal-grub-theme.git
 readonly GRUB_THEME_REV=1f3fe66561f5e1f88e1467e0eb189117fd09e79c
@@ -40,8 +40,8 @@ readonly GRUB_THEME_DIR=/boot/grub/themes/minimal
 # put in its theme.txt, written by script/g0wm-theme.py
 readonly GRUB_COLORS=(desktop-color=#0a0a0a item_color=#b1b1b1 selected_item_color=#e9e9e9 color=#8a8a8a)
 # 3 (brown) is the amber of the theme, the accent of the login
-readonly VT_PALETTE=(0a0a0a d8625e 89b18a b2a572 79accb be95ba 6eb3b2 9d9d9d
-    7d7d7d fb9795 afd7af d9cb97 9ed3f2 e5bbe1 93d9d9 ffffff)
+readonly VT_PALETTE=(0a0a0a d8625e 83b290 c29d75 79accb be95ba 6eb3b2 9d9d9d
+    7d7d7d fb9795 a8d8b5 eac39a 9ed3f2 e5bbe1 93d9d9 ffffff)
 readonly GRUB_QUIET_MARK='# debian-postinstall: no Loading messages'
 readonly GRUB_BTRFS_URL=https://github.com/Antynea/grub-btrfs.git
 readonly GRUB_BTRFS_REV=2fcfbe967637166b88dadd49c834807243a941bf

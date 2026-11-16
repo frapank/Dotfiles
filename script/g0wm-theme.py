@@ -98,8 +98,11 @@ LINK = oklch(oklab(ACCENT)[0], HUE_CHROMA, 234)
 VISITED = oklch(oklab(ACCENT)[0], HUE_CHROMA, 324)
 
 # The terminal's 16 colors: the six hues at one lightness, the bright ones one
-# step lighter; black and white from the greys
-ANSI_HUES = {1: 22, 2: 145, 3: 95, 4: 235, 5: 330, 6: 195}
+# step lighter; black and white from the greys. Yellow and green take the hues of
+# the accent and of GREEN, so a warning in the terminal is the amber of the
+# notifications and a success their green.
+ANSI_HUES = {1: 22, 2: 153, 3: round(math.degrees(math.atan2(oklab(ACCENT)[2], oklab(ACCENT)[1])) % 360),
+             4: 235, 5: 330, 6: 195}
 ANSI = {"regular0": BG, "regular7": MONO, "bright0": FAINT, "bright7": "#ffffff"}
 for n, h in ANSI_HUES.items():
     ANSI[f"regular{n}"] = oklch(0.72, HUE_CHROMA, h)
@@ -825,7 +828,7 @@ def g0wm_colors():
                  ("privatecolor", VISITED), ("publiccolor", LINK),
                  ("notification_privatecolor", VISITED), ("notification_publiccolor", LINK),
                  # the placeholder of private windows in screen sharing
-                 ("color", POPUP), ("textcolor", DIM)):
+                 ("color", BG), ("textcolor", DIM)):
         text = sub(G0WM, text, rf"^(\s+{k} )#\S+$", lambda m, v=v: m[1] + v + "ff")
     write(G0WM, text)
 
