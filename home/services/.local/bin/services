@@ -30,7 +30,7 @@ EOF
 
 die() {
     printf 'services: %s\n' "$*" >&2
-    [ -t 2 ] || notify-send -i g0wm-tone -a " services" "$*" 2>/dev/null
+    [ -t 2 ] || notify-send -i g0wm -a " services" "$*" 2>/dev/null
     exit 1
 }
 
@@ -154,7 +154,7 @@ log() {
 failed() {
     n=${1%.service}
     check_name "$n"
-    case $(notify-send -i g0wm-tone -a " services" -u critical -A default=Open -A restart=Restart \
+    case $(notify-send -i g0wm -a " services" -u critical -A default=Open -A restart=Restart \
         "$n failed" "It kept exiting right after it started: click to see what it printed" 2>/dev/null) in
     # foot's AppArmor profile runs nothing from ~
     default) exec foot -- sh "$self" log "$n" ;;

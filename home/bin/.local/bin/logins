@@ -71,7 +71,7 @@ done)
 $body"
 
 if [ "$notify" = 1 ]; then
-    notify-send -i g0wm-tone -a " logins" -u normal -t 15000 "$what since the last login" "$body" 2>/dev/null
+    notify-send -i g0wm -a " logins" -u normal -t 15000 "$what since the last login" "$body" 2>/dev/null
 else
     printf '%s since the last login:\n%s\n' "$what" "$body"
 fi

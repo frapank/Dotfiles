@@ -35,12 +35,12 @@ apt_busy() { pgrep -x 'apt|apt-get|aptitude|dpkg|unattended-upgr|packagekitd' >/
 
 as_user() { /usr/local/libexec/as-session-user "$@"; }
 
-notify() { as_user notify-send -i g0wm-tone -a "$2 Maintenance" -u "$1" "$3" "$4" >/dev/null 2>&1 || true; }
+notify() { as_user notify-send -i g0wm -a "$2 Maintenance" -u "$1" "$3" "$4" >/dev/null 2>&1 || true; }
 
 notify_log() {
     (
         exec 9>&-
-        [ "$(as_user notify-send -i g0wm-tone -a "$1 Maintenance" -u critical -A default=Open "$2" "$3" 2>/dev/null)" = default ] &&
+        [ "$(as_user notify-send -i g0wm -a "$1 Maintenance" -u critical -A default=Open "$2" "$3" 2>/dev/null)" = default ] &&
             as_user foot -- /usr/local/bin/logs -p service maint
     ) >/dev/null 2>&1 &
 }
@@ -50,7 +50,7 @@ notify_do() {
     shift 4
     (
         exec 9>&-
-        case $(as_user notify-send -i g0wm-tone -a "$g Maintenance" -u normal -t 30000 \
+        case $(as_user notify-send -i g0wm -a "$g Maintenance" -u normal -t 30000 \
             -A default=Log -A "$act" "$sum" "$body" 2>/dev/null) in
         default) as_user foot -- /usr/local/bin/logs -p service maint >/dev/null 2>&1 ;;
         "${act%%=*}") "$@" ;;
@@ -310,7 +310,7 @@ job_vesktop() {
 # updates
 
 unotify() {
-    nid=$(as_user notify-send -i g0wm-tone -p -r "${nid:-0}" -a " Update" "$@" 2>/dev/null) || nid=0
+    nid=$(as_user notify-send -i g0wm -p -r "${nid:-0}" -a " Update" "$@" 2>/dev/null) || nid=0
 }
 ustep() { unotify -u critical -e "$@"; }
 ufail() { unotify -u critical "$@"; }

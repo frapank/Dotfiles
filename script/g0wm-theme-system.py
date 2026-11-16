@@ -226,11 +226,12 @@ def icons(t):
             write_png(t, f"{ICONS}/g0wm{name}-{size}.png", logo_png(t, size, colors))
     # what screen sharing shows in place of a private window: the tone one
     write_png(t, "home/g0wm/.config/g0wm/private.png", logo_png(t, 512, variants(t)["-tone"]))
-    # the icon of the system's notifications (-i g0wm-tone): g0wm looks names up in
-    # hicolor, from 24 px up, and draws them at 64; 128 stays sharp at scale 2
+    # the icon of the system's notifications (-i g0wm), in its colors: the tone one
+    # melts into the bar. g0wm looks names up in hicolor, from 24 px up, and draws
+    # them at 64; 128 stays sharp at scale 2
     if not t.CHECK:
         os.makedirs(os.path.join(t.REPO, HICOLOR), exist_ok=True)
-    write_png(t, f"{HICOLOR}/g0wm-tone.png", logo_png(t, 128, variants(t)["-tone"]))
+    write_png(t, f"{HICOLOR}/g0wm.png", logo_png(t, 128, variants(t)[""]))
 
 
 
