@@ -1,1150 +1,720 @@
-#!/bin/sh
-# shellcheck disable=SC2034,SC2154
+#!/bin/bash
+# The status line of g0wm's bar: one line on stdout each time it changes.
+#
+# bash for its builtins: the clock (printf %()T), the epoch, the waits (read -t)
+# and the formatting need no process, so a tick starts none. Processes are left
+# to the modules that have to ask another program (wpctl, pactl, pgrep,
+# bluetoothctl), at their own interval or on an event.
 set -u
+shopt -s nullglob
 
 warn() { printf 'g0wm-status.sh: %s\n' "$*" >&2; }
 
-options() {
-    while [ $# -gt 0 ]; do
-        case $1 in
-        -c | --config)
-            shift
-            [ $# -gt 0 ] || {
-                warn '-c needs a file'
-                exit 1
-            }
-            conf=$1
-            ;;
-        -1 | --once) once=1 ;;
-        -h | --help)
-            cat <<EOF
+usage() {
+    cat <<EOF
 Usage: g0wm-status.sh [-1] [-c FILE] [SECONDS]
 
 Prints the bar status line when it changes. The modules shown, their format
-and how often each one is read (<module>_interval, in seconds) come from \$G0WM_STATUS_CONF, or from
-\${XDG_CONFIG_HOME:-\$HOME/.config}/g0wm/status.conf, and fall back to the
-built-in clock and battery when that file is missing. Run ./status_gen to
-write it.
+and how often each one is read (<module>_interval, in seconds) come from
+\$G0WM_STATUS_CONF, or from \${XDG_CONFIG_HOME:-\$HOME/.config}/g0wm/status.conf,
+and fall back to the built-in clock and battery when that file is missing.
 
   -1, --once      print one line and exit
   -c, --config    read another config file
   SECONDS         seconds between battery reads (same as battery_interval)
 
-<module>_click_left, _click_middle, _click_right, _scroll_up and _scroll_down
-run a command when the module is clicked or scrolled in the bar. SIGUSR1
-reads volume, mic, rec, nightlight and awake again at once: osd, record and
-the nightlight and idle services send it after a change.
+In a format %v is the value and %i the icon; ram has %u and %t too, date and
+time are strftime formats. <module>_click_left, _click_middle, _click_right,
+_scroll_up and _scroll_down run a command when the module is clicked or
+scrolled in the bar. SIGUSR1 reads volume, mic, rec, timer, usbwait,
+nightlight and awake again at once: osd, record, timer and the nightlight and
+idle services send it after a change. With pactl, a change of the volume, the
+output or the microphone is read at once too.
 EOF
-            exit 0
-            ;;
-        -*)
-            warn "unknown option '$1'"
-            exit 1
-            ;;
-        *)
-            case $1 in
-            '' | *[!0-9]*)
-                warn "unknown argument '$1'"
-                exit 1
-                ;;
-            esac
-            arg_battery_interval=$1
-            ;;
-        esac
-        shift
-    done
 }
 
-defaults() {
-    all_modules='date time battery volume cpu ram netdown netup rec mic cam dns maint timer reboot btbattery usbwait nightlight awake'
-    modules='date time battery'
-    module_defaults='date:60 time:1 battery:30 volume:2 cpu:2 ram:2 net:2 rec:0.5 mic:1 cam:1 dns:5 maint:60 timer:1 reboot:300 btbattery:60 usbwait:5 nightlight:0.5 awake:0.5'
-    # g0wm's numbers for the buttons of a ^sN!command^ area, 4 and 5 the wheel
-    area_buttons='1:click_left 2:click_right 3:click_middle 4:scroll_up 5:scroll_down'
-    interval=
-    for m in $module_defaults; do eval "${m%%:*}_interval="; done
-    for m in $all_modules; do
-        for ab in $area_buttons; do eval "${m}_${ab#*:}="; done
-    done
-    prefix=' '
-    separator=' '
-    suffix=' '
-    date_format='%a %d %b'
-    time_format='%H:%M:%S'
-    battery_format='%v%'
-    volume_format='%i %v%'
-    cpu_format='cpu %v%'
-    ram_format='ram %v%'
-    netdown_format='down %v'
-    netup_format='up %v'
-    rec_format='%i'
-    mic_format='%i'
-    cam_format='%i'
-    dns_format='%i'
-    maint_format='%i'
-    timer_format='%i %v'
-    reboot_format='%i'
-    btbattery_format='%i %v%'
-    usbwait_format='%i'
-    nightlight_format='%i'
-    awake_format='%i'
-    net_interface=
-    icon_date=
-    icon_time=
-    icon_battery=
-    icon_battery_charging=
-    icon_volume=
-    icon_volume_muted=
-    icon_volume_phones=
-    icon_cpu=
-    icon_ram=
-    icon_netdown=
-    icon_netup=
-    icon_rec=
-    icon_mic=
-    icon_mic_muted=
-    icon_cam=
-    icon_dns=
-    icon_maint=
-    icon_timer=
-    icon_reboot=
-    icon_btbattery=
-    icon_usbwait=
-    icon_nightlight=
-    icon_awake=
-    all_colors='color_date color_time color_battery color_volume color_cpu color_ram
-color_netdown color_netup color_battery_low color_battery_charging
-color_rec color_mic color_cam color_dns color_maint color_timer color_reboot color_btbattery color_usbwait color_nightlight color_awake'
-    color_date=
-    color_time=
-    color_battery=
-    color_volume=
-    color_cpu=
-    color_ram=
-    color_netdown=
-    color_netup=
-    color_rec=
-    color_mic=
-    color_cam=
-    color_dns=
-    color_maint=
-    color_timer=
-    color_reboot=
-    color_btbattery=
-    color_usbwait=
-    color_nightlight=
-    color_awake=
-    battery_low=20
-    color_battery_low=
-    color_battery_charging=
-}
+# ---- the modules ------------------------------------------------------------
 
-is_color() { # true when the value is #RRGGBB or #RRGGBBAA
+# in the order of the help; rec is drawn first, whatever the order of modules
+ALL=(date time battery volume cpu ram netdown netup rec mic cam dns maint timer
+    reboot btbattery usbwait nightlight awake)
+# default interval in seconds, per group: modules read together share one
+declare -A IVL=([clock]=1 [battery]=30 [volume]=2 [cpu]=2 [ram]=2 [net]=2
+    [rec]=1 [mic]=1 [cam]=1 [dns]=5 [maint]=60 [timer]=1 [reboot]=300
+    [btbattery]=60 [usbwait]=5 [nightlight]=0.5 [awake]=0.5)
+group() {
     case $1 in
-    '#'[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) return 0 ;;
-    '#'[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) return 0 ;;
+    date | time) g=clock ;;
+    netdown | netup) g=net ;;
+    *) g=$1 ;;
     esac
-    return 1
+}
+# read again at once on SIGUSR1
+KICKED=(volume mic rec timer usbwait nightlight awake)
+
+# every setting status.conf may hold, with its default: a key not here is
+# unknown. date_interval and time_interval both set the clock group
+declare -A C=([modules]='date time battery' [interval]='' [prefix]=' '
+    [separator]=' ' [suffix]=' ' [net_interface]='' [battery_low]=20
+    [date_format]='%a %d %b' [time_format]='%H:%M:%S' [battery_format]='%v%'
+    [volume_format]='%i %v%' [cpu_format]='cpu %v%' [ram_format]='ram %v%'
+    [netdown_format]='down %v' [netup_format]='up %v' [timer_format]='%i %v'
+    [btbattery_format]='%i %v%' [color_battery_low]='' [color_battery_charging]=''
+    [icon_battery_charging]='' [icon_volume_muted]='' [icon_volume_phones]=''
+    [icon_mic_muted]='')
+for m in "${ALL[@]}"; do
+    : "${C[${m}_format]:=%i}"
+    C[icon_$m]='' C[color_$m]=''
+    for b in click_left click_middle click_right scroll_up scroll_down; do C[${m}_$b]=''; done
+done
+for g in "${!IVL[@]}" date time; do C[${g}_interval]=''; done
+unset 'C[clock_interval]'
+# g0wm's numbers for the buttons of a ^sN!command^ area, 4 and 5 the wheel
+BUTTONS=([1]=click_left [2]=click_right [3]=click_middle [4]=scroll_up [5]=scroll_down)
+
+# ---- settings ---------------------------------------------------------------
+
+to_ms() { # seconds -> ms, 0 when not a number
+    ms=0
+    [[ $1 =~ ^([0-9]+)(\.([0-9]{1,3}))?[0-9]*$ ]] || return 0
+    local f=${BASH_REMATCH[3]}000
+    ms=$((10#${BASH_REMATCH[1]} * 1000 + 10#${f:0:3}))
 }
 
-trim() {
-    tr_s=$1
-    while :; do
-        case $tr_s in ' '* | '	'*) tr_s=${tr_s#?} ;; *) break ;; esac
-    done
-    while :; do
-        case $tr_s in *' ' | *'	') tr_s=${tr_s%?} ;; *) break ;; esac
-    done
-}
-
-read_config() { # reads $conf if present, then finalizes the timing settings
-    if [ -f "$conf" ]; then
-        lineno=0
-        while IFS= read -r line || [ -n "$line" ]; do
-            lineno=$((lineno + 1))
-            trim "$line"
-            line=$tr_s
-            case $line in
-            '' | '#'*) continue ;;
-            *=*) ;;
-            *)
-                warn "$conf:$lineno: not a key=value line"
+read_config() {
+    local n=0 line k v
+    if [[ -f $conf ]]; then
+        while IFS= read -r line || [[ -n $line ]]; do
+            ((n++))
+            line=${line#"${line%%[![:space:]]*}"} line=${line%"${line##*[![:space:]]}"}
+            [[ -z $line || $line == '#'* ]] && continue
+            if [[ $line != *=* ]]; then
+                warn "$conf:$n: not a key=value line"
                 continue
-                ;;
-            esac
-            trim "${line%%=*}"
-            key=$tr_s
+            fi
+            k=${line%%=*} v=${line#*=}
+            k=${k%"${k##*[![:space:]]}"} v=${v#"${v%%[![:space:]]*}"}
             # quotes keep the spaces around a value, which the separator needs
-            trim "${line#*=}"
-            val=$tr_s
-            case $val in
-            '"'*'"') val=${val#\"} val=${val%\"} ;;
-            esac
-            case $key in
-            modules | interval | battery_interval | prefix | separator | suffix | \
-                date_interval | time_interval | cpu_interval | ram_interval | net_interval | \
-                rec_interval | mic_interval | cam_interval | dns_interval | maint_interval | timer_interval | reboot_interval | btbattery_interval | usbwait_interval | \
-                nightlight_interval | awake_interval | \
-                date_format | time_format | battery_format | cpu_format | ram_format | \
-                netdown_format | netup_format | net_interface | icon_date | icon_time | \
-                icon_battery | icon_battery_charging | icon_cpu | icon_ram | icon_netdown | icon_netup | \
-                color_date | color_time | color_battery | color_cpu | color_ram | \
-                color_netdown | color_netup | battery_low | color_battery_low | \
-                color_battery_charging | \
-                rec_format | mic_format | cam_format | dns_format | maint_format | timer_format | reboot_format | btbattery_format | usbwait_format | nightlight_format | awake_format | \
-                icon_rec | icon_mic | icon_cam | icon_dns | icon_maint | icon_timer | icon_reboot | icon_btbattery | icon_usbwait | icon_nightlight | icon_awake | \
-                color_rec | color_mic | color_cam | color_dns | color_maint | color_timer | color_reboot | color_btbattery | color_usbwait | color_nightlight | color_awake | \
-                volume_interval | volume_format | icon_volume | icon_volume_muted | icon_volume_phones | color_volume | \
-                icon_mic_muted)
-                # the name is one of the above, and the value is never re-parsed
-                eval "$key=\$val"
-                ;;
-            *_click_left | *_click_middle | *_click_right | *_scroll_up | *_scroll_down)
-                rc_m=${key%_click_*}
-                rc_m=${rc_m%_scroll_*}
-                case " $all_modules " in
-                *" $rc_m "*) ;;
-                *)
-                    warn "$conf:$lineno: unknown module in '$key'"
-                    continue
-                    ;;
-                esac
+            [[ $v == \"*\" ]] && v=${v:1:-1}
+            if [[ ! -v C[$k] ]]; then
+                warn "$conf:$n: unknown setting '$k'"
+            elif [[ $k == *_click_* || $k == *_scroll_* ]] && [[ $v == *^* ]]; then
                 # a caret would end the command early in the bar
-                case $val in
-                *^*) warn "$conf:$lineno: $key cannot contain '^'" ;;
-                *) eval "$key=\$val" ;;
-                esac
-                ;;
-            *) warn "$conf:$lineno: unknown setting '$key'" ;;
-            esac
+                warn "$conf:$n: $k cannot contain '^'"
+            else
+                C[$k]=$v
+            fi
         done <"$conf"
     fi
+    [[ -n $arg_battery ]] && C[battery_interval]=$arg_battery
 
-    [ -n "$arg_battery_interval" ] && battery_interval=$arg_battery_interval
-    # interval sets every module without its own
-    for rc_d in $module_defaults; do
-        rc_m=${rc_d%%:*}
-        eval "rc_v=\${${rc_m}_interval}"
-        [ -n "$rc_v" ] || rc_v=${interval:-${rc_d#*:}}
-        to_ms "$rc_v"
-        if [ "$ms" -le 0 ]; then
-            warn "${rc_m}_interval '$rc_v' is not a positive number, using ${rc_d#*:}"
-            to_ms "${rc_d#*:}"
+    # interval sets every group without its own; the clock follows time, else date
+    local g d key def
+    for g in "${!IVL[@]}"; do
+        key=${g}_interval def=${IVL[$g]}
+        if [[ $g == clock && " ${C[modules]} " == *" time "* ]]; then
+            key=time_interval def=1
+        elif [[ $g == clock ]]; then
+            key=date_interval def=60
         fi
-        eval "ivl_$rc_m=\$ms"
-    done
-    case $battery_low in
-    '' | *[!0-9]*)
-        warn "battery_low '$battery_low' is not a number, using 20"
-        battery_low=20
-        ;;
-    esac
-
-    # a colour the bar would not parse would be drawn as the literal ^c...^
-    for rc_k in $all_colors; do
-        eval "rc_v=\$$rc_k"
-        [ -n "$rc_v" ] || continue
-        is_color "$rc_v" ||
-            {
-                warn "$rc_k: '$rc_v' is not #RRGGBB or #RRGGBBAA"
-                eval "$rc_k="
-            }
-    done
-
-    # these are the user's own text, escaped here and not on every tick
-    esc "$prefix"
-    prefix=$ec
-    esc "$separator"
-    separator=$ec
-    esc "$suffix"
-    suffix=$ec
-
-    # area_<module> opens the clickable area, which render() closes
-    for rc_m in $all_modules; do
-        rc_a=
-        for ab in $area_buttons; do
-            eval "rc_v=\${${rc_m}_${ab#*:}}"
-            [ -n "$rc_v" ] && rc_a="$rc_a^s${ab%%:*}!$rc_v^"
-        done
-        eval "area_$rc_m=\$rc_a"
-    done
-}
-
-to_ms() { # seconds to ms, 0 when not a number
-    case $1 in
-    '' | .* | *. | *[!0-9.]* | *.*.*) ms=0 ;;
-    *)
-        tm_i=${1%%.*} tm_f=${1#"$tm_i"}
-        tm_f=${tm_f#.}000
-        tm_f=${tm_f%"${tm_f#???}"}
-        while :; do
-            case $tm_i in 0?*) tm_i=${tm_i#0} ;; *) break ;; esac
-        done
-        # the leading 1 keeps a fraction like 080 from being read as octal
-        ms=$((tm_i * 1000 + 1$tm_f - 1000))
-        ;;
-    esac
-}
-
-now_ms() { # ms since boot into now
-    read -r nm_u nm_rest </proc/uptime
-    nm_i=${nm_u%.*} nm_f=${nm_u#*.}
-    now=$((nm_i * 1000 + 1$nm_f * 10 - 1000))
-}
-
-esc() { # text -> ec, with every caret doubled so the bar draws it as one
-    subst "$1" '^' '^^'
-    ec=$sb
-}
-
-paint() { # text colour -> r, the text wrapped in a colour escape
-    if [ -n "$2" ]; then
-        r="^c$2^$1^d^"
-    else
-        r=$1
-    fi
-}
-
-detect() { # have_date, battery_method, cpu_method, ram_method, net_method
-    have_date=0
-    command -v date >/dev/null 2>&1 && have_date=1
-
-    battery_method=none
-    bats=
-    case $(uname -s 2>/dev/null) in
-    Linux)
-        for bat in /sys/class/power_supply/BAT*; do
-            [ -d "$bat" ] && bats="$bats $bat/capacity"
-        done
-        [ -n "$bats" ] && battery_method=linux
-        ;;
-    FreeBSD)
-        command -v sysctl >/dev/null 2>&1 && battery_method=freebsd
-        ;;
-    OpenBSD)
-        if command -v apm >/dev/null 2>&1; then
-            battery_method=openbsd
-        else
-            warn 'apm not found, battery status unavailable'
+        v=${C[$key]:-${C[interval]:-$def}}
+        to_ms "$v"
+        if ((ms <= 0)); then
+            warn "$key '$v' is not a positive number, using $def"
+            to_ms "$def"
         fi
-        ;;
-    esac
-
-    cpu_method=none
-    if [ -r /proc/stat ]; then
-        cpu_method=linux
-    elif command -v sysctl >/dev/null 2>&1 &&
-        [ -n "$(sysctl -n kern.cp_time 2>/dev/null)" ]; then
-        cpu_method=sysctl
-    fi
-
-    ram_method=none
-    [ -r /proc/meminfo ] && ram_method=linux
-
-    net_method=none
-    for f in /sys/class/net/*/statistics/rx_bytes; do
-        [ -r "$f" ] && net_method=linux
-        break
+        ivl[$g]=$ms
     done
-    have_proc=0
-    [ -r /proc/self/comm ] && have_proc=1
-    have_uptime=0
-    [ -r /proc/uptime ] && have_uptime=1
-    have_wpctl=0
-    command -v wpctl >/dev/null 2>&1 && have_wpctl=1
+    if [[ ! ${C[battery_low]} =~ ^[0-9]+$ ]]; then
+        warn "battery_low '${C[battery_low]}' is not a number, using 20"
+        C[battery_low]=20
+    fi
+    # a colour the bar could not parse would be drawn as the literal ^c...^
+    for k in "${!C[@]}"; do
+        [[ $k == color_* && -n ${C[$k]} ]] || continue
+        [[ ${C[$k]} =~ ^#([[:xdigit:]]{6}|[[:xdigit:]]{8})$ ]] && continue
+        warn "$k: '${C[$k]}' is not #RRGGBB or #RRGGBBAA"
+        C[$k]=
+    done
+    # the user's own text: escaped once here, not on every tick
+    for k in prefix separator suffix; do C[$k]=${C[$k]//'^'/'^^'}; done
+    # the clickable area of each module, closed by render
+    for m in "${ALL[@]}"; do
+        area[$m]=
+        for b in "${!BUTTONS[@]}"; do
+            d=${C[${m}_${BUTTONS[$b]}]}
+            [[ -n $d ]] && area[$m]+="^s$b!$d^"
+        done
+    done
+}
 
+# ---- what this system has ---------------------------------------------------
+
+detect() {
+    bats=()
+    local p t
+    local s
+    for p in /sys/class/power_supply/*; do
+        { read -r t <"$p/type"; } 2>/dev/null && [[ $t == Battery && -r $p/capacity ]] || continue
+        # the battery of a mouse or a keyboard is a Device one, not the system's
+        s=System && { read -r s <"$p/scope"; } 2>/dev/null
+        [[ $s == Device ]] || bats+=("$p")
+    done
+    have_wpctl=0 have_pactl=0
+    command -v wpctl >/dev/null && have_wpctl=1
+    command -v pactl >/dev/null && have_pactl=1
+    modules_dir=
+    for p in /usr/lib/modules /lib/modules; do [[ -d $p ]] && modules_dir=$p && break; done
     # 127.0.0.1:53 is 0100007F:0035 in /proc/net/udp
     dns_sock=
-    if [ -r /etc/resolv.conf ] && [ -r /proc/net/udp ]; then
-        while read -r dt_k dt_v dt_rest; do
-            [ "$dt_k" = nameserver ] || continue
-            case $dt_v in
-            127.*.*.*)
-                dt_ifs=$IFS IFS=.
-                # shellcheck disable=SC2086
-                set -- $dt_v
-                IFS=$dt_ifs
-                dns_sock=$(printf '%02X%02X%02X%02X:0035' "$4" "$3" "$2" "$1")
-                ;;
-            esac
+    local k v
+    if [[ -r /etc/resolv.conf && -r /proc/net/udp ]]; then
+        while read -r k v _; do
+            [[ $k == nameserver ]] || continue
+            if [[ $v =~ ^127\.([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+                printf -v dns_sock '%02X%02X%02X7F:0035' "${BASH_REMATCH[3]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[1]}"
+            fi
             break
         done </etc/resolv.conf
-    fi
-
-    if [ "$net_method" = none ] && command -v netstat >/dev/null 2>&1; then
-        # FreeBSD reports byte counters here, OpenBSD lists packets only
-        netstat -ibn 2>/dev/null | awk 'NR == 1 {
-			for (i = 1; i <= NF; i++) {
-				if ($i == "Ibytes") ib = i
-				if ($i == "Obytes") ob = i
-			}
-			exit !(ib && ob)
-		}' && net_method=netstat
     fi
 }
 
 # a module whose source is missing is dropped, so no field goes stale or empty
-filter_modules() { # -> modules trimmed to what is available, and want_*
-    kept=
-    for m in $modules; do
+filter_modules() {
+    local m why kept=() first=()
+    for m in ${C[modules]}; do
+        why=
         case $m in
-        date | time)
-            [ "$have_date" = 1 ] ||
-                {
-                    warn "'date' not found, $m disabled"
-                    continue
-                }
-            ;;
-        battery)
-            [ "$battery_method" != none ] ||
-                {
-                    warn 'no battery found, battery disabled'
-                    continue
-                }
-            ;;
-        volume)
-            [ "$have_wpctl" = 1 ] ||
-                {
-                    warn "'wpctl' not found, volume disabled"
-                    continue
-                }
-            ;;
-        cpu)
-            [ "$cpu_method" != none ] ||
-                {
-                    warn 'no cpu usage counter on this system, cpu disabled'
-                    continue
-                }
-            ;;
-        ram)
-            [ "$ram_method" != none ] ||
-                {
-                    warn 'no memory counter on this system, ram disabled'
-                    continue
-                }
-            ;;
-        netdown | netup)
-            [ "$net_method" != none ] ||
-                {
-                    warn "no network counters on this system, $m disabled"
-                    continue
-                }
-            ;;
-        rec | mic | cam | nightlight | awake)
-            [ "$have_proc" = 1 ] ||
-                {
-                    warn "no /proc on this system, $m disabled"
-                    continue
-                }
-            ;;
-        maint | timer | usbwait) ;;
-        btbattery)
-            command -v bluetoothctl >/dev/null ||
-                {
-                    warn 'no bluetoothctl on this system, btbattery disabled'
-                    continue
-                }
-            ;;
-        reboot)
-            [ -d /usr/lib/modules ] ||
-                {
-                    warn 'no /usr/lib/modules on this system, reboot disabled'
-                    continue
-                }
-            ;;
-        dns)
-            [ -n "$dns_sock" ] ||
-                {
-                    warn 'the resolver in /etc/resolv.conf is not local, dns disabled'
-                    continue
-                }
-            ;;
-        *)
-            warn "unknown module '$m', known ones are: $all_modules"
-            continue
-            ;;
+        date | time | cpu | ram | maint | timer | usbwait) ;;
+        battery) ((${#bats[@]})) || why='no battery found' ;;
+        volume) ((have_wpctl || have_pactl)) || why='neither wpctl nor pactl found' ;;
+        netdown | netup) [[ -d /sys/class/net ]] || why='no /sys/class/net' ;;
+        rec | mic | cam | nightlight | awake) [[ -r /proc/self/comm ]] || why='no /proc' ;;
+        btbattery) command -v bluetoothctl >/dev/null || why='no bluetoothctl' ;;
+        reboot) [[ -n $modules_dir ]] || why='no /usr/lib/modules' ;;
+        dns) [[ -n $dns_sock ]] || why='the resolver in /etc/resolv.conf is not local' ;;
+        *) why="unknown, the known ones are: ${ALL[*]}" ;;
         esac
-        if [ "$m" = rec ]; then
-            kept="rec $kept"
+        if [[ -n $why ]]; then
+            warn "$m: $why, left out"
+        elif [[ $m == rec ]]; then
+            first=(rec)
         else
-            kept="$kept $m"
+            kept+=("$m")
         fi
     done
-    modules=${kept# }
-    modules=${modules% }
-    [ -n "$modules" ] || warn 'no module left to show'
-
-    groups=
-    for m in $modules; do
-        group_of "$m"
-        case " $groups " in *" $grp "*) ;; *) groups="$groups $grp" ;; esac
-    done
-
-    want_battery=0 want_cpu=0 want_ram=0 want_net=0 want_date=0 want_time=0
-    for m in $modules; do
-        case $m in
-        date) want_date=1 ;;
-        time) want_time=1 ;;
-        battery) want_battery=1 ;;
-        cpu) want_cpu=1 ;;
-        ram) want_ram=1 ;;
-        netdown | netup) want_net=1 ;;
-        esac
+    modules=("${first[@]}" "${kept[@]}")
+    ((${#modules[@]})) || warn 'no module left to show'
+    groups=()
+    declare -gA members=()
+    for m in "${modules[@]}"; do
+        group "$m"
+        [[ -v members[$g] ]] || groups+=("$g")
+        members[$g]+=" $m"
     done
 }
 
-group_of() { # modules read together share a group
-    case $1 in
-    date | time) grp=clock ;;
-    netdown | netup) grp=net ;;
-    *) grp=$1 ;;
-    esac
-}
+# ---- helpers ----------------------------------------------------------------
 
-subst() { # string token replacement -> sb
-    sb= sb_rest=$1
-    while :; do
-        case $sb_rest in
-        *"$2"*)
-            sb=$sb${sb_rest%%"$2"*}$3
-            sb_rest=${sb_rest#*"$2"}
-            ;;
-        *)
-            sb=$sb$sb_rest
-            return
-            ;;
-        esac
-    done
-}
-
-human() { # bytes -> hu, as 1.2M with the unit appended
-    if [ "$1" -ge 1073741824 ]; then
-        hu=$(($1 * 10 / 1073741824)) hu_u=G
-    elif [ "$1" -ge 1048576 ]; then
-        hu=$(($1 * 10 / 1048576)) hu_u=M
-    elif [ "$1" -ge 1024 ]; then
-        hu=$(($1 * 10 / 1024)) hu_u=K
+now_ms() { # ms since boot: the uptime goes on during a suspend, as the timers
+    local u
+    if read -r u _ </proc/uptime 2>/dev/null; then
+        now=$((${u%.*} * 1000 + 10#${u#*.} * 10))
     else
-        hu=${1}B
+        now=$((${EPOCHREALTIME/./} / 1000))
+    fi
+}
+
+human() { # bytes -> hu, as 1.2M
+    local b=$1 u
+    if ((b >= 1 << 30)); then
+        u=G b=$((b * 10 >> 30))
+    elif ((b >= 1 << 20)); then
+        u=M b=$((b * 10 >> 20))
+    elif ((b >= 1 << 10)); then
+        u=K b=$((b * 10 >> 10))
+    else
+        hu=${b}B
         return
     fi
-    [ "$hu" -lt 10 ] && hu=0$hu
-    hu=${hu%?}.${hu#"${hu%?}"}$hu_u
+    hu=$((b / 10)).$((b % 10))$u
 }
 
-bat_caps= bat_charging=0
-read_battery() {
-    bat_caps= bat_charging=0
-    case $battery_method in
-    linux)
-        for cap_file in $bats; do
-            read -r cap <"$cap_file" 2>/dev/null &&
-                bat_caps="$bat_caps $cap"
-            read -r state <"${cap_file%capacity}status" 2>/dev/null &&
-                [ "$state" = Charging ] && bat_charging=1
-        done
-        ;;
-    freebsd)
-        cap=$(sysctl -n hw.acpi.battery.life 2>/dev/null)
-        [ -n "$cap" ] && [ "$cap" -ge 0 ] 2>/dev/null && bat_caps=$cap
-        # bit 1 of the ACPI state word is the one set while it charges
-        state=$(sysctl -n hw.acpi.battery.state 2>/dev/null)
-        case ${state:-x} in
-        '' | *[!0-9]*) ;;
-        *) [ $((state & 2)) -ne 0 ] && bat_charging=1 ;;
-        esac
-        ;;
-    openbsd)
-        cap=$(apm -l 2>/dev/null)
-        [ -n "$cap" ] && bat_caps=$cap
-        # apm -a is 1 while the machine runs on mains
-        [ "$(apm -a 2>/dev/null)" = 1 ] && bat_charging=1
-        ;;
-    esac
-    bat_caps=${bat_caps# }
-    return 0
-}
-
-bat_color() { # capacity -> bc, the colour its level and its state ask for
-    bc=$color_battery
-    if [ "$bat_charging" = 1 ]; then
-        # charging outranks low: the level is on its way back up
-        [ -n "$color_battery_charging" ] && bc=$color_battery_charging
-    elif [ "$1" -le "$battery_low" ] 2>/dev/null; then
-        [ -n "$color_battery_low" ] && bc=$color_battery_low
-    fi
-    return 0
-}
-
-level_icon() { # icons percent [round] -> bi, picked out of the icons by level
-    # in equal bands, or with round the nearest one, the icons being the
-    # levels from 0 to 100 (11 battery icons: 0, 10, ... 100)
-    bi= bi_n=0
-    for bi_g in $1; do bi_n=$((bi_n + 1)); done
-    [ "$bi_n" -gt 0 ] || return 0
-    if [ "${3:-}" = round ]; then
-        bi_k=$((($2 * (bi_n - 1) + 50) / 100 + 1))
+clock_text() { # seconds -> ct, as 4:32 or 1:02:03
+    if (($1 >= 3600)); then
+        printf -v ct '%d:%02d:%02d' $(($1 / 3600)) $(($1 % 3600 / 60)) $(($1 % 60))
     else
-        bi_k=$(($2 * bi_n / 100 + 1))
+        printf -v ct '%d:%02d' $(($1 / 60)) $(($1 % 60))
     fi
-    [ "$bi_k" -gt "$bi_n" ] && bi_k=$bi_n
-    bi_i=0
-    for bi_g in $1; do
-        bi_i=$((bi_i + 1))
-        [ "$bi_i" = "$bi_k" ] && {
-            bi=$bi_g
-            return
-        }
+}
+
+level_icon() { # "icons" percent [round] -> bi, the icon of that level
+    local -a set
+    read -ra set <<<"$1"
+    local n=${#set[@]} k
+    bi=
+    ((n)) || return 0
+    # equal bands, or with round the nearest of the levels 0..100
+    if [[ ${3:-} == round ]]; then
+        k=$((($2 * (n - 1) + 50) / 100))
+    else
+        k=$(($2 * n / 100))
+    fi
+    ((k >= n)) && k=$((n - 1))
+    bi=${set[k]}
+}
+
+runs() { # pidfile comm: true while the pid in it is that program -> rs_p
+    rs_p=
+    local c
+    { read -r rs_p <"$1" && read -r c <"/proc/$rs_p/comm"; } 2>/dev/null && [[ $c == "$2" ]]
+}
+
+# ---- readers ----------------------------------------------------------------
+
+read_clock() {
+    local t=$EPOCHSECONDS f
+    f=${C[date_format]//'%i'/${C[icon_date]}}
+    printf -v clk_date "%($f)T" "$t"
+    f=${C[time_format]//'%i'/${C[icon_time]}}
+    printf -v clk_time "%($f)T" "$t"
+}
+
+read_battery() {
+    bat_caps=() bat_charging=0
+    local p v s
+    for p in "${bats[@]}"; do
+        { read -r v <"$p/capacity"; } 2>/dev/null && [[ $v =~ ^[0-9]+$ ]] && bat_caps+=("$v")
+        { read -r s <"$p/status"; } 2>/dev/null && [[ $s == Charging ]] && bat_charging=1
     done
 }
 
-vol_pct= vol_muted=0
-# the default sink is a pair of headphones: the active port of the jack, or the
-# form factor of a bluetooth one -> vol_phones 1. Asked every 10 s, the volume
-# itself every interval
-vp_at= vol_phones=0
+# the default sink is headphones: the active port of the jack, or the form
+# factor of a bluetooth one. Asked on a pactl event (plugging them in changes
+# the card), else every phones_every ms
 read_phones() {
-    vp_at=$now vol_phones=0
-    command -v pactl >/dev/null || return 0
-    vp_sink=$(pactl get-default-sink 2>/dev/null) || return 0
-    pactl list sinks 2>/dev/null | awk -v s="$vp_sink" '
-		/^Sink #/ { mine = 0 }
-		$1 == "Name:" { mine = $2 == s }
-		mine && /Active Port:/ && tolower($0) ~ /head(phone|set)/ { f = 1 }
-		mine && /device\.form_factor = "(headphone|headset)"/ { f = 1 }
-		END { exit !f }' && vol_phones=1
+    phones_at=$now vol_phones=0
+    ((have_pactl)) && [[ -n ${C[icon_volume_phones]} ]] || return 0
+    local sink line mine=0
+    sink=$(pactl get-default-sink 2>/dev/null) || return 0
+    while IFS= read -r line; do
+        case $line in
+        'Sink #'*) mine=0 ;;
+        *'Name: '*) [[ ${line#*Name: } == "$sink" ]] && mine=1 ;;
+        *'Active Port: '*[Hh]ead[ps]* | *'device.form_factor = "head'[ps]*)
+            ((mine)) && vol_phones=1
+            ;;
+        esac
+    done < <(pactl list sinks 2>/dev/null)
 }
 
 read_volume() { # "Volume: 0.53 [MUTED]" -> vol_pct 53, vol_muted 1
     vol_pct= vol_muted=0
-    if [ -n "$icon_volume_phones" ] && { [ -z "$vp_at" ] || [ $((now - vp_at)) -ge 10000 ]; }; then
-        read_phones
-    fi
-    rv=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null) || return 0
-    case $rv in
-    'Volume: '*) ;;
-    *) return 0 ;;
-    esac
-    case $rv in *MUTED*) vol_muted=1 ;; esac
-    rv=${rv#Volume: } rv=${rv%% *}
-    rv_i=${rv%%.*} rv_f=${rv#*.}
-    [ "$rv_f" = "$rv" ] && rv_f=0
-    rv_f=${rv_f}00
-    rv_f=${rv_f%"${rv_f#??}"}
-    case $rv_i$rv_f in '' | *[!0-9]*) return 0 ;; esac
-    vol_pct=$((rv_i * 100 + 1$rv_f - 100))
-}
-
-cpu_tot=0 cpu_idl=0 cpu_tot_prev=0 cpu_idl_prev=0 cpu_pct=0
-cpu_sample() {
-    case $cpu_method in
-    linux)
-        read -r cs_n cs_a cs_b cs_c cs_d cs_e cs_f cs_g cs_h cs_rest \
-            </proc/stat || return 1
-        : "${cs_e:=0}" "${cs_f:=0}" "${cs_g:=0}" "${cs_h:=0}"
-        cpu_tot=$((cs_a + cs_b + cs_c + cs_d + cs_e + cs_f + cs_g + cs_h))
-        cpu_idl=$((cs_d + cs_e))
-        ;;
-    sysctl)
-        # idle is the last field of kern.cp_time on every BSD that has it
-        # The split into fields is the point of the call.
-        # shellcheck disable=SC2046
-        set -- $(sysctl -n kern.cp_time 2>/dev/null)
-        [ $# -gt 0 ] || return 1
-        cpu_tot=0
-        for cs_v in "$@"; do cpu_tot=$((cpu_tot + cs_v)); done
-        eval "cpu_idl=\${$#}"
-        ;;
-    esac
-}
-
-read_cpu() {
-    cpu_sample || return
-    cs_dt=$((cpu_tot - cpu_tot_prev)) cs_di=$((cpu_idl - cpu_idl_prev))
-    cpu_tot_prev=$cpu_tot cpu_idl_prev=$cpu_idl
-    if [ "$cs_dt" -gt 0 ]; then
-        cpu_pct=$(((cs_dt - cs_di) * 100 / cs_dt))
+    ((now - phones_at >= phones_every)) && read_phones
+    local v
+    if ((have_wpctl)); then
+        v=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null) || return 0
+        [[ $v =~ ^Volume:\ ([0-9]+)\.([0-9]{1,2}) ]] || return 0
+        local f=${BASH_REMATCH[2]}0
+        vol_pct=$((10#${BASH_REMATCH[1]} * 100 + 10#${f:0:2}))
+        [[ $v == *MUTED* ]] && vol_muted=1
     else
-        cpu_pct=0
+        # pactl: "Volume: front-left: 34734 /  53% / ..." and "Mute: yes"
+        v=$(pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null) || return 0
+        [[ $v =~ ([0-9]+)% ]] && vol_pct=${BASH_REMATCH[1]}
+        [[ $(pactl get-sink-mute @DEFAULT_SINK@ 2>/dev/null) == *yes* ]] && vol_muted=1
     fi
-    [ "$cpu_pct" -lt 0 ] && cpu_pct=0
-    [ "$cpu_pct" -gt 100 ] && cpu_pct=100
-    return 0
 }
 
-ram_pct=0 ram_used=0 ram_total=0
+cpu_prev_t=0 cpu_prev_i=0
+read_cpu() {
+    local _ a b c d e f g h t i
+    read -r _ a b c d e f g h _ </proc/stat || return 0
+    t=$((a + b + c + d + ${e:-0} + ${f:-0} + ${g:-0} + ${h:-0})) i=$((d + ${e:-0}))
+    local dt=$((t - cpu_prev_t)) di=$((i - cpu_prev_i))
+    cpu_prev_t=$t cpu_prev_i=$i
+    cpu_pct=0
+    ((dt > 0)) && cpu_pct=$(((dt - di) * 100 / dt))
+    ((cpu_pct < 0)) && cpu_pct=0
+    ((cpu_pct > 100)) && cpu_pct=100
+}
+
 read_ram() {
-    rm_t= rm_a= rm_f=
-    while read -r rm_k rm_v rm_rest; do
-        case $rm_k in
-        MemTotal:) rm_t=$rm_v ;;
-        MemAvailable:) rm_a=$rm_v ;;
-        MemFree:) rm_f=$rm_v ;;
+    local k v t= a= fr=
+    while read -r k v _; do
+        case $k in
+        MemTotal:) t=$v ;;
+        MemAvailable:) a=$v ;;
+        MemFree:) fr=$v ;;
         esac
-        [ -n "$rm_t" ] && [ -n "$rm_a" ] && break
+        [[ -n $t && -n $a ]] && break
     done </proc/meminfo
     # MemAvailable is missing on kernels older than 3.14
-    [ -n "$rm_a" ] || rm_a=$rm_f
-    [ -n "$rm_t" ] && [ -n "$rm_a" ] && [ "$rm_t" -gt 0 ] || return 1
-    rm_u=$((rm_t - rm_a))
-    ram_pct=$((rm_u * 100 / rm_t))
-    human $((rm_u * 1024))
-    ram_used=$hu
-    human $((rm_t * 1024))
-    ram_total=$hu
+    a=${a:-$fr}
+    [[ -n $t && -n $a ]] && ((t > 0)) || return 0
+    ram_pct=$(((t - a) * 100 / t))
+    human $(((t - a) * 1024)) && ram_used=$hu
+    human $((t * 1024)) && ram_total=$hu
 }
 
-net_rx=0 net_tx=0 net_rx_prev=0 net_tx_prev=0 net_down=0B net_up=0B
-net_sample() {
-    net_rx=0 net_tx=0
-    case $net_method in
-    linux)
-        for ns_d in /sys/class/net/*; do
-            ns_i=${ns_d##*/}
-            [ "$ns_i" = lo ] && continue
-            if [ -n "$net_interface" ]; then
-                case " $net_interface " in
-                *" $ns_i "*) ;;
-                *) continue ;;
-                esac
-            fi
-            read -r ns_v <"$ns_d/statistics/rx_bytes" 2>/dev/null &&
-                net_rx=$((net_rx + ns_v))
-            read -r ns_v <"$ns_d/statistics/tx_bytes" 2>/dev/null &&
-                net_tx=$((net_tx + ns_v))
-        done
-        ;;
-    netstat)
-        # one row per address, so only the first row of an interface counts
-        eval "$(netstat -ibn 2>/dev/null | awk -v want="$net_interface" '
-		NR == 1 {
-			for (i = 1; i <= NF; i++) {
-				if ($i == "Ibytes") ib = i
-				if ($i == "Obytes") ob = i
-			}
-			next
-		}
-		!ib || !ob { next }
-		$1 ~ /^lo/ { next }
-		want != "" {
-			ok = 0; n = split(want, w, " ")
-			for (i = 1; i <= n; i++) if (w[i] == $1) ok = 1
-			if (!ok) next
-		}
-		seen[$1]++ { next }
-		{ rx += $ib; tx += $ob }
-		END { printf "net_rx=%d net_tx=%d\n", rx, tx }')"
-        ;;
-    esac
-}
-
+net_prev_rx=0 net_prev_tx=0 net_at=0
 read_net() {
-    net_sample
-    ns_drx=$((net_rx - net_rx_prev)) ns_dtx=$((net_tx - net_tx_prev))
-    net_rx_prev=$net_rx net_tx_prev=$net_tx
-    # a counter that went backwards wrapped, or its interface is gone
-    [ "$ns_drx" -lt 0 ] && ns_drx=0
-    [ "$ns_dtx" -lt 0 ] && ns_dtx=0
-    rn_ms=$((now - net_at))
-    [ "$rn_ms" -gt 0 ] || rn_ms=$ivl_net
-    net_at=$now
-    human $((ns_drx * 1000 / rn_ms))
-    net_down=$hu
-    human $((ns_dtx * 1000 / rn_ms))
-    net_up=$hu
-}
-
-runs() {
-    [ -r "$1" ] || return 1
-    { read -r rs_p <"$1"; } 2>/dev/null || return 1
-    case $rs_p in '' | *[!0-9]*) return 1 ;; esac
-    { read -r rs_c <"/proc/$rs_p/comm"; } 2>/dev/null || return 1
-    [ "$rs_c" = "$2" ]
-}
-
-mic_on() {
-    for mo_f in /proc/asound/card*/pcm*c/sub*/status; do
-        [ -r "$mo_f" ] || continue
-        { read -r mo_k mo_v <"$mo_f"; } 2>/dev/null || continue
-        [ "$mo_v" = RUNNING ] && return 0
+    local d i v rx=0 tx=0
+    for d in /sys/class/net/*; do
+        i=${d##*/}
+        [[ $i == lo ]] && continue
+        [[ -n ${C[net_interface]} && " ${C[net_interface]} " != *" $i "* ]] && continue
+        { read -r v <"$d/statistics/rx_bytes"; } 2>/dev/null && rx=$((rx + v))
+        { read -r v <"$d/statistics/tx_bytes"; } 2>/dev/null && tx=$((tx + v))
     done
-    return 1
+    # a counter that went backwards wrapped, or its interface is gone
+    local drx=$((rx - net_prev_rx)) dtx=$((tx - net_prev_tx)) dms=$((now - net_at))
+    net_prev_rx=$rx net_prev_tx=$tx net_at=$now
+    ((drx < 0)) && drx=0
+    ((dtx < 0)) && dtx=0
+    ((dms > 0)) || dms=${ivl[net]}
+    human $((drx * 1000 / dms)) && net_down=$hu
+    human $((dtx * 1000 / dms)) && net_up=$hu
 }
 
-mic_muted() { # one wpctl a tick, and only while something records
-    [ "$have_wpctl" = 1 ] || return 1
-    case $(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null) in
-    *MUTED*) return 0 ;;
-    esac
-    return 1
-}
-
-# the background timer that rings first (timer -b runs "timer --until EPOCH ..."):
-# looked for every 15 s and when the one known ends, counted down from the
-# uptime in between -> ti_left, as 1:02:03 or 4:32
-ti_scan= ti_end=
-rc_pid= rc_start=0
+# the background timer that rings first (timer -b runs "timer --until EPOCH"):
+# looked for when timer sends USR1, when the known one ends and every minute,
+# counted down in between
+timer_scan=-60000 timer_end=
 timer_left() {
-    if [ -z "$ti_scan" ] || [ $((now - ti_scan)) -ge 15000 ] ||
-        { [ -n "$ti_end" ] && [ "$now" -ge "$ti_end" ]; }; then
-        ti_scan=$now ti_end= ti_min=
-        ti_ep=$(date +%s)
-        for ti_e in $(pgrep -u "$(id -u)" -af -- '/timer --until [0-9]' 2>/dev/null |
-            awk '{ for (i = 1; i < NF; i++) if ($i == "--until") print $(i + 1) }'); do
-            case $ti_e in '' | *[!0-9]*) continue ;; esac
-            if [ -z "$ti_min" ] || [ "$ti_e" -lt "$ti_min" ]; then ti_min=$ti_e; fi
-        done
-        [ -n "$ti_min" ] && ti_end=$((now + (ti_min - ti_ep) * 1000))
+    timer_text=
+    if ((now - timer_scan >= 60000)) || { [[ -n $timer_end ]] && ((now >= timer_end)); }; then
+        timer_scan=$now timer_end=
+        local -a w
+        local i min=
+        while read -ra w; do
+            for ((i = 1; i < ${#w[@]} - 1; i++)); do
+                [[ ${w[i]} == --until && ${w[i + 1]} =~ ^[0-9]+$ ]] || continue
+                [[ -z $min ]] || ((w[i + 1] < min)) && min=${w[i + 1]}
+            done
+        done < <(pgrep -u "$UID" -af -- '/timer --until [0-9]' 2>/dev/null)
+        [[ -n $min ]] && timer_end=$((now + (min - EPOCHSECONDS) * 1000))
     fi
-    ti_left=
-    [ -n "$ti_end" ] || return 0
-    ti_s=$(((ti_end - now + 999) / 1000))
-    [ "$ti_s" -gt 0 ] || return 0
-    if [ "$ti_s" -ge 3600 ]; then
-        ti_left=$(printf '%d:%02d:%02d' $((ti_s / 3600)) $((ti_s % 3600 / 60)) $((ti_s % 60)))
-    else
-        ti_left=$(printf '%d:%02d' $((ti_s / 60)) $((ti_s % 60)))
-    fi
+    [[ -n $timer_end ]] && ((timer_end > now)) || return 0
+    clock_text $(((timer_end - now + 999) / 1000)) && timer_text=$ct
 }
 
-# the newest kernel installed (a modules.dep in /usr/lib/modules, /boot is root's
-# only), when it is not the one running -> rb_new
-rb_run=
+# the newest kernel installed (/boot is root's only), when it is not the one
+# running. sort -V only when the list of kernels changes
+kernels= kernel_new=
 reboot_kernel() {
-    rb_new=
-    [ -n "$rb_run" ] || rb_run=$(uname -r)
-    rb_top=$(for rb_d in /usr/lib/modules/*/; do
-        [ -e "${rb_d}modules.dep" ] || continue
-        rb_d=${rb_d%/}
-        printf '%s\n' "${rb_d##*/}"
-    done | sort -V | tail -n 1)
-    if [ -n "$rb_top" ] && [ "$rb_top" != "$rb_run" ]; then rb_new=$rb_top; fi
+    local d list= run
+    for d in "$modules_dir"/*/modules.dep; do d=${d%/modules.dep} && list+="${d##*/}"$'\n'; done
+    [[ $list == "$kernels" ]] && return 0
+    kernels=$list kernel_new=
+    read -r run </proc/sys/kernel/osrelease
+    local top
+    top=$(sort -V <<<"$list" | tail -n 1)
+    [[ -n $top && $top != "$run" ]] && kernel_new=$top
 }
 
-# the lowest battery of the bluetooth audio devices connected (headphones,
-# headsets: their Icon is audio-*) that tell it -> bt_pct. timeout: bluetoothctl
-# waits for bluetoothd forever when it is not running
+# the lowest battery of the bluetooth audio devices connected (Icon audio-*).
+# Nothing to run while nothing is connected: the kernel makes an hciN:HANDLE
+# entry for each connection. timeout: bluetoothctl waits for bluetoothd forever
+# when it is not running
 read_btbattery() {
     bt_pct=
-    for bt_m in $(timeout 2 bluetoothctl devices Connected 2>/dev/null | awk '$1 == "Device" { print $2 }'); do
-        bt_v=$(timeout 2 bluetoothctl info "$bt_m" 2>/dev/null | awk '
-			$1 == "Icon:" && $2 ~ /^audio-/ { audio = 1 }
-			/Battery Percentage:/ { gsub(/.*\(|\).*/, ""); pct = $0 }
-			END { if (audio) print pct }')
-        case $bt_v in '' | *[!0-9]*) continue ;; esac
-        if [ -z "$bt_pct" ] || [ "$bt_v" -lt "$bt_pct" ]; then bt_pct=$bt_v; fi
+    local h=(/sys/class/bluetooth/hci*:*)
+    ((${#h[@]})) || return 0
+    local mac line audio pct
+    for mac in $(timeout 2 bluetoothctl devices Connected 2>/dev/null | while read -r w m _; do [[ $w == Device ]] && echo "$m"; done); do
+        audio=0 pct=
+        while IFS= read -r line; do
+            [[ $line =~ Icon:\ audio- ]] && audio=1
+            [[ $line =~ Battery\ Percentage:.*\(([0-9]+)\) ]] && pct=${BASH_REMATCH[1]}
+        done < <(timeout 2 bluetoothctl info "$mac" 2>/dev/null)
+        ((audio)) && [[ -n $pct ]] || continue
+        [[ -z $bt_pct ]] || ((pct < bt_pct)) && bt_pct=$pct
     done
 }
 
-# the USB devices usb left blocked with no answer (/run/usb-pending, "ID PORT
-# NAME"), less the ones dismissed with a right click -> uw_n
+# the USB devices usb left blocked with no answer ("ID PORT NAME"), less the
+# ones dismissed with a right click
 read_usbwait() {
-    uw_n=0
-    [ -r /run/usb-pending ] || return 0
-    while read -r uw_id _; do
-        [ -n "$uw_id" ] || continue
-        [ -r "$run_dir/usb-dismissed" ] && grep -qx "$uw_id" "$run_dir/usb-dismissed" && continue
-        uw_n=$((uw_n + 1))
+    usb_n=0
+    [[ -r /run/usb-pending ]] || return 0
+    local -A gone=()
+    local id
+    if [[ -r $run_dir/usb-dismissed ]]; then
+        while read -r id; do gone[$id]=1; done <"$run_dir/usb-dismissed"
+    fi
+    while read -r id _; do
+        [[ -n $id && ! -v gone[$id] ]] && ((usb_n++))
     done </run/usb-pending
 }
 
-dns_up() {
-    while read -r du_n du_l du_r du_s du_rest; do
-        [ "$du_l" = "$dns_sock" ] && [ "$du_s" = 07 ] && return 0
-    done </proc/net/udp
+read_maint() { # the jobs that failed at their last run, nothing while all went fine
+    maint_failed=
+    local l
+    [[ -r /var/lib/maint-status ]] || return 0
+    while IFS= read -r l; do [[ $l == failed=?* ]] && maint_failed=${l#failed=}; done </var/lib/maint-status
+}
+
+mic_on() {
+    local f k v
+    for f in /proc/asound/card*/pcm*c/sub*/status; do
+        { read -r k v <"$f"; } 2>/dev/null && [[ $v == RUNNING ]] && return 0
+    done
     return 1
 }
 
-clk_date= clk_time= clk_ns=
-read_clock() { # the last line is %N to wake just after the second
-    case $want_date$want_time in
-    11)
-        subst "$date_format" '%i' "$icon_date"
-        rk_d=$sb
-        subst "$time_format" '%i' "$icon_time"
-        rk=$(date "+$rk_d%n$sb%n%N")
-        clk_date=${rk%%"$nl"*} rk=${rk#*"$nl"}
-        clk_time=${rk%%"$nl"*} clk_ns=${rk#*"$nl"}
-        ;;
-    10)
-        subst "$date_format" '%i' "$icon_date"
-        rk=$(date "+$sb%n%N")
-        clk_date=${rk%%"$nl"*} clk_ns=${rk#*"$nl"}
-        ;;
-    01)
-        subst "$time_format" '%i' "$icon_time"
-        rk=$(date "+$sb%n%N")
-        clk_time=${rk%%"$nl"*} clk_ns=${rk#*"$nl"}
-        ;;
-    esac
+dns_up() {
+    local _ l s
+    while read -r _ l _ s _; do [[ $l == "$dns_sock" && $s == 07 ]] && return 0; done </proc/net/udp
+    return 1
 }
 
-update() { # read a group and set when it is due again
+# rec %v: how long, from the start time of wf-recorder in /proc (in clock ticks
+# since boot, as the uptime): no stat, no date
+rec_text() {
+    local st
+    read -r st </proc/"$rs_p"/stat 2>/dev/null || return 0
+    st=${st##*) } && read -ra st <<<"$st"
+    clock_text $(((now - st[19] * 1000 / hz) / 1000)) && rec_t=$ct
+}
+
+update() { # read a group, and when it is due again
     case $1 in
-    clock)
-        read_clock
-        ivl=$ivl_date
-        [ "$want_time" = 1 ] && ivl=$ivl_time
-        ;;
-    battery)
-        read_battery
-        ivl=$ivl_battery
-        ;;
-    volume)
-        read_volume
-        ivl=$ivl_volume
-        ;;
-    cpu)
-        read_cpu
-        ivl=$ivl_cpu
-        ;;
-    ram)
-        read_ram
-        ivl=$ivl_ram
-        ;;
-    net)
-        read_net
-        ivl=$ivl_net
-        ;;
-    *) eval "ivl=\$ivl_$1" ;;
+    clock) read_clock ;;
+    battery) read_battery ;;
+    volume) read_volume ;;
+    cpu) read_cpu ;;
+    ram) read_ram ;;
+    net) read_net ;;
+    maint) read_maint ;;
+    timer) timer_left ;;
+    reboot) reboot_kernel ;;
+    btbattery) read_btbattery ;;
+    usbwait) read_usbwait ;;
     esac
-    if [ "$1" != clock ]; then
-        eval "nxt=\$((due_$1 + ivl))"
-        [ "$nxt" -gt "$now" ] || nxt=$((now + ivl))
-        eval "due_$1=\$nxt"
-        return 0
+    local next=$((due[$1] + ivl[$1]))
+    ((next > now)) || next=$((now + ivl[$1]))
+    # the clock wakes just after the second turns
+    if [[ $1 == clock ]] && ((ivl[clock] >= 1000)); then
+        local us=${EPOCHREALTIME#*.}
+        next=$((now + ivl[clock] - 10#${us:0:3} + 5))
     fi
-    nxt=$((now + ivl))
-    if [ "$ivl" -ge 1000 ]; then
-        # BSD date prints N for %N
-        case $clk_ns in
-        [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) nxt=$((nxt - 1${clk_ns%??????} + 1000 + 5)) ;;
-        esac
-    fi
-    eval "due_$1=\$nxt"
+    due[$1]=$next
 }
 
-fmt() {
-    subst "$1" '%v' "$2"
-    r=$sb
-    subst "$r" '%i' "$3"
-    r=$sb
+# ---- drawing ----------------------------------------------------------------
+
+fmt() { # format value icon -> r
+    r=${1//'%v'/$2}
+    r=${r//'%i'/$3}
 }
 
-render() {
+render() { # module -> r, escaped, coloured and in its area; empty when hidden
+    local m=$1 col=${C[color_$1]} low=${C[battery_low]}
     r=
-    case $1 in
+    case $m in
     date) r=$clk_date ;;
     time) r=$clk_time ;;
     battery)
-        rn_all=
-        # the charging set, when there is one, while the battery charges
-        rn_i=$icon_battery
-        [ "$bat_charging" = 1 ] && [ -n "$icon_battery_charging" ] && rn_i=$icon_battery_charging
-        for rn_c in $bat_caps; do
-            level_icon "$rn_i" "$rn_c" round
-            fmt "$battery_format" "$rn_c" "$bi"
-            esc "$r"
-            bat_color "$rn_c"
-            paint "$ec" "$bc"
-            rn_all=${rn_all:+$rn_all }$r
+        local icons=${C[icon_battery]} c all=
+        ((bat_charging)) && [[ -n ${C[icon_battery_charging]} ]] && icons=${C[icon_battery_charging]}
+        for c in "${bat_caps[@]}"; do
+            level_icon "$icons" "$c" round
+            fmt "${C[battery_format]}" "$c" "$bi"
+            r=${r//'^'/'^^'} col=${C[color_battery]}
+            # charging outranks low: the level is on its way back up
+            if ((bat_charging)); then
+                col=${C[color_battery_charging]:-$col}
+            elif ((c <= low)); then
+                col=${C[color_battery_low]:-$col}
+            fi
+            [[ -n $col ]] && r="^c$col^$r^d^"
+            all+=${all:+ }$r
         done
-        r=$rn_all
-        area battery
+        r=$all
+        [[ -n $r && -n ${area[battery]} ]] && r="${area[battery]}$r^e^"
         return 0
         ;;
     volume)
-        [ -n "$vol_pct" ] || return 0
-        if [ "$vol_muted" = 1 ]; then
-            bi=$icon_volume_muted
-        elif [ "$vol_phones" = 1 ] && [ -n "$icon_volume_phones" ]; then
-            bi=$icon_volume_phones
+        [[ -n $vol_pct ]] || return 0
+        if ((vol_muted)); then
+            bi=${C[icon_volume_muted]}
+        elif ((vol_phones)) && [[ -n ${C[icon_volume_phones]} ]]; then
+            bi=${C[icon_volume_phones]}
         else
-            level_icon "$icon_volume" "$vol_pct"
+            level_icon "${C[icon_volume]}" "$vol_pct"
         fi
-        fmt "$volume_format" "$vol_pct" "$bi"
+        fmt "${C[volume_format]}" "$vol_pct" "$bi"
         ;;
-    cpu) fmt "$cpu_format" "$cpu_pct" "$icon_cpu" ;;
+    cpu) fmt "${C[cpu_format]}" "$cpu_pct" "${C[icon_cpu]}" ;;
     ram)
-        fmt "$ram_format" "$ram_pct" "$icon_ram"
-        subst "$r" '%u' "$ram_used"
-        r=$sb
-        subst "$r" '%t' "$ram_total"
-        r=$sb
+        fmt "${C[ram_format]}" "$ram_pct" "${C[icon_ram]}"
+        r=${r//'%u'/$ram_used} r=${r//'%t'/$ram_total}
         ;;
-    netdown) fmt "$netdown_format" "$net_down" "$icon_netdown" ;;
-    netup) fmt "$netup_format" "$net_up" "$icon_netup" ;;
+    netdown) fmt "${C[netdown_format]}" "$net_down" "${C[icon_netdown]}" ;;
+    netup) fmt "${C[netup_format]}" "$net_up" "${C[icon_netup]}" ;;
     rec)
         runs "$run_dir/record.pid" wf-recorder || return 0
-        # %v how long: the pid file is written when the recording starts, read
-        # once per recording, then counted from the uptime
-        if [ "$rc_pid" != "$rs_p" ]; then
-            rc_pid=$rs_p
-            rc_age=$(($(date +%s) - $(stat -c %Y "$run_dir/record.pid" 2>/dev/null || date +%s)))
-            rc_start=$((now - rc_age * 1000))
-        fi
-        rc_s=$(((now - rc_start) / 1000))
-        if [ "$rc_s" -ge 3600 ]; then
-            rc_t=$(printf '%d:%02d:%02d' $((rc_s / 3600)) $((rc_s % 3600 / 60)) $((rc_s % 60)))
-        else
-            rc_t=$(printf '%d:%02d' $((rc_s / 60)) $((rc_s % 60)))
-        fi
-        fmt "$rec_format" "$rc_t" "$icon_rec"
+        rec_t= && rec_text
+        fmt "${C[rec_format]}" "$rec_t" "${C[icon_rec]}"
         ;;
     mic)
         mic_on || return 0
-        bi=$icon_mic
-        [ -n "$icon_mic_muted" ] && mic_muted && bi=$icon_mic_muted
-        fmt "$mic_format" '' "$bi"
-        ;;
-    cam) [ -e /run/watchdog/cam ] && fmt "$cam_format" '' "$icon_cam" ;;
-    dns) dns_up || fmt "$dns_format" '' "$icon_dns" ;;
-    usbwait)
-        read_usbwait
-        [ "$uw_n" -gt 0 ] && fmt "$usbwait_format" "$uw_n" "$icon_usbwait"
-        ;;
-    btbattery)
-        read_btbattery
-        [ -n "$bt_pct" ] || return 0
-        fmt "$btbattery_format" "$bt_pct" "$icon_btbattery"
-        # red below the threshold of the battery, as the battery module
-        [ -n "${bt_col_set:-}" ] || bt_col=$color_btbattery bt_col_set=1
-        color_btbattery=$bt_col
-        [ -n "$color_battery_low" ] && [ "$bt_pct" -le "$battery_low" ] && color_btbattery=$color_battery_low
-        ;;
-    reboot)
-        reboot_kernel
-        [ -n "$rb_new" ] && fmt "$reboot_format" "$rb_new" "$icon_reboot"
-        ;;
-    timer)
-        timer_left
-        [ -n "$ti_left" ] && fmt "$timer_format" "$ti_left" "$icon_timer"
-        ;;
-    maint)
-        # the jobs that failed at their last run, from what maint leaves readable:
-        # nothing while they all went fine
-        mf=
-        if [ -r /var/lib/maint-status ]; then
-            while IFS= read -r ml; do
-                case $ml in failed=?*) mf=${ml#failed=} ;; esac
-            done </var/lib/maint-status
+        bi=${C[icon_mic]}
+        # one wpctl a tick, and only while something records
+        if [[ -n ${C[icon_mic_muted]} ]] && ((have_wpctl)) &&
+            [[ $(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null) == *MUTED* ]]; then
+            bi=${C[icon_mic_muted]}
         fi
-        [ -n "$mf" ] && fmt "$maint_format" "$mf" "$icon_maint"
+        fmt "${C[mic_format]}" '' "$bi"
         ;;
-    nightlight) runs "$run_dir/nightlight.pid" wlsunset &&
-        fmt "$nightlight_format" '' "$icon_nightlight" ;;
-    awake) runs "$run_dir/awake.pid" swayidle &&
-        fmt "$awake_format" '' "$icon_awake" ;;
+    cam) [[ -e /run/watchdog/cam ]] && fmt "${C[cam_format]}" '' "${C[icon_cam]}" ;;
+    dns) dns_up || fmt "${C[dns_format]}" '' "${C[icon_dns]}" ;;
+    maint) [[ -n $maint_failed ]] && fmt "${C[maint_format]}" "$maint_failed" "${C[icon_maint]}" ;;
+    timer) [[ -n $timer_text ]] && fmt "${C[timer_format]}" "$timer_text" "${C[icon_timer]}" ;;
+    reboot) [[ -n $kernel_new ]] && fmt "${C[reboot_format]}" "$kernel_new" "${C[icon_reboot]}" ;;
+    usbwait) ((usb_n)) && fmt "${C[usbwait_format]}" "$usb_n" "${C[icon_usbwait]}" ;;
+    btbattery)
+        [[ -n $bt_pct ]] || return 0
+        fmt "${C[btbattery_format]}" "$bt_pct" "${C[icon_btbattery]}"
+        # red below the threshold of the battery, as the battery module
+        ((bt_pct <= low)) && col=${C[color_battery_low]:-$col}
+        ;;
+    nightlight) runs "$run_dir/nightlight.pid" wlsunset && fmt "${C[nightlight_format]}" '' "${C[icon_nightlight]}" ;;
+    awake) runs "$run_dir/awake.pid" swayidle && fmt "${C[awake_format]}" '' "${C[icon_awake]}" ;;
     esac
-    [ -n "$r" ] || return 0
-    eval "rn_col=\$color_$1"
-    esc "$r"
-    paint "$ec" "$rn_col"
-    area "$1"
-}
-
-area() { # module -> r wrapped in the module's clickable area, if it has one
-    eval "ar=\$area_$1"
-    [ -n "$r" ] && [ -n "$ar" ] && r="$ar$r^e^"
+    [[ -n $r ]] || return 0
+    r=${r//'^'/'^^'}
+    [[ -n $col ]] && r="^c$col^$r^d^"
+    [[ -n ${area[$m]} ]] && r="${area[$m]}$r^e^"
     return 0
 }
 
-main() {
-    conf=${G0WM_STATUS_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/g0wm/status.conf}
-    run_dir=${XDG_RUNTIME_DIR:-/tmp}
-    nl='
-'
-    once=0
-    arg_battery_interval=
+# ---- waiting ----------------------------------------------------------------
 
-    # osd asks for the volume and the microphone after changing them; set
-    # first, USR1 kills by default
-    kick=0
-    trap 'kick=1' USR1
-    options "$@"
-    defaults
-    read_config
-    detect
-    filter_modules
-
-    [ "$want_cpu" = 1 ] && cpu_sample && { cpu_tot_prev=$cpu_tot cpu_idl_prev=$cpu_idl; }
-    [ "$want_net" = 1 ] && {
-        net_sample
-        net_rx_prev=$net_rx net_tx_prev=$net_tx
-    }
-
-    now=0
-    [ "$have_uptime" = 1 ] && now_ms
-    net_at=$now
-    if [ "$once" = 1 ] && { [ "$want_cpu" = 1 ] || [ "$want_net" = 1 ]; }; then
-        sleep 1
-        now=$((now + 1000))
-        [ "$have_uptime" = 1 ] && now_ms
-    fi
-
-    due_clock=
-    for g in $groups; do eval "due_$g=\$now"; done
-    last=
-    while :; do
-        if [ "$kick" = 1 ]; then
-            kick=0
-            for g in volume mic rec timer usbwait nightlight awake; do
-                case " $groups " in *" $g "*) eval "due_$g=\$now" ;; esac
-            done
-        fi
-        for g in $groups; do
-            # read groups due soon now so they share a wake
-            early=0
-            [ "$g" = clock ] || eval "early=\$((ivl_$g / 5))"
-            eval "gd=\$due_$g"
-            [ "$now" -ge "$((gd - early))" ] || continue
-            update "$g"
-            for m in $modules; do
-                group_of "$m"
-                [ "$grp" = "$g" ] || continue
-                render "$m"
-                eval "out_$m=\$r"
-            done
-        done
-
-        # align the other groups to the clock
-        if [ -z "$last" ] && [ -n "$due_clock" ]; then
-            for g in $groups; do eval "due_$g=\$due_clock"; done
-        fi
-
-        line=
-        for m in $modules; do
-            eval "r=\$out_$m"
-            [ -n "$r" ] || continue
-            line=${line:+$line$separator}$r
-        done
-        # g0wm redraws the bar for every line
-        if [ "$once" = 1 ] || [ "$line" != "$last" ]; then
-            printf '%s%s%s\n' "$prefix" "$line" "$suffix"
-            last=$line
-        fi
-        [ "$once" = 1 ] && break
-
-        wait=
-        for g in $groups; do
-            eval "gd=\$due_$g"
-            [ -z "$wait" ] || [ "$((gd - now))" -lt "$wait" ] && wait=$((gd - now))
-        done
-        [ -n "$wait" ] || wait=1000
-        [ "$wait" -gt 10 ] || wait=10
-        ws=$((wait % 1000))
-        case $ws in ?) ws=00$ws ;; ??) ws=0$ws ;; esac
-        # in the background, so USR1 cuts the wait short; one that came
-        # while reading skips it
-        if [ "$kick" = 1 ]; then
-            wait=0
-        else
-            sleep "$((wait / 1000)).$ws" &
-            wait "$!" || kill "$!" 2>/dev/null
-        fi
-        now=$((now + wait))
-        [ "$have_uptime" = 1 ] && now_ms
-    done
+# pactl subscribe: a change of the volume, of the default output or of a card
+# reads the volume at once, one of a source the microphone. Without pactl, or
+# after it ends, the waits read from an fd that never gets a line
+events() {
+    ev_fd=$idle_fd phones_every=10000
+    ((have_pactl)) && [[ -v members[volume] || -v members[mic] ]] || return 0
+    coproc EV { exec pactl subscribe 2>/dev/null; }
+    ev_fd=${EV[0]} phones_every=300000
 }
 
-main "$@"
+wait_for() { # ms: until then, a SIGUSR1 or a pactl event
+    local s=$(($1 / 1000)) f line rc
+    printf -v f '%03d' $(($1 % 1000))
+    # in posix mode a trapped signal cuts read short, as it does wait
+    set -o posix
+    IFS= read -r -t "$s.$f" -u "$ev_fd" line
+    rc=$?
+    set +o posix
+    if ((rc == 0)); then
+        case $line in
+        *"' on sink #"* | *"' on server"* | *"' on card #"*)
+            [[ -v due[volume] ]] && due[volume]=0
+            phones_at=-1000000000
+            ;;
+        *"' on source #"*) [[ -v due[mic] ]] && due[mic]=0 ;;
+        esac
+    elif ((rc == 1)); then
+        # pactl ended (PipeWire restarted): back to the intervals alone
+        ev_fd=$idle_fd phones_every=10000
+    fi
+}
+
+# ---- main -------------------------------------------------------------------
+
+conf=${G0WM_STATUS_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/g0wm/status.conf}
+run_dir=${XDG_RUNTIME_DIR:-/tmp}
+once=0 arg_battery=
+while (($#)); do
+    case $1 in
+    -c | --config)
+        (($# > 1)) || { warn '-c needs a file' && exit 1; }
+        conf=$2
+        shift
+        ;;
+    -1 | --once) once=1 ;;
+    -h | --help) usage && exit 0 ;;
+    -*) warn "unknown option '$1'" && exit 1 ;;
+    *)
+        [[ $1 =~ ^[0-9]+$ ]] || { warn "unknown argument '$1'" && exit 1; }
+        arg_battery=$1
+        ;;
+    esac
+    shift
+done
+
+declare -A ivl=() area=() due=() out=()
+# osd asks for the volume and the microphone after changing them: set first,
+# USR1 kills by default
+kick=0
+trap 'kick=1' USR1
+# ended by g0wm: the EXIT trap closes pactl subscribe too
+trap 'exit 0' TERM INT HUP
+trap '[[ -v EV_PID ]] && kill "$EV_PID" 2>/dev/null' EXIT
+read_config
+detect
+filter_modules
+
+hz=100
+[[ -v members[rec] ]] && hz=$(getconf CLK_TCK 2>/dev/null || echo 100)
+exec {idle_fd}<> <(:)
+now=0 phones_at=-1000000000 phones_every=10000 vol_phones=0
+clk_date= clk_time= bat_caps=() bat_charging=0 vol_pct= vol_muted=0 cpu_pct=0
+ram_pct=0 ram_used=0 ram_total=0 net_down=0B net_up=0B maint_failed= timer_text=
+bt_pct= usb_n=0 rec_t= ct= hu= bi= r= g=
+now_ms
+[[ -v members[cpu] ]] && read_cpu
+[[ -v members[net] ]] && read_net
+# cpu and net are a difference: one second between the two reads
+((once)) && [[ -v members[cpu] || -v members[net] ]] && read -r -t 1 -u "$idle_fd" && :
+now_ms
+((once)) || events
+
+for g in "${groups[@]}"; do due[$g]=$now; done
+last= aligned=0
+while :; do
+    if ((kick)); then
+        kick=0
+        for g in "${KICKED[@]}"; do [[ -v due[$g] ]] && due[$g]=$now; done
+        timer_scan=-60000
+    fi
+    for g in "${groups[@]}"; do
+        # read the groups due soon now, so they share a wake
+        early=0
+        [[ $g == clock ]] || early=$((ivl[$g] / 5))
+        ((now >= due[$g] - early)) || continue
+        update "$g"
+        for m in ${members[$g]}; do
+            render "$m"
+            out[$m]=$r
+        done
+    done
+    # the other groups follow the clock, once
+    if ((!aligned)) && [[ -v due[clock] ]]; then
+        for g in "${groups[@]}"; do due[$g]=${due[clock]}; done
+    fi
+    aligned=1
+
+    line=
+    for m in "${modules[@]}"; do
+        [[ -n ${out[$m]} ]] && line+=${line:+${C[separator]}}${out[$m]}
+    done
+    # g0wm redraws the bar for every line
+    if ((once)) || [[ $line != "$last" ]]; then
+        printf '%s%s%s\n' "${C[prefix]}" "$line" "${C[suffix]}"
+        last=$line
+    fi
+    ((once)) && break
+
+    wait=
+    for g in "${groups[@]}"; do [[ -z $wait ]] || ((due[$g] - now < wait)) && wait=$((due[$g] - now)); done
+    wait=${wait:-1000}
+    ((wait < 10)) && wait=10
+    # a USR1 that came while reading skips the wait
+    ((kick)) || wait_for "$wait"
+    now_ms
+done
