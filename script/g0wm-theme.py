@@ -787,11 +787,15 @@ def fastfetch_colors():
     write(FASTFETCH, text)
 
 
+# fzf: the same in bash, vim and nvim (which set FZF_DEFAULT_OPTS for the fzf they run)
+FZF = [("fg", FG), ("bg", BG), ("hl", ACCENT), ("fg+", FG), ("bg+", SEL), ("hl+", ACCENT),
+       ("border", SEP), ("header", DIM), ("gutter", BG), ("spinner", DIM), ("info", DIM),
+       ("pointer", ACCENT), ("marker", ACCENT), ("prompt", DIM), ("query", FG), ("separator", SEP),
+       ("scrollbar", MUTE), ("label", DIM), ("disabled", MUTE), ("preview-fg", FG), ("preview-bg", POPUP)]
+
+
 def fzf_colors():
-    c = [("fg", FG), ("bg", BG), ("hl", ACCENT), ("fg+", FG), ("bg+", SEL), ("hl+", ACCENT),
-         ("border", SEP), ("header", DIM), ("gutter", BG), ("spinner", DIM), ("info", DIM),
-         ("pointer", ACCENT), ("marker", ACCENT), ("prompt", DIM), ("query", FG), ("separator", SEP),
-         ("scrollbar", MUTE), ("label", DIM), ("disabled", MUTE), ("preview-fg", FG), ("preview-bg", POPUP)]
+    c = FZF
     rows = "".join("        " + " ".join(f"{k}:{v}" for k, v in c[i:i + 6]) + "\n" for i in range(0, len(c), 6))
     text = read(BASHRC)
     text, n = re.subn(r"(    local _colors=\(\n).*?(    \)\n)", lambda m: m[1] + rows + m[2], text, count=1, flags=re.S)
@@ -973,10 +977,24 @@ def git_colors():
 
 
 def editor_colors():
-    for path, decl in ((NVIM, "local"), (VIM, "const")):
+    # the 16 colors of :terminal are foot's, in its order
+    ansi = [ANSI[f"{kind}{n}"] for kind in ("regular", "bright") for n in range(8)]
+    rows = "".join("    " + ", ".join(f"'{c}'" for c in ansi[i:i + 4]) + ",\n" for i in range(0, 16, 4))
+    fzf = "".join(f"  '{k}:{v}," + ("' ..\n" if i < len(FZF) - 1 else "'\n")
+                  for i, (k, v) in enumerate(FZF)).replace(",'\n", "'\n")
+    terminal = {NVIM: ("-- Terminal colors: foot's, written by script/g0wm-theme.py\n"
+                       f"local term_colors = {{\n{rows}}}\n"),
+                VIM: ("# Terminal colors: foot's, written by script/g0wm-theme.py\n"
+                      f"g:terminal_ansi_colors = [\n{rows}]\n")}
+    ends = {NVIM: r"^local term_colors = \{\n(?:.*\n)*?\}\n", VIM: r"^g:terminal_ansi_colors = \[\n(?:.*\n)*?\]\n"}
+    for path, decl, mark, var in ((NVIM, "local", "--", "vim.env.FZF_DEFAULT_OPTS"), (VIM, "const", "#", "$FZF_DEFAULT_OPTS")):
         text = read(path)
         for k, v in EDITOR.items():
             text = sub(path, text, rf"^({decl} {k}\s*= )'#\w+'$", lambda m, v=v: f"{m[1]}'{v}'")
+        text = sub(path, text, rf"^{re.escape(mark)} Terminal colors.*\n(?:.*\n)*?" + ends[path][1:],
+                   lambda m, s=terminal[path]: s)
+        text = sub(path, text, rf"^({re.escape(mark)} FZF.*\n{re.escape(var)} =\n  '--color=' \.\.\n)(?:  '.*\n)+",
+                   lambda m: m[1] + fzf)
         write(path, text)
 
 

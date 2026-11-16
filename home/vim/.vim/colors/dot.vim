@@ -240,60 +240,35 @@ HiSp('SpellCap',    MUTED)
 HiSp('SpellLocal',  DIM)
 HiSp('SpellRare',   NOISE)
 
-# Terminal colors
-const T_RED     = '#cc6666'
-const T_GREEN   = '#8c9a8c'
-const T_BLUE    = '#708a99'
-const T_MAGENTA = '#a6829c'
-const T_CYAN    = '#70a09f'
-const T_YELLOW  = '#ffe066'
-
-const T_B_RED   = '#d97e7e'
-const T_B_GREEN = '#afd7af'
-const T_B_BLUE  = '#8ab0c6'
-const T_B_MAG   = '#c59dc8'
-const T_B_CYAN  = '#8cc8c7'
-
+# Terminal colors: foot's, written by script/g0wm-theme.py
 g:terminal_ansi_colors = [
-      BG,
-      T_RED,
-      T_GREEN,
-      ACCENT,
-      T_BLUE,
-      T_MAGENTA,
-      T_CYAN,
-      MUTED,
-      SBAR_BG,
-      T_B_RED,
-      T_B_GREEN,
-      T_YELLOW,
-      T_B_BLUE,
-      T_B_MAG,
-      T_B_CYAN,
-      FG
+    '#0a0a0a', '#d8625e', '#83b290', '#c29d75',
+    '#79accb', '#be95ba', '#6eb3b2', '#9d9d9d',
+    '#7d7d7d', '#fb9795', '#a8d8b5', '#eac39a',
+    '#9ed3f2', '#e5bbe1', '#93d9d9', '#ffffff',
 ]
 
 # FZF
 $FZF_DEFAULT_OPTS =
   '--color=' ..
-  'fg:#ffffff,' ..
+  'fg:#e9e9e9,' ..
   'bg:#0a0a0a,' ..
-  'hl:#9d9d9d,' ..
-  'fg+:#0a0a0a,' ..
-  'bg+:#cccccc,' ..
-  'hl+:#9d9d9d,' ..
-  'border:#1a1a1a,' ..
+  'hl:#e0a86a,' ..
+  'fg+:#e9e9e9,' ..
+  'bg+:#222222,' ..
+  'hl+:#e0a86a,' ..
+  'border:#191919,' ..
   'header:#8a8a8a,' ..
   'gutter:#0a0a0a,' ..
-  'spinner:#9d9d9d,' ..
+  'spinner:#8a8a8a,' ..
   'info:#8a8a8a,' ..
-  'pointer:#9d9d9d,' ..
-  'marker:#9d9d9d,' ..
-  'prompt:#9d9d9d,' ..
-  'query:#ffffff,' ..
-  'separator:#1a1a1a,' ..
+  'pointer:#e0a86a,' ..
+  'marker:#e0a86a,' ..
+  'prompt:#8a8a8a,' ..
+  'query:#e9e9e9,' ..
+  'separator:#191919,' ..
   'scrollbar:#555555,' ..
   'label:#8a8a8a,' ..
-  'disabled:#7d7d7d,' ..
-  'preview-fg:#ffffff,' ..
-  'preview-bg:#0f0f0f'
+  'disabled:#555555,' ..
+  'preview-fg:#e9e9e9,' ..
+  'preview-bg:#121212'
