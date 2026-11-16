@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Shut Down
+Comment=Power off, after a confirmation
+Exec=power poweroff
+Icon=g0wm-shutdown
+Terminal=false

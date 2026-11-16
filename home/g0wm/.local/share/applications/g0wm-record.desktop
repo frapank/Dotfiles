@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Record Screen
+Comment=Record the screen, run again to stop
+Exec=record
+Icon=g0wm-record
+Terminal=false

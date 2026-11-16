@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Screenshot
+Comment=Capture a region, copied and saved
+Exec=screenshot
+Icon=g0wm-screenshot
+Terminal=false

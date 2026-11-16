@@ -1,0 +1,8 @@
+# in place of the entry of the pavucontrol package (same id), with the icon of the theme
+[Desktop Entry]
+Type=Application
+Name=Volume
+Comment=The volume of every app and device
+Exec=pavucontrol
+Icon=g0wm-volume
+Terminal=false

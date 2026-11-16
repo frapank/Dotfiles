@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Restart
+Comment=Reboot, after a confirmation
+Exec=power reboot
+Icon=g0wm-restart
+Terminal=false

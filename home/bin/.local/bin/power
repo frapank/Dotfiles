@@ -6,9 +6,27 @@ run=${XDG_RUNTIME_DIR:-/tmp}
 exec 9>"$run/power.lock"
 flock -n 9 || exit 0
 
-act=$(notify-send -a " power" -t 15000 \
-    -A suspend=" Sleep" -A reboot=" Reboot" -A poweroff=" Shut down" \
-    "Power" "Sleep, reboot or shut down" 2>/dev/null) || exit 0
+# with an action (the Restart and Shut Down of the runner): only that one, to
+# confirm, so an Enter too many does not end the session
+case ${1:-} in
+'')
+    act=$(notify-send -a " power" -t 15000 \
+        -A suspend=" Sleep" -A reboot=" Reboot" -A poweroff=" Shut down" \
+        "Power" "Sleep, reboot or shut down" 2>/dev/null) || exit 0
+    ;;
+reboot)
+    act=$(notify-send -i g0wm-reboot -a " power" -t 15000 -A reboot=" Reboot" \
+        "Reboot?" "What is not saved is lost" 2>/dev/null) || exit 0
+    ;;
+poweroff)
+    act=$(notify-send -i g0wm -a " power" -t 15000 -A poweroff=" Shut down" \
+        "Shut down?" "What is not saved is lost" 2>/dev/null) || exit 0
+    ;;
+*)
+    echo "Usage: power [reboot|poweroff]" >&2
+    exit 2
+    ;;
+esac
 case $act in
 suspend | reboot | poweroff) ;;
 *) exit 0 ;;
