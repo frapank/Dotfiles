@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The palette outside the session: the console and the cursors (script/config.sh),
-GRUB (GRUB_COLORS, put in its theme by script/boot.sh), plymouth and the
-wallpapers of g0wm (the rules one is drawn with the deny rules of the AppArmor
+GRUB (GRUB_COLORS, put in its theme by script/boot.sh), plymouth, the dog of
+the login on tty1 and the wallpapers of g0wm (the rules one is drawn with the deny rules of the AppArmor
 abstractions, so it changes with them).
 
 Not run by itself: script/g0wm-theme.py calls run() with itself, for the
@@ -211,6 +211,7 @@ def variants(t):
 
 ICONS = "home/g0wm/.config/g0wm/icons"
 ICON_SIZES = (512, 256, 128, 64, 48, 32)
+HICOLOR = "home/g0wm/.local/share/icons/hicolor/128x128/apps"
 
 
 def icons(t):
@@ -225,6 +226,42 @@ def icons(t):
             write_png(t, f"{ICONS}/g0wm{name}-{size}.png", logo_png(t, size, colors))
     # what screen sharing shows in place of a private window: the tone one
     write_png(t, "home/g0wm/.config/g0wm/private.png", logo_png(t, 512, variants(t)["-tone"]))
+    # the icon of the system's notifications (-i g0wm-tone): g0wm looks names up in
+    # hicolor, from 24 px up, and draws them at 64; 128 stays sharp at scale 2
+    if not t.CHECK:
+        os.makedirs(os.path.join(t.REPO, HICOLOR), exist_ok=True)
+    write_png(t, f"{HICOLOR}/g0wm-tone.png", logo_png(t, 128, variants(t)["-tone"]))
+
+
+
+LIBREWOLF_LOGO = "home/librewolf/.config/librewolf/librewolf/chrome/g0wm-logo.svg"
+
+
+def librewolf_logo(t):
+    """The new tab of LibreWolf: the tone logo, userContent.css puts it above the search."""
+    body = logo_svg(t, {k: fill(v) for k, v in variants(t)["-tone"].items()})
+    t.write(os.path.join(t.REPO, LIBREWOLF_LOGO),
+            '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">\n'
+            f"  <!-- written by script/g0wm-theme.py from {LOGO}, do not edit -->\n  {body}\n</svg>\n")
+
+
+
+VESKTOP = "home/vesktop/.config/vesktop/themes/g0wm.theme.css"
+
+
+def vesktop_logo(t):
+    """--g0-logo of the Vesktop theme: the logo as a data: mask, the gaps, the strokes
+    and the >_ cut out, so the home button paints it in its own color."""
+    L = logo_layers(t)
+    svg = ("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><mask id='m'>"
+           f"<path fill='white' fill-rule='evenodd' d='{L['g']}'/>"
+           f"<path fill='black' fill-rule='evenodd' d='{L['fur']}'/>"
+           f"<path fill='black' fill-rule='evenodd' d='{L['prompt']}'/>"
+           "</mask><rect width='512' height='512' fill='white' mask='url(#m)'/></svg>")
+    uri = "data:image/svg+xml," + "".join({"%": "%25", "#": "%23", "<": "%3C", ">": "%3E"}.get(c, c) for c in svg)
+    p = os.path.join(t.REPO, VESKTOP)
+    text = t.sub(p, t.read(p), r'^(\s*--g0-logo: url\(").*("\);)$', lambda m: m[1] + uri + m[2])
+    t.write(p, text)
 
 
 PLYMOUTH = "root/plymouth/usr/share/plymouth/themes/g0wm"
@@ -243,16 +280,31 @@ def plymouth(t):
     entry(t)
 
 
-def fastfetch_logo(t):
-    """The logo in half blocks for fastfetch, 38 columns: each cell is the g, the dog
-    or empty (the strokes and the gaps)."""
-    n = 38
+HALF = 38
+
+
+def half_blocks(t):
+    """The logo in half blocks, HALF columns: rows of (top, bottom) cells, each "g",
+    "dog" or None (the strokes and the gaps), the empty rows around it dropped."""
+    n = HALF
     cov = {k: coverage(t, k, n, 8) for k in LAYERS}
 
     def cell(x, y):
         if cov["fur"][y][x] + cov["prompt"][y][x] > 0.22 or cov["g"][y][x] < 0.5:
             return None
-        return t.TAN if cov["dog"][y][x] >= 0.5 else t.ACCENT
+        return "dog" if cov["dog"][y][x] >= 0.5 else "g"
+    rows = [[(cell(x, y), cell(x, y + 1)) for x in range(n)] for y in range(0, n, 2)]
+    while rows and not any(a or b for a, b in rows[0]):
+        rows.pop(0)
+    while rows and not any(a or b for a, b in rows[-1]):
+        rows.pop()
+    return rows
+
+
+def fastfetch_logo(t):
+    """The logo in half blocks for fastfetch, in the accent and TAN."""
+    n = HALF
+    color = {"g": t.ACCENT, "dog": t.TAN, None: None}
 
     def fg(c):
         return "\\u001b[38;2;" + ";".join(map(str, t.hexrgb(c))) + "m"
@@ -260,7 +312,7 @@ def fastfetch_logo(t):
     def bg(c):
         return "\\u001b[48;2;" + ";".join(map(str, t.hexrgb(c))) + "m"
     rows = []
-    for y in range(0, n, 2):
+    for cells in half_blocks(t):
         row, cur = "", None
 
         def put(color, ch):
@@ -269,8 +321,8 @@ def fastfetch_logo(t):
                 row += fg(color)
                 cur = color
             row += ch
-        for x in range(n):
-            top, bot = cell(x, y), cell(x, y + 1)
+        for a, b in cells:
+            top, bot = color[a], color[b]
             if not top and not bot:
                 row += " "
             elif top == bot:
@@ -282,10 +334,6 @@ def fastfetch_logo(t):
             else:
                 put(top, bg(bot) + "▀\\u001b[49m")
         rows.append(row + "\\u001b[0m")
-    while rows and not rows[0].replace("\\u001b[0m", "").strip():
-        rows.pop(0)
-    while rows and not rows[-1].replace("\\u001b[0m", "").strip():
-        rows.pop()
     p = t.FASTFETCH
     text = t.read(p)
     logo = (f'    "logo": {{\n        "type": "data-raw",\n        "source": "{"\\n".join(rows)}",\n'
@@ -293,6 +341,56 @@ def fastfetch_logo(t):
             '        "padding": { "top": 2, "left": 2, "right": 4 }\n    },\n')
     text = t.sub(p, text, r'^    "logo": \{\n(?:.*\n)*?    \},\n', lambda m: logo)
     t.write(p, text)
+
+
+# The dog of the login on tty1, in the 16 colors of the console with the color
+# names of agetty: asleep in /etc/issue, awake for the password, grumpy after a
+# wrong one. g0wm-login puts the last two in place of the first block of the issue
+# and centers that block in the frame.
+ISSUE = "root/agetty/etc/issue"
+LOGIN_ART = "root/agetty/etc/g0wm-login"
+MOODS = {"sleep": ("darkgray", "darkgray", "lightcyan", "zzz"),
+         "awake": ("brown", "lightgray", "brown", "woof?"),
+         "grumpy": ("red", "lightgray", "lightred", "grrr!")}
+# the background of a half block: only the 8 dark ones exist
+BACKGROUND = {"brown": 43, "red": 41, "lightgray": 47}
+
+
+def login_dog(t, mood):
+    g, dog, wc, word = MOODS[mood]
+    name = {"g": g, "dog": dog}
+    lines = []
+    for cells in half_blocks(t):
+        row, cur = "", None
+        for a, b in cells:
+            top, bot = name.get(a), name.get(b)
+            if not top and not bot:
+                row += " "
+                continue
+            c, ch, under = (top, "▀", None) if top == bot or not bot else \
+                (bot, "▄", None) if not top else (top, "▀", bot)
+            if top == bot:
+                ch = "█"
+            if c != cur:
+                row += "\\e{%s}" % c
+                cur = c
+            row += f"\\e[{BACKGROUND[under]}m{ch}\\e[49m" if under else ch
+        lines.append(row + "\\e{reset}")
+    # the word under the middle of what is drawn, not of the HALF columns
+    used = [x for cells in half_blocks(t) for x, (a, b) in enumerate(cells) if a or b]
+    pad = max(0, min(HALF - len(word), round((min(used) + max(used) + 1 - len(word)) / 2)))
+    lines.append(" " * pad + "\\e{%s}%s\\e{reset}" % (wc, word) + " " * (HALF - pad - len(word)))
+    return lines
+
+
+def login(t):
+    for mood in ("awake", "grumpy"):
+        t.write(os.path.join(t.REPO, LOGIN_ART, mood), "\n".join(login_dog(t, mood)) + "\n")
+    p = os.path.join(t.REPO, ISSUE)
+    lines = t.read(p).split("\n")
+    i = next(k for k, l in enumerate(lines) if l.strip())
+    j = next(k for k in range(i, len(lines)) if not lines[k].strip())
+    t.write(p, "\n".join(lines[:i] + login_dog(t, "sleep") + lines[j:]))
 
 
 # The wallpapers: 3840 x 2160, g0wm scales them to cover the screen and crops the
@@ -408,5 +506,8 @@ def run(t):
     config_sh(t)
     plymouth(t)
     icons(t)
+    librewolf_logo(t)
+    vesktop_logo(t)
     fastfetch_logo(t)
+    login(t)
     wallpaper(t)

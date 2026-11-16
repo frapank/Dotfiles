@@ -109,7 +109,7 @@ def confirm(who, app, args, urls):
     def wait():
         rfd, wfd = os.pipe()
         token_arg = [f"--activation-token-fd={wfd}"] if TOKEN_FD else []
-        r = subprocess.run(["notify-send", "-a", f"\uf132 {who}", "-h", f"string:desktop-entry:{who}",
+        r = subprocess.run(["notify-send", "-i", "g0wm-tone", "-a", f"\uf132 {who}", "-h", f"string:desktop-entry:{who}",
                             "-u", "critical", "-A", "default=Open", "-A", "copy=Copy link", *token_arg,
                             f"{who} wants to open a link", GLib.markup_escape_text("\n".join(urls))],
                            env=environ(), stdin=subprocess.DEVNULL, capture_output=True, text=True,

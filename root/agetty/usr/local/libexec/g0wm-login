@@ -3,7 +3,7 @@
 # run as root by agetty on tty1: /etc/issue in a frame, the name, then login(1)
 
 ISSUE=/etc/issue
-# the awake and grumpy cats, in place of the first block of /etc/issue
+# the awake and grumpy dogs, in place of the first block of /etc/issue
 CATS=/etc/g0wm-login
 STATE=/run/g0wm-login
 FAILLOCK=/etc/security/faillock.conf
@@ -260,7 +260,7 @@ draw() {
 		tail = ""
 		while (last >= first && visible(line[last]) == 0)
 			tail = line[last--] tail
-		# the awake or grumpy cat in place of the first block
+		# the awake or grumpy dog in place of the first block
 		if (ncat) {
 			for (j = first; j <= last && visible(line[j]); j++)
 				;
@@ -282,6 +282,14 @@ draw() {
 		for (i = first; i <= last; i++)
 			if (visible(line[i]) > w)
 				w = visible(line[i])
+		# the dog, the first block, in the middle of the frame
+		aw = 0
+		for (j = first; j <= last && visible(line[j]); j++)
+			if (visible(line[j]) > aw)
+				aw = visible(line[j])
+		if (j <= last && (sh = int((w - aw) / 2)) > 0)
+			for (i = first; i < j; i++)
+				line[i] = sprintf("%*s", sh, "") line[i]
 		rows = ENVIRON["ROWS"] + 0
 		cols = ENVIRON["COLS"] + 0
 		h = last - first + 1 + 4
@@ -514,7 +522,7 @@ main() {
         case $(tally "$name" "$since" "$uid") in locked*) exit 0 ;; esac
     fi
 
-    # the cat wakes up for the password
+    # the dog wakes up for the password
     CAT=awake NAME=$name MSG='' MSGC=''
     caps=
     caps_on && caps=1 MSG='Caps Lock is on' MSGC=33

@@ -141,3 +141,18 @@
         --popup-button-border: var(--g0-line) !important;
     }
 }
+
+/* new tab and home: the logo of g0wm, tone on tone, in place of the one of LibreWolf
+   above the search, without the wordmark. g0wm-logo.svg is written by
+   script/g0wm-theme.py */
+@-moz-document url("about:newtab"), url("about:home") {
+    .logo-and-wordmark .logo {
+        width: 112px !important;
+        height: 112px !important;
+        background: url("g0wm-logo.svg") no-repeat center / contain !important;
+    }
+
+    .logo-and-wordmark .wordmark {
+        display: none !important;
+    }
+}

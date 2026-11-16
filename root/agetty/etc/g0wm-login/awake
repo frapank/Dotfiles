@@ -1,4 +1,18 @@
-       \e{lightgray}|\\      _,,,---,,_\e{reset}
- \e{brown}mrrp?\e{reset} \e{lightgray}/\e{brown}o\e{lightgray}`.-'`'    -.  ;-;;,_
-      |\e{brown}o\e{lightgray}4-  ) )-,_. ,\\ (  `'-'
-     '---''(_/--'  `-'\\_)\e{reset}
+              \e{brown}▄▄▄▄█████▄▄▄▄           \e{reset}
+          \e{brown}▄▄█▀▀\e{lightgray}▄▄▄ ▄▄\e{brown}▀███████▄▄       \e{reset}
+        \e{brown}▄██▀\e{lightgray}▄████ ████▄\e{brown}█████████▄     \e{reset}
+      \e{brown}▄███▀▄ \e{lightgray}▀███ █████▄\e{brown}███████▀      \e{reset}
+     \e{brown}▄███ ██▀\e{lightgray}█▀▀▀▄██▄▄██▄\e{brown}▀▀██▀        \e{reset}
+    \e{brown}▄███ ███ \e{lightgray}██████████████           \e{reset}
+    \e{brown}██▀▄████▄\e{lightgray}▀█████████████           \e{reset}
+    \e{brown}▀▄██▀ ███▄\e{lightgray}▀██\e[43m▀\e[49m\e{brown}█▀▀▀▀▀▀             \e{reset}
+    \e{brown}█████ ▀████▄███ ▄█▀▀█████████     \e{reset}
+    \e{brown}█████▄  ███████ ███  ████████     \e{reset}
+    \e{brown}████████ ▀▀████ ▀█▄██▄▄▄█████     \e{reset}
+     \e{brown}████████▄ ███        ███████     \e{reset}
+      \e{brown}███████████         ███████     \e{reset}
+       \e{brown}▀█████████▄▄▄▄▄▄▄▄████████     \e{reset}
+         \e{brown}▀█████████████████████▀      \e{reset}
+            \e{brown}▀▀██████████████▀▀        \e{reset}
+                 \e{brown}▀▀▀▀▀▀▀              \e{reset}
+                \e{brown}woof?\e{reset}                 

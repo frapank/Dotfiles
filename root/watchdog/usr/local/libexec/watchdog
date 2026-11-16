@@ -16,20 +16,20 @@ notify() {
     u=$1 g=$2 app=$3 text=$4
     shift 4
     if [ $# -eq 0 ]; then
-        as_user notify-send -u "$u" -a "$g $app" -h "string:desktop-entry:$app" "$text"
-    elif [ "$(as_user notify-send -u "$u" -a "$g $app" -h "string:desktop-entry:$app" \
+        as_user notify-send -i g0wm-tone -u "$u" -a "$g $app" -h "string:desktop-entry:$app" "$text"
+    elif [ "$(as_user notify-send -i g0wm-tone -u "$u" -a "$g $app" -h "string:desktop-entry:$app" \
         -A default=Open "$text")" = default ]; then
         open_logs "$@"
     fi
 }
 
 notify_level() {
-    as_user notify-send -u "$3" -a "$4 $5" -h "string:desktop-entry:$5" \
+    as_user notify-send -i g0wm-tone -u "$3" -a "$4 $5" -h "string:desktop-entry:$5" \
         -h "string:x-dunst-stack-tag:$1" -h "int:value:$2" "$6"
 }
 
 svfail() {
-    case $(as_user notify-send -u critical -a " ${1%.service}" -h "string:desktop-entry:${1%.service}" \
+    case $(as_user notify-send -i g0wm-tone -u critical -a " ${1%.service}" -h "string:desktop-entry:${1%.service}" \
         -A default=Log -A restart=Restart "failed and stopped") in
     default) open_logs service "${1%.service}" ;;
     restart) systemctl restart -- "$1" ;;

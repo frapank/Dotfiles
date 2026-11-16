@@ -315,7 +315,7 @@ verify() {
         # agetty on tty1 runs it as root: a broken one leaves tty1 without a login
         expect "g0wm-login does not draw: tty1 has no login, use tty2" login_draws --preview
         expect "g0wm-login --starting does not draw: a blank screen until g0wm" login_draws --starting
-        for c in awake grumpy; do expect "g0wm-login does not draw the $c cat" login_draws --preview "$c"; done
+        for c in awake grumpy; do expect "g0wm-login does not draw the $c dog" login_draws --preview "$c"; done
         expect "login.defs: LOGIN_RETRIES is not 1, a wrong password breaks the tty1 screen" \
             grep -qE '^LOGIN_RETRIES[[:space:]]+1$' /etc/login.defs
         expect "common-auth has no pam_faillock: no lock out, no \"Login incorrect\" on tty1" faillock_on /etc/pam.d/common-auth
