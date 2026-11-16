@@ -875,8 +875,10 @@ def g0wm_colors():
 
 def status_colors():
     # the icons that warn: recording, DNS down, a failed maint job and a low battery
-    # in red, mic and camera in use in amber
-    colors = {"rec": RED, "dns": RED, "maint": RED, "mic": ACCENT, "cam": ACCENT, "battery_low": RED}
+    # in red; mic and camera in use, a running timer, a reboot to do and a USB device
+    # left blocked in amber
+    colors = {"rec": RED, "dns": RED, "maint": RED, "mic": ACCENT, "cam": ACCENT, "timer": ACCENT, "reboot": ACCENT, "usbwait": ACCENT,
+              "battery_low": RED}
     text = read(STATUS)
     for k, v in colors.items():
         text = sub(STATUS, text, rf'^(color_{k} = )".*"$', lambda m, v=v: f'{m[1]}"{v}"')

@@ -56,9 +56,9 @@ EOF
 }
 
 defaults() {
-    all_modules='date time battery volume cpu ram netdown netup rec mic cam dns maint nightlight awake'
+    all_modules='date time battery volume cpu ram netdown netup rec mic cam dns maint timer reboot btbattery usbwait nightlight awake'
     modules='date time battery'
-    module_defaults='date:60 time:1 battery:30 volume:2 cpu:2 ram:2 net:2 rec:0.5 mic:1 cam:1 dns:5 maint:60 nightlight:0.5 awake:0.5'
+    module_defaults='date:60 time:1 battery:30 volume:2 cpu:2 ram:2 net:2 rec:0.5 mic:1 cam:1 dns:5 maint:60 timer:1 reboot:300 btbattery:60 usbwait:5 nightlight:0.5 awake:0.5'
     # g0wm's numbers for the buttons of a ^sN!command^ area, 4 and 5 the wheel
     area_buttons='1:click_left 2:click_right 3:click_middle 4:scroll_up 5:scroll_down'
     interval=
@@ -82,6 +82,10 @@ defaults() {
     cam_format='%i'
     dns_format='%i'
     maint_format='%i'
+    timer_format='%i %v'
+    reboot_format='%i'
+    btbattery_format='%i %v%'
+    usbwait_format='%i'
     nightlight_format='%i'
     awake_format='%i'
     net_interface=
@@ -91,6 +95,7 @@ defaults() {
     icon_battery_charging=
     icon_volume=
     icon_volume_muted=
+    icon_volume_phones=
     icon_cpu=
     icon_ram=
     icon_netdown=
@@ -101,11 +106,15 @@ defaults() {
     icon_cam=
     icon_dns=
     icon_maint=
+    icon_timer=
+    icon_reboot=
+    icon_btbattery=
+    icon_usbwait=
     icon_nightlight=
     icon_awake=
     all_colors='color_date color_time color_battery color_volume color_cpu color_ram
 color_netdown color_netup color_battery_low color_battery_charging
-color_rec color_mic color_cam color_dns color_maint color_nightlight color_awake'
+color_rec color_mic color_cam color_dns color_maint color_timer color_reboot color_btbattery color_usbwait color_nightlight color_awake'
     color_date=
     color_time=
     color_battery=
@@ -119,6 +128,10 @@ color_rec color_mic color_cam color_dns color_maint color_nightlight color_awake
     color_cam=
     color_dns=
     color_maint=
+    color_timer=
+    color_reboot=
+    color_btbattery=
+    color_usbwait=
     color_nightlight=
     color_awake=
     battery_low=20
@@ -170,7 +183,7 @@ read_config() { # reads $conf if present, then finalizes the timing settings
             case $key in
             modules | interval | battery_interval | prefix | separator | suffix | \
                 date_interval | time_interval | cpu_interval | ram_interval | net_interval | \
-                rec_interval | mic_interval | cam_interval | dns_interval | maint_interval | \
+                rec_interval | mic_interval | cam_interval | dns_interval | maint_interval | timer_interval | reboot_interval | btbattery_interval | usbwait_interval | \
                 nightlight_interval | awake_interval | \
                 date_format | time_format | battery_format | cpu_format | ram_format | \
                 netdown_format | netup_format | net_interface | icon_date | icon_time | \
@@ -178,10 +191,10 @@ read_config() { # reads $conf if present, then finalizes the timing settings
                 color_date | color_time | color_battery | color_cpu | color_ram | \
                 color_netdown | color_netup | battery_low | color_battery_low | \
                 color_battery_charging | \
-                rec_format | mic_format | cam_format | dns_format | maint_format | nightlight_format | awake_format | \
-                icon_rec | icon_mic | icon_cam | icon_dns | icon_maint | icon_nightlight | icon_awake | \
-                color_rec | color_mic | color_cam | color_dns | color_maint | color_nightlight | color_awake | \
-                volume_interval | volume_format | icon_volume | icon_volume_muted | color_volume | \
+                rec_format | mic_format | cam_format | dns_format | maint_format | timer_format | reboot_format | btbattery_format | usbwait_format | nightlight_format | awake_format | \
+                icon_rec | icon_mic | icon_cam | icon_dns | icon_maint | icon_timer | icon_reboot | icon_btbattery | icon_usbwait | icon_nightlight | icon_awake | \
+                color_rec | color_mic | color_cam | color_dns | color_maint | color_timer | color_reboot | color_btbattery | color_usbwait | color_nightlight | color_awake | \
+                volume_interval | volume_format | icon_volume | icon_volume_muted | icon_volume_phones | color_volume | \
                 icon_mic_muted)
                 # the name is one of the above, and the value is never re-parsed
                 eval "$key=\$val"
@@ -424,7 +437,21 @@ filter_modules() { # -> modules trimmed to what is available, and want_*
                     continue
                 }
             ;;
-        maint) ;;
+        maint | timer | usbwait) ;;
+        btbattery)
+            command -v bluetoothctl >/dev/null ||
+                {
+                    warn 'no bluetoothctl on this system, btbattery disabled'
+                    continue
+                }
+            ;;
+        reboot)
+            [ -d /usr/lib/modules ] ||
+                {
+                    warn 'no /usr/lib/modules on this system, reboot disabled'
+                    continue
+                }
+            ;;
         dns)
             [ -n "$dns_sock" ] ||
                 {
@@ -572,8 +599,27 @@ level_icon() { # icons percent [round] -> bi, picked out of the icons by level
 }
 
 vol_pct= vol_muted=0
+# the default sink is a pair of headphones: the active port of the jack, or the
+# form factor of a bluetooth one -> vol_phones 1. Asked every 10 s, the volume
+# itself every interval
+vp_at= vol_phones=0
+read_phones() {
+    vp_at=$now vol_phones=0
+    command -v pactl >/dev/null || return 0
+    vp_sink=$(pactl get-default-sink 2>/dev/null) || return 0
+    pactl list sinks 2>/dev/null | awk -v s="$vp_sink" '
+		/^Sink #/ { mine = 0 }
+		$1 == "Name:" { mine = $2 == s }
+		mine && /Active Port:/ && tolower($0) ~ /head(phone|set)/ { f = 1 }
+		mine && /device\.form_factor = "(headphone|headset)"/ { f = 1 }
+		END { exit !f }' && vol_phones=1
+}
+
 read_volume() { # "Volume: 0.53 [MUTED]" -> vol_pct 53, vol_muted 1
     vol_pct= vol_muted=0
+    if [ -n "$icon_volume_phones" ] && { [ -z "$vp_at" ] || [ $((now - vp_at)) -ge 10000 ]; }; then
+        read_phones
+    fi
     rv=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null) || return 0
     case $rv in
     'Volume: '*) ;;
@@ -733,6 +779,75 @@ mic_muted() { # one wpctl a tick, and only while something records
     return 1
 }
 
+# the background timer that rings first (timer -b runs "timer --until EPOCH ..."):
+# looked for every 15 s and when the one known ends, counted down from the
+# uptime in between -> ti_left, as 1:02:03 or 4:32
+ti_scan= ti_end=
+rc_pid= rc_start=0
+timer_left() {
+    if [ -z "$ti_scan" ] || [ $((now - ti_scan)) -ge 15000 ] ||
+        { [ -n "$ti_end" ] && [ "$now" -ge "$ti_end" ]; }; then
+        ti_scan=$now ti_end= ti_min=
+        ti_ep=$(date +%s)
+        for ti_e in $(pgrep -u "$(id -u)" -af -- '/timer --until [0-9]' 2>/dev/null |
+            awk '{ for (i = 1; i < NF; i++) if ($i == "--until") print $(i + 1) }'); do
+            case $ti_e in '' | *[!0-9]*) continue ;; esac
+            if [ -z "$ti_min" ] || [ "$ti_e" -lt "$ti_min" ]; then ti_min=$ti_e; fi
+        done
+        [ -n "$ti_min" ] && ti_end=$((now + (ti_min - ti_ep) * 1000))
+    fi
+    ti_left=
+    [ -n "$ti_end" ] || return 0
+    ti_s=$(((ti_end - now + 999) / 1000))
+    [ "$ti_s" -gt 0 ] || return 0
+    if [ "$ti_s" -ge 3600 ]; then
+        ti_left=$(printf '%d:%02d:%02d' $((ti_s / 3600)) $((ti_s % 3600 / 60)) $((ti_s % 60)))
+    else
+        ti_left=$(printf '%d:%02d' $((ti_s / 60)) $((ti_s % 60)))
+    fi
+}
+
+# the newest kernel installed (a modules.dep in /usr/lib/modules, /boot is root's
+# only), when it is not the one running -> rb_new
+rb_run=
+reboot_kernel() {
+    rb_new=
+    [ -n "$rb_run" ] || rb_run=$(uname -r)
+    rb_top=$(for rb_d in /usr/lib/modules/*/; do
+        [ -e "${rb_d}modules.dep" ] || continue
+        rb_d=${rb_d%/}
+        printf '%s\n' "${rb_d##*/}"
+    done | sort -V | tail -n 1)
+    if [ -n "$rb_top" ] && [ "$rb_top" != "$rb_run" ]; then rb_new=$rb_top; fi
+}
+
+# the lowest battery of the bluetooth audio devices connected (headphones,
+# headsets: their Icon is audio-*) that tell it -> bt_pct. timeout: bluetoothctl
+# waits for bluetoothd forever when it is not running
+read_btbattery() {
+    bt_pct=
+    for bt_m in $(timeout 2 bluetoothctl devices Connected 2>/dev/null | awk '$1 == "Device" { print $2 }'); do
+        bt_v=$(timeout 2 bluetoothctl info "$bt_m" 2>/dev/null | awk '
+			$1 == "Icon:" && $2 ~ /^audio-/ { audio = 1 }
+			/Battery Percentage:/ { gsub(/.*\(|\).*/, ""); pct = $0 }
+			END { if (audio) print pct }')
+        case $bt_v in '' | *[!0-9]*) continue ;; esac
+        if [ -z "$bt_pct" ] || [ "$bt_v" -lt "$bt_pct" ]; then bt_pct=$bt_v; fi
+    done
+}
+
+# the USB devices usb left blocked with no answer (/run/usb-pending, "ID PORT
+# NAME"), less the ones dismissed with a right click -> uw_n
+read_usbwait() {
+    uw_n=0
+    [ -r /run/usb-pending ] || return 0
+    while read -r uw_id _; do
+        [ -n "$uw_id" ] || continue
+        [ -r "$run_dir/usb-dismissed" ] && grep -qx "$uw_id" "$run_dir/usb-dismissed" && continue
+        uw_n=$((uw_n + 1))
+    done </run/usb-pending
+}
+
 dns_up() {
     while read -r du_n du_l du_r du_s du_rest; do
         [ "$du_l" = "$dns_sock" ] && [ "$du_s" = 07 ] && return 0
@@ -842,6 +957,8 @@ render() {
         [ -n "$vol_pct" ] || return 0
         if [ "$vol_muted" = 1 ]; then
             bi=$icon_volume_muted
+        elif [ "$vol_phones" = 1 ] && [ -n "$icon_volume_phones" ]; then
+            bi=$icon_volume_phones
         else
             level_icon "$icon_volume" "$vol_pct"
         fi
@@ -857,8 +974,23 @@ render() {
         ;;
     netdown) fmt "$netdown_format" "$net_down" "$icon_netdown" ;;
     netup) fmt "$netup_format" "$net_up" "$icon_netup" ;;
-    rec) runs "$run_dir/record.pid" wf-recorder &&
-        fmt "$rec_format" '' "$icon_rec" ;;
+    rec)
+        runs "$run_dir/record.pid" wf-recorder || return 0
+        # %v how long: the pid file is written when the recording starts, read
+        # once per recording, then counted from the uptime
+        if [ "$rc_pid" != "$rs_p" ]; then
+            rc_pid=$rs_p
+            rc_age=$(($(date +%s) - $(stat -c %Y "$run_dir/record.pid" 2>/dev/null || date +%s)))
+            rc_start=$((now - rc_age * 1000))
+        fi
+        rc_s=$(((now - rc_start) / 1000))
+        if [ "$rc_s" -ge 3600 ]; then
+            rc_t=$(printf '%d:%02d:%02d' $((rc_s / 3600)) $((rc_s % 3600 / 60)) $((rc_s % 60)))
+        else
+            rc_t=$(printf '%d:%02d' $((rc_s / 60)) $((rc_s % 60)))
+        fi
+        fmt "$rec_format" "$rc_t" "$icon_rec"
+        ;;
     mic)
         mic_on || return 0
         bi=$icon_mic
@@ -867,6 +999,27 @@ render() {
         ;;
     cam) [ -e /run/watchdog/cam ] && fmt "$cam_format" '' "$icon_cam" ;;
     dns) dns_up || fmt "$dns_format" '' "$icon_dns" ;;
+    usbwait)
+        read_usbwait
+        [ "$uw_n" -gt 0 ] && fmt "$usbwait_format" "$uw_n" "$icon_usbwait"
+        ;;
+    btbattery)
+        read_btbattery
+        [ -n "$bt_pct" ] || return 0
+        fmt "$btbattery_format" "$bt_pct" "$icon_btbattery"
+        # red below the threshold of the battery, as the battery module
+        [ -n "${bt_col_set:-}" ] || bt_col=$color_btbattery bt_col_set=1
+        color_btbattery=$bt_col
+        [ -n "$color_battery_low" ] && [ "$bt_pct" -le "$battery_low" ] && color_btbattery=$color_battery_low
+        ;;
+    reboot)
+        reboot_kernel
+        [ -n "$rb_new" ] && fmt "$reboot_format" "$rb_new" "$icon_reboot"
+        ;;
+    timer)
+        timer_left
+        [ -n "$ti_left" ] && fmt "$timer_format" "$ti_left" "$icon_timer"
+        ;;
     maint)
         # the jobs that failed at their last run, from what maint leaves readable:
         # nothing while they all went fine
@@ -935,7 +1088,7 @@ main() {
     while :; do
         if [ "$kick" = 1 ]; then
             kick=0
-            for g in volume mic rec nightlight awake; do
+            for g in volume mic rec timer usbwait nightlight awake; do
                 case " $groups " in *" $g "*) eval "due_$g=\$now" ;; esac
             done
         fi

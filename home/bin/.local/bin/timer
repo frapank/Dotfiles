@@ -16,6 +16,9 @@ The end is wall-clock time, so a timer survives a suspend and fires on resume.
 EOF
 }
 
+# the bar shows the background timers: tell it now, not at its next look
+bar() { pkill -USR1 -u "$(id -u)" -x g0wm-status.sh 2>/dev/null || :; }
+
 die() {
     echo "timer: $*" >&2
     exit 1
@@ -81,6 +84,7 @@ case ${1:-} in
     ;;
 -k)
     pkill -u "$(id -u)" -f -- '/timer --until [0-9]' || die "no background timers"
+    bar
     exit 0
     ;;
 --until)
@@ -128,6 +132,7 @@ esac
 if [ "$bg" = 1 ]; then
     setsid -f "$0" --until "$end" "$label" "${2:-}" </dev/null >/dev/null 2>&1
     echo "Timer $label, rings at $(date -d "@$end" +%H:%M:%S)."
+    bar
     exit 0
 fi
 

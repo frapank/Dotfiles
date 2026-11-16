@@ -4,6 +4,9 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
 
 SYS=/sys/bus/usb/devices
 ST=/run/usb
+# the devices left blocked with no answer, for the bar: "ID PORT NAME" a line,
+# readable by everyone (the names are clean())
+PUB=/run/usb-pending
 # the rule id usbguard reports when no rule matched a device
 IMPLICIT=4294967294
 ASK_SECS=120
@@ -247,6 +250,11 @@ forget() {
     done
 }
 
+pending_add() {
+    (printf '%s %s %s\n' "$1" "$2" "$3" >>"$PUB" && chmod 0644 "$PUB") 2>/dev/null
+}
+pending_del() { [ ! -e "$PUB" ] || sed -i "/^$1 /d" "$PUB" 2>/dev/null; }
+
 notify() { as_user notify-send -i g0wm-usb -a "$G_USB USB" "$@" >/dev/null 2>&1; }
 
 ask() {
@@ -298,7 +306,11 @@ plugged in before, never allowed" ;;
         fi
         ;;
     block) ;;
-    *) ! blocked "$id" "$h" || notify -u low -- "$name" "left blocked: 'usb allow $port' allows it" ;;
+    *)
+        blocked "$id" "$h" || return 0
+        notify -u low -- "$name" "left blocked: 'usb allow $port' allows it"
+        pending_add "$id" "$port" "$name"
+        ;;
     esac
 }
 
@@ -334,7 +346,7 @@ events() {
         case $line in
         '[IPC] Connected')
             # ids start again with a new daemon
-            rm -f "$ST"/*
+            rm -f "$ST"/* "$PUB"
             scan &
             ;;
         '[device] '*': id='*)
@@ -350,11 +362,14 @@ events() {
             Insert) : >"$ST/new.$id" ;;
             Remove)
                 rm -f "$ST/new.$id"
+                pending_del "$id"
                 gone "$id" "$rule" &
                 ;;
             esac
             ;;
         ' rule_id='*)
+            # allowed later, with usb allow: no longer waiting
+            [ "$sig" != PolicyChanged ] || [ "$tn" != allow ] || pending_del "$id"
             # only on insertion
             [ "$sig" = PolicyApplied ] && [ -e "$ST/new.$id" ] || continue
             rm -f "$ST/new.$id"
@@ -370,7 +385,7 @@ events() {
 
 watch() {
     [ "$(id -u)" = 0 ] || die "watch runs as root, from the usbguard-notify service"
-    rm -rf "$ST"
+    rm -rf "$ST" "$PUB"
     mkdir -m 0700 "$ST" || die "cannot create $ST"
     trap 'trap - TERM; kill 0' TERM
     while :; do
