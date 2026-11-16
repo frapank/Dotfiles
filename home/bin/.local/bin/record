@@ -93,7 +93,8 @@ if [ -n "$sound" ] && sink=$(pactl get-default-sink 2>/dev/null); then
     case $src in
     '' | *.monitor) ;;
     *)
-        if pactl get-source-mute "$src" 2>/dev/null | grep -q 'no$'; then
+        if pactl get-source-mute "$src" 2>/dev/null | grep -q 'no$' &&
+            ! [ "$(timeout 1 pw-record --target "$src" --raw - 2>/dev/null | head -c 4096 | wc -c)" -lt 4096 ]; then
             trap unload EXIT
             {
                 pactl load-module module-null-sink sink_name=record \
