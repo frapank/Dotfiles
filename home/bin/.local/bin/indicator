@@ -1,16 +1,19 @@
 #!/bin/sh
 set -u
 
-# what the mic, cam and dns icons of the bar do when clicked
+# what the mic, cam, dns and maint icons of the bar do when clicked
 usage() {
     cat <<USAGE
-usage: indicator mic | cam [close] | dns [restart|logs]
+usage: indicator mic | cam [close] | dns [restart|logs] | maint [retry|logs]
   mic          who is recording from the microphone
   cam          who has the webcam open
   cam close    close them, after a notification asks
   dns          the last thing the DNS resolver logged
   dns restart  restart it, in a terminal for doas
   dns logs     what it logged since boot, in a terminal
+  maint        which jobs of maint failed
+  maint retry  run them again, in a terminal for doas
+  maint logs   what maint logged, in a terminal
 USAGE
 }
 
@@ -75,6 +78,26 @@ dns() {
     show " DNS" "Not answering" "last message at $t: $m"
 }
 
+# the jobs that failed at their last run, from what maint leaves readable
+maint_failed() { sed -n 's/^failed=//p' /var/lib/maint-status 2>/dev/null; }
+
+maint() {
+    f=$(maint_failed)
+    if [ -n "$f" ]; then
+        show "󰖷 Maintenance" "Failed: $f" "Middle click runs them again, right click shows the log" 8000
+    else
+        show "󰖷 Maintenance" "Every job went fine"
+    fi
+}
+
+maint_retry() {
+    f=$(maint_failed)
+    # names written by maint, checked anyway since they go to doas
+    case $f in '' | *[!a-z\ ]*) exit 0 ;; esac
+    # shellcheck disable=SC2016,SC2086
+    exec foot -H doas sh -c 'for j; do /usr/local/sbin/maint "$j"; done' sh $f
+}
+
 case ${1:-}/${2:-} in
 mic/) mic ;;
 cam/) cam ;;
@@ -82,6 +105,9 @@ cam/close) cam_close ;;
 dns/) dns ;;
 dns/restart) exec foot -H doas systemctl restart dnscrypt-proxy.service ;;
 dns/logs) exec foot logs -p service dnscrypt-proxy boot ;;
+maint/) maint ;;
+maint/retry) maint_retry ;;
+maint/logs) exec foot logs -p service maint ;;
 -h/ | --help/) usage ;;
 *)
     usage >&2

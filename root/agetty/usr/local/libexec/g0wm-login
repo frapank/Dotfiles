@@ -124,6 +124,16 @@ outcome() {
     esac
 }
 
+# the jobs of maint that failed while away, from what maint leaves readable: under
+# the prompts in red, when nothing else is to be said there
+worried() {
+    [ -z "$MSG" ] || return 0
+    f=$(sed -n 's/^failed=//p' /var/lib/maint-status 2>/dev/null)
+    # job names, nothing that could reach the tty as an escape
+    case $f in '' | *[!a-z\ ]*) return 0 ;; esac
+    MSG="maint: $f failed · logs service maint" MSGC=31
+}
+
 remember() {
     (printf '%s %s\n' "$1" "$2" >"$STATE/last") 2>/dev/null
 }
@@ -473,6 +483,7 @@ main() {
     if [ "$PREVIEW" ]; then
         CAT=${G0WM_LOGIN_CAT:-sleep}
         [ -z "${G0WM_LOGIN_FAILED:-}" ] || grumpy 'Login incorrect'
+        worried
         draw || return 1
         printf '\n'
         exit 0
@@ -488,6 +499,7 @@ main() {
         setleds -D +num 2>/dev/null
     fi
     outcome
+    worried
     redraw || return 1
     CASCADE=''
     trap untick EXIT

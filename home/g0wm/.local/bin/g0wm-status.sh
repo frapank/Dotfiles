@@ -56,9 +56,9 @@ EOF
 }
 
 defaults() {
-    all_modules='date time battery volume cpu ram netdown netup rec mic cam dns nightlight awake'
+    all_modules='date time battery volume cpu ram netdown netup rec mic cam dns maint nightlight awake'
     modules='date time battery'
-    module_defaults='date:60 time:1 battery:30 volume:2 cpu:2 ram:2 net:2 rec:0.5 mic:1 cam:1 dns:5 nightlight:0.5 awake:0.5'
+    module_defaults='date:60 time:1 battery:30 volume:2 cpu:2 ram:2 net:2 rec:0.5 mic:1 cam:1 dns:5 maint:60 nightlight:0.5 awake:0.5'
     # g0wm's numbers for the buttons of a ^sN!command^ area, 4 and 5 the wheel
     area_buttons='1:click_left 2:click_right 3:click_middle 4:scroll_up 5:scroll_down'
     interval=
@@ -81,6 +81,7 @@ defaults() {
     mic_format='%i'
     cam_format='%i'
     dns_format='%i'
+    maint_format='%i'
     nightlight_format='%i'
     awake_format='%i'
     net_interface=
@@ -99,11 +100,12 @@ defaults() {
     icon_mic_muted=
     icon_cam=
     icon_dns=
+    icon_maint=
     icon_nightlight=
     icon_awake=
     all_colors='color_date color_time color_battery color_volume color_cpu color_ram
 color_netdown color_netup color_battery_low color_battery_charging
-color_rec color_mic color_cam color_dns color_nightlight color_awake'
+color_rec color_mic color_cam color_dns color_maint color_nightlight color_awake'
     color_date=
     color_time=
     color_battery=
@@ -116,6 +118,7 @@ color_rec color_mic color_cam color_dns color_nightlight color_awake'
     color_mic=
     color_cam=
     color_dns=
+    color_maint=
     color_nightlight=
     color_awake=
     battery_low=20
@@ -167,7 +170,7 @@ read_config() { # reads $conf if present, then finalizes the timing settings
             case $key in
             modules | interval | battery_interval | prefix | separator | suffix | \
                 date_interval | time_interval | cpu_interval | ram_interval | net_interval | \
-                rec_interval | mic_interval | cam_interval | dns_interval | \
+                rec_interval | mic_interval | cam_interval | dns_interval | maint_interval | \
                 nightlight_interval | awake_interval | \
                 date_format | time_format | battery_format | cpu_format | ram_format | \
                 netdown_format | netup_format | net_interface | icon_date | icon_time | \
@@ -175,9 +178,9 @@ read_config() { # reads $conf if present, then finalizes the timing settings
                 color_date | color_time | color_battery | color_cpu | color_ram | \
                 color_netdown | color_netup | battery_low | color_battery_low | \
                 color_battery_charging | \
-                rec_format | mic_format | cam_format | dns_format | nightlight_format | awake_format | \
-                icon_rec | icon_mic | icon_cam | icon_dns | icon_nightlight | icon_awake | \
-                color_rec | color_mic | color_cam | color_dns | color_nightlight | color_awake | \
+                rec_format | mic_format | cam_format | dns_format | maint_format | nightlight_format | awake_format | \
+                icon_rec | icon_mic | icon_cam | icon_dns | icon_maint | icon_nightlight | icon_awake | \
+                color_rec | color_mic | color_cam | color_dns | color_maint | color_nightlight | color_awake | \
                 volume_interval | volume_format | icon_volume | icon_volume_muted | color_volume | \
                 icon_mic_muted)
                 # the name is one of the above, and the value is never re-parsed
@@ -421,6 +424,7 @@ filter_modules() { # -> modules trimmed to what is available, and want_*
                     continue
                 }
             ;;
+        maint) ;;
         dns)
             [ -n "$dns_sock" ] ||
                 {
@@ -863,6 +867,17 @@ render() {
         ;;
     cam) [ -e /run/watchdog/cam ] && fmt "$cam_format" '' "$icon_cam" ;;
     dns) dns_up || fmt "$dns_format" '' "$icon_dns" ;;
+    maint)
+        # the jobs that failed at their last run, from what maint leaves readable:
+        # nothing while they all went fine
+        mf=
+        if [ -r /var/lib/maint-status ]; then
+            while IFS= read -r ml; do
+                case $ml in failed=?*) mf=${ml#failed=} ;; esac
+            done </var/lib/maint-status
+        fi
+        [ -n "$mf" ] && fmt "$maint_format" "$mf" "$icon_maint"
+        ;;
     nightlight) runs "$run_dir/nightlight.pid" wlsunset &&
         fmt "$nightlight_format" '' "$icon_nightlight" ;;
     awake) runs "$run_dir/awake.pid" swayidle &&
