@@ -1,6 +1,6 @@
 [Plymouth Theme]
 Name=g0wm
-Description=Minimal theme: g0wm black background, the Debian swirl above, gtklock-style password box, a spinning ring, crisp procedurally-drawn assets for high-DPI displays. With desktop-base installed, the initramfs hook of Debian puts its own logo in place of the swirl.
+Description=Minimal theme: the g0wm logo on its black, a thin amber line for the progress under it, the gtklock-style password box. The logo and the colors are written by script/g0wm-theme.py. With desktop-base installed, the initramfs hook of Debian puts its own logo in place of the g0wm one.
 ModuleName=two-step
 
 [two-step]
@@ -14,23 +14,30 @@ TitleVerticalAlignment=.64
 HorizontalAlignment=.5
 VerticalAlignment=.65
 WatermarkHorizontalAlignment=.5
-WatermarkVerticalAlignment=.36
+WatermarkVerticalAlignment=.45
 Transition=none
 TransitionDuration=0.0
 BackgroundStartColor=0x0a0a0a
 BackgroundEndColor=0x0a0a0a
-ProgressBarBackgroundColor=0x0a0a0a
-ProgressBarForegroundColor=0xffffff
+ProgressBarBackgroundColor=0x222222
+ProgressBarForegroundColor=0xe0a86a
 MessageBelowAnimation=true
+ProgressBarWidth=260
+ProgressBarHeight=4
+ProgressBarHorizontalAlignment=.5
+ProgressBarVerticalAlignment=.63
 
 [boot-up]
 UseEndAnimation=false
+UseProgressBar=true
 
 [shutdown]
 UseEndAnimation=false
+UseProgressBar=true
 
 [reboot]
 UseEndAnimation=false
+UseProgressBar=true
 
 [updates]
 SuppressMessages=true

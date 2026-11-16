@@ -1,22 +1,21 @@
 {
     "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/master/doc/json_schema.json",
 
-    // pastel, with the red of Debian on the swirl; fastfetch 2.40 (Debian 13) keys
+    // the colors and the logo are written by script/g0wm-theme.py; fastfetch 2.40 (Debian 13) keys
     "logo": {
-        "source": "debian",
-        "color": {
-            "1": "38;2;244;167;185",
-            "2": "38;2;215;10;83"
-        },
+        "type": "data-raw",
+        "source": "              \u001b[38;2;224;168;106m▄▄▄▄█████▄▄▄▄           \u001b[0m\n          \u001b[38;2;224;168;106m▄▄█▀▀\u001b[38;2;176;125;77m▄▄▄ ▄▄\u001b[38;2;224;168;106m▀███████▄▄       \u001b[0m\n        \u001b[38;2;224;168;106m▄██▀\u001b[38;2;176;125;77m▄████ ████▄\u001b[38;2;224;168;106m█████████▄     \u001b[0m\n      \u001b[38;2;224;168;106m▄███▀▄ \u001b[38;2;176;125;77m▀███ █████▄\u001b[38;2;224;168;106m███████▀      \u001b[0m\n     \u001b[38;2;224;168;106m▄███ ██▀\u001b[38;2;176;125;77m█▀▀▀▄██▄▄██▄\u001b[38;2;224;168;106m▀▀██▀        \u001b[0m\n    \u001b[38;2;224;168;106m▄███ ███ \u001b[38;2;176;125;77m██████████████           \u001b[0m\n    \u001b[38;2;224;168;106m██▀▄████▄\u001b[38;2;176;125;77m▀█████████████           \u001b[0m\n    \u001b[38;2;224;168;106m▀▄██▀ ███▄\u001b[38;2;176;125;77m▀██\u001b[48;2;224;168;106m▀\u001b[49m\u001b[38;2;224;168;106m█▀▀▀▀▀▀             \u001b[0m\n    \u001b[38;2;224;168;106m█████ ▀████▄███ ▄█▀▀█████████     \u001b[0m\n    \u001b[38;2;224;168;106m█████▄  ███████ ███  ████████     \u001b[0m\n    \u001b[38;2;224;168;106m████████ ▀▀████ ▀█▄██▄▄▄█████     \u001b[0m\n     \u001b[38;2;224;168;106m████████▄ ███        ███████     \u001b[0m\n      \u001b[38;2;224;168;106m███████████         ███████     \u001b[0m\n       \u001b[38;2;224;168;106m▀█████████▄▄▄▄▄▄▄▄████████     \u001b[0m\n         \u001b[38;2;224;168;106m▀█████████████████████▀      \u001b[0m\n            \u001b[38;2;224;168;106m▀▀██████████████▀▀        \u001b[0m\n                 \u001b[38;2;224;168;106m▀▀▀▀▀▀▀              \u001b[0m",
+        "width": 38,
+        "height": 17,
         "padding": { "top": 2, "left": 2, "right": 4 }
     },
 
     "display": {
         "separator": "  ",
         "color": {
-            "title": "38;2;215;10;83",
-            "keys": "38;2;244;167;185",
-            "separator": "38;2;120;116;130",
+            "title": "38;2;224;168;106",
+            "keys": "38;2;224;168;106",
+            "separator": "38;2;125;125;125",
             "output": "38;2;233;233;233"
         },
         "key": { "width": 14 },
@@ -24,39 +23,39 @@
             "width": 12,
             "charElapsed": "━",
             // 2.40 always paints the rest of the bar white: the char brings its own color
-            "charTotal": "\u001b[38;2;120;116;130m━",
+            "charTotal": "\u001b[38;2;51;51;51m━",
             "borderLeft": "",
             "borderRight": ""
         },
         "percent": {
-            "type": ["num", "bar"],
-            "color": { "green": "38;2;181;224;190", "yellow": "38;2;246;227;161", "red": "38;2;215;10;83" }
+            "type": ["num", "bar", "bar-monochrome"],
+            "color": { "green": "38;2;147;194;160", "yellow": "38;2;224;168;106", "red": "38;2;216;98;94" }
         }
     },
 
     "modules": [
-        { "type": "title", "format": "  {user-name-colored}\u001b[38;2;120;116;130m@\u001b[38;2;244;167;185m{host-name}" },
-        { "type": "custom", "format": "\u001b[38;2;244;167;185m╭─ system" },
-        { "type": "os",       "key": "│  os", "keyColor": "38;2;244;167;185" },
-        { "type": "kernel",   "key": "│ 󰒓 kernel", "keyColor": "38;2;244;167;185" },
-        { "type": "uptime",   "key": "│ 󰅐 uptime", "keyColor": "38;2;244;167;185" },
-        { "type": "packages", "key": "│ 󰏖 packages", "keyColor": "38;2;244;167;185" },
-        { "type": "shell",    "key": "│ 󰆍 shell", "keyColor": "38;2;244;167;185" },
-        { "type": "custom", "format": "\u001b[38;2;200;182;230m├─ desktop" },
-        { "type": "wm",       "key": "│ 󰖯 wm", "keyColor": "38;2;200;182;230" },
-        { "type": "display",  "key": "│ 󰍹 display", "keyColor": "38;2;200;182;230", "format": "{width}x{height} @ {refresh-rate} Hz" },
-        { "type": "theme",    "key": "│ 󰉼 theme", "keyColor": "38;2;200;182;230" },
-        { "type": "font",     "key": "│ 󰉷 font", "keyColor": "38;2;200;182;230" },
-        { "type": "terminal", "key": "│ 󰞷 terminal", "keyColor": "38;2;200;182;230" },
-        { "type": "custom", "format": "\u001b[38;2;167;199;231m├─ hardware" },
-        { "type": "cpu",      "key": "│ 󰻠 cpu", "keyColor": "38;2;167;199;231", "showPeCoreCount": false },
-        { "type": "gpu",      "key": "│ 󰢮 gpu", "keyColor": "38;2;167;199;231", "format": "{name}" },
-        { "type": "memory",   "key": "│ 󰍛 memory", "keyColor": "38;2;167;199;231" },
-        { "type": "disk",     "key": "│ 󰋊 disk", "keyColor": "38;2;167;199;231", "folders": "/" },
-        { "type": "localip",  "key": "│ 󰩟 ip", "keyColor": "38;2;167;199;231", "showIpv4": true },
-        { "type": "battery",  "key": "│ 󰁹 battery", "keyColor": "38;2;167;199;231" },
-        { "type": "custom", "format": "\u001b[38;2;167;199;231m╰───" },
+        { "type": "title", "format": "  {user-name-colored}\u001b[38;2;125;125;125m@\u001b[38;2;224;168;106m{host-name}" },
+        { "type": "custom", "format": "\u001b[38;2;224;168;106m╭─ system" },
+        { "type": "os",       "key": "│  os", "keyColor": "38;2;224;168;106" },
+        { "type": "kernel",   "key": "│ 󰒓 kernel", "keyColor": "38;2;224;168;106" },
+        { "type": "uptime",   "key": "│ 󰅐 uptime", "keyColor": "38;2;224;168;106" },
+        { "type": "packages", "key": "│ 󰏖 packages", "keyColor": "38;2;224;168;106" },
+        { "type": "shell",    "key": "│ 󰆍 shell", "keyColor": "38;2;224;168;106" },
+        { "type": "custom", "format": "\u001b[38;2;203;166;206m├─ desktop" },
+        { "type": "wm",       "key": "│ 󰖯 wm", "keyColor": "38;2;203;166;206" },
+        { "type": "display",  "key": "│ 󰍹 display", "keyColor": "38;2;203;166;206", "format": "{width}x{height} @ {refresh-rate} Hz" },
+        { "type": "theme",    "key": "│ 󰉼 theme", "keyColor": "38;2;203;166;206" },
+        { "type": "font",     "key": "│ 󰉷 font", "keyColor": "38;2;203;166;206" },
+        { "type": "terminal", "key": "│ 󰞷 terminal", "keyColor": "38;2;203;166;206" },
+        { "type": "custom", "format": "\u001b[38;2;136;188;219m├─ hardware" },
+        { "type": "cpu",      "key": "│ 󰻠 cpu", "keyColor": "38;2;136;188;219", "showPeCoreCount": false },
+        { "type": "gpu",      "key": "│ 󰢮 gpu", "keyColor": "38;2;136;188;219", "format": "{name}" },
+        { "type": "memory",   "key": "│ 󰍛 memory", "keyColor": "38;2;136;188;219" },
+        { "type": "disk",     "key": "│ 󰋊 disk", "keyColor": "38;2;136;188;219", "folders": "/" },
+        { "type": "localip",  "key": "│ 󰩟 ip", "keyColor": "38;2;136;188;219", "showIpv4": true },
+        { "type": "battery",  "key": "│ 󰁹 battery", "keyColor": "38;2;136;188;219" },
+        { "type": "custom", "format": "\u001b[38;2;136;188;219m╰───" },
         "break",
-        { "type": "colors", "symbol": "circle", "paddingLeft": 2 }
+        { "type": "colors", "symbol": "block", "paddingLeft": 2 }
     ]
 }

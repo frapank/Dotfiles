@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate colors.css, the GTK base.css files, the Kvantum theme and the colors of
-foot, fzf, LibreWolf, Vesktop, g0wm, its status bar, gtklock, tmux, lazygit, vim
+foot, fastfetch, fzf, LibreWolf, Vesktop, g0wm, its status bar, gtklock, tmux, lazygit, vim
 and nvim from the palette.
 
 GTK: Adwaita's greys are mapped onto the palette and :backdrop is dropped.
@@ -96,6 +96,8 @@ HUE_CHROMA = 0.07
 GREEN = oklch(oklab(ACCENT)[0], HUE_CHROMA, 153)
 LINK = oklch(oklab(ACCENT)[0], HUE_CHROMA, 234)
 VISITED = oklch(oklab(ACCENT)[0], HUE_CHROMA, 324)
+# the dog of the logo: the accent a step darker, a little redder
+TAN = oklch(oklab(ACCENT)[0] - 0.14, 0.09, 64)
 
 # The terminal's 16 colors: the six hues at one lightness, the bright ones one
 # step lighter; black and white from the greys. Yellow and green take the hues of
@@ -123,6 +125,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEME = os.path.join(REPO, "home/gtk/.local/share/themes/G0wm")
 KVANTUM = os.path.join(REPO, "home/qt/.config/Kvantum/G0wm")
 FOOT = os.path.join(REPO, "home/foot/.config/foot/foot.ini")
+FASTFETCH = os.path.join(REPO, "home/fastfetch/.config/fastfetch/config.jsonc")
 BASHRC = os.path.join(REPO, "home/bash/.bashrc_dotfile")
 LIBREWOLF = os.path.join(REPO, "home/librewolf/.config/librewolf/librewolf")
 VESKTOP = os.path.join(REPO, "home/vesktop/.config/vesktop/themes/g0wm.theme.css")
@@ -751,6 +754,36 @@ def foot_colors():
     write(FOOT, text)
 
 
+def fastfetch_colors():
+    """The keys in amber, the three groups in the accent and the colors of private and
+    public windows. The logo is written by g0wm-theme-system.py."""
+    def esc(c):
+        return "38;2;" + ";".join(str(v) for v in hexrgb(c))
+    groups = {"system": ACCENT, "desktop": VISITED, "hardware": LINK}
+    text = read(FASTFETCH)
+    for k, v in (("title", ACCENT), ("keys", ACCENT), ("separator", FAINT), ("output", FG)):
+        text = sub(FASTFETCH, text, rf'^(\s+"{k}": )"[\d;]+"', lambda m, v=v: f'{m[1]}"{esc(v)}"')
+    # 2.40 paints the rest of the bar white: the char brings its own color
+    text = sub(FASTFETCH, text, r'^(\s+"charTotal": "\\u001b\[)[\d;]+(m)', lambda m: m[1] + esc(LINE) + m[2])
+    pct = f'"green": "{esc(GREEN)}", "yellow": "{esc(ACCENT)}", "red": "{esc(RED)}"'
+    text = sub(FASTFETCH, text, r'^(\s+"color": \{ )"green".*?( \}\s*)$', lambda m: m[1] + pct + m[2])
+    text = sub(FASTFETCH, text, r'(\{user-name-colored\}\\u001b\[)[\d;]+(m@\\u001b\[)[\d;]+(m)',
+               lambda m: m[1] + esc(FAINT) + m[2] + esc(ACCENT) + m[3])
+    # the header of each group, then its keys, until the next header
+    out, color = [], ACCENT
+    for line in text.split("\n"):
+        h = re.search(r'"format": "\\u001b\[([\d;]+)m[╭├╰]─+ ?(\w*)"', line)
+        if h:
+            color = groups.get(h[2], color)
+            line = line.replace(h[1], esc(color), 1)
+        line = re.sub(r'("keyColor": )"[\d;]+"', lambda m: f'{m[1]}"{esc(color)}"', line)
+        out.append(line)
+    text = "\n".join(out)
+    text = sub(FASTFETCH, text, r"^(\s*// ).*fastfetch 2\.40 \(Debian 13\) keys$",
+               lambda m: m[1] + "the colors and the logo are written by script/g0wm-theme.py; fastfetch 2.40 (Debian 13) keys")
+    write(FASTFETCH, text)
+
+
 def fzf_colors():
     c = [("fg", FG), ("bg", BG), ("hl", ACCENT), ("fg+", FG), ("bg+", SEL), ("hl+", ACCENT),
          ("border", SEP), ("header", DIM), ("gutter", BG), ("spinner", DIM), ("info", DIM),
@@ -959,6 +992,7 @@ def main():
 
     colors_css()
     foot_colors()
+    fastfetch_colors()
     fzf_colors()
     librewolf_colors()
     vesktop_colors()

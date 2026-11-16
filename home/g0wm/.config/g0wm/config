@@ -20,8 +20,8 @@ look {
     }
     rootcolor #191919ff
     fullscreen_bg #0a0a0aff
-    # empty for none
-    wallpaper @HOME@/.config/g0wm/wallpaper.svg
+    # empty for none; wallpapers/ has tone, portrait, pack, line and rules
+    wallpaper @HOME@/.config/g0wm/wallpapers/tone.svg
     # up to 31
     tags 1 2 3 4 5 6
 }
