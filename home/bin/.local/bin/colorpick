@@ -5,7 +5,7 @@ usage() {
     cat <<EOF
 Usage: colorpick [-r]
 Click a pixel on the screen: its color is copied as #rrggbb, printed with a
-swatch on a terminal, and notified.
+swatch on a terminal, and notified with a swatch.
 
   -r  copy rgb(r, g, b) instead
 EOF
@@ -44,4 +44,9 @@ if [ -t 1 ]; then
 else
     echo "$out"
 fi
-notify-send -a " colorpick" -u low "$hex" "$rgbs · copied" 2>/dev/null || :
+# the color itself as the icon of the notification: g0wm loads svg with gdk-pixbuf.
+# One file per color, so an older notification keeps its own
+swatch=${XDG_RUNTIME_DIR:-/tmp}/colorpick-${hex#\#}.svg
+printf '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect x="2" y="2" width="60" height="60" rx="12" fill="%s" stroke="#ffffff" stroke-opacity=".15" stroke-width="2"/></svg>\n' \
+    "$hex" >"$swatch" 2>/dev/null || swatch=
+notify-send ${swatch:+-i "$swatch"} -a " colorpick" -u low "$hex" "$rgbs · copied" 2>/dev/null || :

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate colors.css, the GTK base.css files, the Kvantum theme and the colors of
-foot, fastfetch, fzf, LibreWolf, Vesktop, g0wm, its status bar, gtklock, tmux, lazygit, git, vim
+foot, fastfetch, fzf, LibreWolf, Vesktop, g0wm, its status bar, gtklock, tmux, lazygit, git, ding, vim
 and nvim from the palette.
 
 GTK: Adwaita's greys are mapped onto the palette and :backdrop is dropped.
@@ -135,6 +135,7 @@ GTKLOCK = os.path.join(REPO, "home/gtklock/.config/gtklock/style.css")
 TMUX = os.path.join(REPO, "home/tmux/.config/tmux/tmux.conf")
 LAZYGIT = os.path.join(REPO, "home/lazygit/.config/lazygit/config.yml")
 GIT = os.path.join(REPO, "home/git/.config/git/config")
+DING = os.path.join(REPO, "home/bin/.local/bin/ding")
 NVIM = os.path.join(REPO, "home/nvim/.config/nvim/colors/dot.lua")
 VIM = os.path.join(REPO, "home/vim/.vim/colors/dot.vim")
 
@@ -976,6 +977,14 @@ def git_colors():
     write(GIT, text)
 
 
+def ding_colors():
+    # the icon of ding's notification: green and red as the notifications, the mark in BG
+    text = read(DING)
+    for k, v in (("ok_color", GREEN), ("fail_color", RED), ("mark_color", BG)):
+        text = sub(DING, text, rf"^({k}=)'#\w+'$", lambda m, v=v: f"{m[1]}'{v}'")
+    write(DING, text)
+
+
 def editor_colors():
     # the 16 colors of :terminal are foot's, in its order
     ansi = [ANSI[f"{kind}{n}"] for kind in ("regular", "bright") for n in range(8)]
@@ -1066,6 +1075,7 @@ def main():
     tmux_colors()
     lazygit_colors()
     git_colors()
+    ding_colors()
     editor_colors()
     system().run(sys.modules[__name__])
     if not CHECK:
