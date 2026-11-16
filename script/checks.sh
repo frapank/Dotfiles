@@ -3,6 +3,11 @@
 
 # one line per architecture (multiarch packages like libgl1-mesa-dri:i386), any installed counts
 installed() { grep -qx installed <<<"$(dpkg-query -W -f='${db:Status-Status}\n' -- "$1" 2>/dev/null)"; }
+# Include unpacked/half-configured packages too: a failed apt run can leave them.
+package_list() {
+    dpkg-query -W -f='${binary:Package}\t${db:Status-Status}\n' |
+        awk '$2 != "not-installed" && $2 != "config-files" { print $1 }' | sort -u
+}
 in_group() { [[ " $(id -nG -- "$TUSER") " == *" $1 "* ]]; }
 join() {
     local IFS=$1

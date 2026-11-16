@@ -24,7 +24,7 @@ while IFS= read -r -d '' f; do
     '#!'*bash* | '# shellcheck shell=bash'*) bash_files+=("$f") ;;
     '#!'*python3*) py_files+=("$f") ;;
     esac
-done < <(find script home root src -type f ! -name '*.png' ! -name '*.jpg' -print0 | sort -z)
+done < <(find script home root src .github/integration -type f ! -name '*.png' ! -name '*.jpg' -print0 | sort -z)
 
 echo "syntax"
 for f in "${bash_files[@]}"; do

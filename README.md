@@ -123,6 +123,15 @@ With usbguard new devices stay blocked. When you plug one in a notification arri
 - conns: shows the open connections with the program and its AppArmor profile.
 - traces: shows or deletes recent files, histories, thumbnails, trash and clipboard.
 
+## Installer tests
+
+The CI runs three integration scenarios in a disposable Debian 13 VM: first
+installation, second installation (idempotence), and rollback after an injected
+failure. They use the essential profile (locale, cli, logs, dirs, doas), with real
+APT and systemd, and also check the installed state after reboot.
+See [.github/integration/README.md](.github/integration/README.md) to run them locally
+and for the exact coverage and limits.
+
 ## AI Disclaimer
 
 This repository may contain AI-assisted code and documentation. Not every commit is AI-generated, and all AI-generated commits are reviewed and supervised by humans.

@@ -8,6 +8,13 @@ jot() {
 
 njot() { grep -vcE '^(sysctl|nft|svr|svc-stop|aaload|usbopen)' -- "$BAK/journal" || true; }
 
+pkg_checkpoint() {
+    local f
+    f=$(mktemp -p "$BAK" packages.XXXXXX)
+    package_list >"$f"
+    jot pkgs "$f"
+}
+
 rollback() {
     trap '' INT TERM HUP
     [[ -s $BAK/journal ]] || return 0
@@ -37,12 +44,13 @@ rollback() {
         grpdel) groupdel "$a" ;;
         shell) usermod -s "$b" "$a" ;;
         pkgs)
+            # Remove the whole install delta, including dependencies that apt
+            # autoremove keeps because an old package Recommends them. Never
+            # autoremove unrelated packages that were already on the machine.
+            ((keepdoas == 0)) || continue
             pk=()
-            for p in $a; do
-                [[ $p == opendoas ]] && ((keepdoas)) && continue
-                installed "$p" && pk+=("$p")
-            done
-            ((${#pk[@]} == 0)) || "${APT[@]}" purge --autoremove "${pk[@]}"
+            mapfile -t pk < <(comm -13 -- "$a" <(package_list))
+            ((${#pk[@]} == 0)) || "${APT[@]}" purge "${pk[@]}"
             ;;
         sudo)
             for p in 1 2 3; do
@@ -111,7 +119,7 @@ rollback() {
     done < <(tac -- "$BAK/journal")
     : >"$BAK/journal"
     systemctl daemon-reload >>"$LOG" 2>&1 || true
-    ((keepdoas == 0)) || printf '   %s! sudo could not be reinstalled: doas, /etc/doas.conf and wheel were kept%s\n' "$C_Y" "$C_0" >&2
+    ((keepdoas == 0)) || printf '   %s! sudo could not be reinstalled: doas, /etc/doas.conf, wheel and the newly installed packages were kept%s\n' "$C_Y" "$C_0" >&2
     printf '\n%sRolled back.%s\n   log      %s\n   backups  %s\n' "$C_B" "$C_0" "$LOG" "$BAK" >&2
     ((reset == 0)) || printf '   reboot to be sure every kernel setting is back\n' >&2
     return 0

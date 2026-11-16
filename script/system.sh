@@ -10,7 +10,7 @@ do_repos() {
     # https needs the certificates, the installer's list can bring them
     if ! installed ca-certificates; then
         run "sync repository index" "${APT[@]}" update
-        jot pkgs ca-certificates
+        pkg_checkpoint
         run "install ca-certificates, for https" "${APT[@]}" install ca-certificates
     fi
     put_tree apt
@@ -109,7 +109,7 @@ do_packages() {
         debconf-set-selections <<<'debsecan debsecan/report boolean false' >>"$LOG" 2>&1 ||
             die "debconf-set-selections failed for debsecan"
     fi
-    jot pkgs "${new[*]}"
+    pkg_checkpoint
     log "new: ${new[*]}"
     run "install ${#new[@]} packages" "${APT[@]}" install "${new[@]}"
     for p in "${new[@]}"; do
@@ -121,6 +121,15 @@ do_locale() {
     step "Locale"
     local f=/etc/locale.gen
     put_tree locale
+    # Debian's tmpfiles replaces this path with the link at every boot.
+    # Write locale.conf above, so that migration cannot discard our settings.
+    if [[ -L /etc/default/locale && $(readlink -- /etc/default/locale) == ../locale.conf ]]; then
+        skip "/etc/default/locale -> ../locale.conf"
+    else
+        backup /etc/default/locale
+        ln -sfn -- ../locale.conf /etc/default/locale
+        ok "/etc/default/locale -> ../locale.conf"
+    fi
     if grep -qE '^en_US\.UTF-8 UTF-8' "$f"; then
         skip "en_US.UTF-8 enabled"
     else
@@ -242,8 +251,15 @@ do_doas() {
 
     # dpkg refuses when another package needs it, apt would remove that too
     if installed sudo; then
+        # Purge deletes conffiles: save personal sudo rules before it does.
+        # Journal these before 'sudo', so rollback reinstalls the package first.
+        for f in /etc/sudoers /etc/sudoers.d /etc/sudoers.dpkg-*; do
+            [[ ! -e $f ]] || backup "$f"
+        done
         jot sudo
-        run "remove sudo" dpkg --purge sudo
+        # Debian refuses a locked root account even with another admin tool.
+        # doas is setuid, the target has a password and its permit was checked above.
+        run "remove sudo" env SUDO_FORCE_REMOVE=yes dpkg --purge sudo
     else
         skip "sudo not installed"
     fi
