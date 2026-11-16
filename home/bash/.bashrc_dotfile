@@ -134,6 +134,10 @@ _setup_path() {
     for _dir in "$HOME/.cargo/bin" "$HOME/.local/bin" "$HOME/go/bin" "$HOME/bin" "$HOME/.zvm/bin"; do
         [[ -d $_dir && :$PATH: != *:$_dir:* ]] && PATH="$_dir:$PATH"
     done
+    # Debian leaves sbin out of the PATH of users (login.defs); at the end, so bin wins
+    for _dir in /usr/local/sbin /usr/sbin; do
+        [[ -d $_dir && :$PATH: != *:$_dir:* ]] && PATH="$PATH:$_dir"
+    done
 }
 
 _setup_completion() {
