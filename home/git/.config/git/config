@@ -9,10 +9,37 @@
     navigate = true
     line-numbers = true
     syntax-theme = ansi
-    file-style = blue bold
+    file-style = "#88bcdb bold"
+    file-decoration-style = "#333333 ul"
     hunk-header-style = omit
-    minus-style = red
-    plus-style = green
+    minus-style = "#d8625e"
+    plus-style = "#93c2a0"
+    minus-emph-style = "bold #d8625e #231a1a"
+    plus-emph-style = "bold #93c2a0 #1a231a"
+    line-numbers-minus-style = "#d8625e"
+    line-numbers-plus-style = "#93c2a0"
+    line-numbers-zero-style = "#555555"
+    line-numbers-left-style = "#333333"
+    line-numbers-right-style = "#333333"
+    map-styles = "bold purple => #cba6ce, bold blue => #cba6ce, bold cyan => #cba6ce, bold yellow => #cba6ce"
+
+# hex colors from git 2.26
+[color "status"]
+    header = "#8a8a8a"
+    branch = "#e0a86a"
+    localBranch = "#e0a86a"
+    remoteBranch = "#88bcdb"
+    added = "#93c2a0"
+    updated = "#93c2a0"
+    changed = "#d8625e"
+    untracked = "#d8625e"
+    nobranch = "#d8625e"
+[color "decorate"]
+    HEAD = "#e0a86a bold"
+    branch = "#93c2a0"
+    remoteBranch = "#88bcdb"
+    tag = "#e0a86a"
+    stash = "#cba6ce"
 
 [diff]
     colorMoved = default

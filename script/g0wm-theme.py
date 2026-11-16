@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate colors.css, the GTK base.css files, the Kvantum theme and the colors of
-foot, fastfetch, fzf, LibreWolf, Vesktop, g0wm, its status bar, gtklock, tmux, lazygit, vim
+foot, fastfetch, fzf, LibreWolf, Vesktop, g0wm, its status bar, gtklock, tmux, lazygit, git, vim
 and nvim from the palette.
 
 GTK: Adwaita's greys are mapped onto the palette and :backdrop is dropped.
@@ -134,6 +134,7 @@ STATUS = os.path.join(REPO, "home/g0wm/.config/g0wm/status.conf")
 GTKLOCK = os.path.join(REPO, "home/gtklock/.config/gtklock/style.css")
 TMUX = os.path.join(REPO, "home/tmux/.config/tmux/tmux.conf")
 LAZYGIT = os.path.join(REPO, "home/lazygit/.config/lazygit/config.yml")
+GIT = os.path.join(REPO, "home/git/.config/git/config")
 NVIM = os.path.join(REPO, "home/nvim/.config/nvim/colors/dot.lua")
 VIM = os.path.join(REPO, "home/vim/.vim/colors/dot.vim")
 
@@ -746,7 +747,9 @@ progress.indicator.text.color={FG}
 def foot_colors():
     # color= is the one of [cursor]
     keys = {"background": BG, "foreground": FG, "color": f"{ON_ACCENT} {ACCENT}",
-            "selection-foreground": ON_ACCENT, "selection-background": ACCENT, **ANSI}
+            "selection-foreground": ON_ACCENT, "selection-background": ACCENT,
+            "urls": LINK, "jump-labels": f"{ON_ACCENT} {ACCENT}", "search-box-match": f"{ON_ACCENT} {ACCENT}",
+            "search-box-no-match": f"{ON_ACCENT} {RED}", **ANSI}
     text = read(FOOT)
     for k, v in keys.items():
         text, n = re.subn(rf"^{k}=.*$", f"{k}={v.replace('#', '')}", text, count=1, flags=re.M)
@@ -927,12 +930,46 @@ set -g clock-mode-colour "{MONO}"
 
 
 def lazygit_colors():
-    keys = {"activeBorderColor": ACCENT, "inactiveBorderColor": MUTE, "selectedLineBgColor": SEL,
-            "optionsTextColor": DIM}
+    # the diffs come from delta, in git_colors()
+    keys = {"activeBorderColor": ACCENT, "inactiveBorderColor": MUTE, "searchingActiveBorderColor": ACCENT,
+            "selectedLineBgColor": SEL, "inactiveViewSelectedLineBgColor": HOVER, "optionsTextColor": DIM,
+            "defaultFgColor": FG, "unstagedChangesColor": RED, "cherryPickedCommitFgColor": ON_ACCENT,
+            "cherryPickedCommitBgColor": VISITED, "markedBaseCommitFgColor": ON_ACCENT,
+            "markedBaseCommitBgColor": LINK}
     text = read(LAZYGIT)
     for k, v in keys.items():
         text = sub(LAZYGIT, text, rf'^(\s+{k}:\n\s+- )"#\w+"$', lambda m, v=v: f'{m[1]}"{v}"')
     write(LAZYGIT, text)
+
+
+def git_colors():
+    """The [delta] pager (git and lazygit) and the colors of git itself: green and red as
+    the terminal, the changed words on the diff tints of vim and nvim, moved lines lilac."""
+    e = EDITOR
+    blocks = {
+        "[delta]": [("navigate", "true"), ("line-numbers", "true"), ("syntax-theme", "ansi"),
+                    ("file-style", f"{LINK} bold"), ("file-decoration-style", f"{LINE} ul"),
+                    ("hunk-header-style", "omit"),
+                    ("minus-style", RED), ("plus-style", GREEN),
+                    ("minus-emph-style", f"bold {RED} {e['DIFF_DEL_BG']}"),
+                    ("plus-emph-style", f"bold {GREEN} {e['DIFF_ADD_BG']}"),
+                    ("line-numbers-minus-style", RED), ("line-numbers-plus-style", GREEN),
+                    ("line-numbers-zero-style", MUTE), ("line-numbers-left-style", LINE),
+                    ("line-numbers-right-style", LINE),
+                    # git's colorMoved=default: magenta and blue old, cyan and yellow new
+                    ("map-styles", ", ".join(f"bold {c} => {VISITED}" for c in ("purple", "blue", "cyan", "yellow")))],
+        '[color "status"]': [("header", DIM), ("branch", ACCENT), ("localBranch", ACCENT),
+                             ("remoteBranch", LINK), ("added", GREEN), ("updated", GREEN),
+                             ("changed", RED), ("untracked", RED), ("nobranch", RED)],
+        '[color "decorate"]': [("HEAD", f"{ACCENT} bold"), ("branch", GREEN), ("remoteBranch", LINK),
+                               ("tag", ACCENT), ("stash", VISITED)],
+    }
+    text = read(GIT)
+    for head, keys in blocks.items():
+        # quoted: a # outside quotes starts a comment in git's config
+        body = "".join(f'    {k} = "{v}"\n' if "#" in v else f"    {k} = {v}\n" for k, v in keys)
+        text = sub(GIT, text, rf"^{re.escape(head)}\n(?:[ \t]+.*\n)*", lambda m, h=head, b=body: f"{h}\n{b}")
+    write(GIT, text)
 
 
 def editor_colors():
@@ -1010,6 +1047,7 @@ def main():
     gtklock_colors()
     tmux_colors()
     lazygit_colors()
+    git_colors()
     editor_colors()
     system().run(sys.modules[__name__])
     if not CHECK:
