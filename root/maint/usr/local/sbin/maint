@@ -12,6 +12,7 @@ ROOT_KEEP=3
 BATTERY_MIN=20
 SCRUB_LIMIT=300m
 STATE=/var/lib/maint
+PUBLIC=/var/lib/maint-status
 DAY=86400
 # an update waits for a better connection: probes to the repository
 NET_PROBES=5
@@ -660,6 +661,25 @@ due() {
     [ "$age" -lt 0 ] || [ "$age" -ge "$(($2 - 1800))" ]
 }
 
+# what fastfetch shows of maint (fastfetch/maint.sh): dates and counts, no names
+# or paths, readable by everyone
+public() {
+    {
+        for pubj in update scrub; do
+            [ -e "$STATE/$pubj" ] && printf '%s=%s\n' "$pubj" "$(stat -c %Y "$STATE/$pubj")"
+        done
+        printf 'home=%s\n' "$(snapshots "$SNAPDIR" home 2>/dev/null | wc -l)"
+        printf 'root=%s\n' "$(snapshots "$ROOTSNAP" root 2>/dev/null | wc -l)"
+        pubfail=
+        for pubf in "$STATE"/*.failed; do
+            [ -e "$pubf" ] || continue
+            pubf=${pubf##*/}
+            pubfail="$pubfail ${pubf%.failed}"
+        done
+        printf 'failed=%s\n' "${pubfail# }"
+    } >"$PUBLIC.tmp" && chmod 0644 "$PUBLIC.tmp" && mv -f "$PUBLIC.tmp" "$PUBLIC"
+}
+
 job() {
     log "$1: start"
     "job_$1"
@@ -678,6 +698,7 @@ job() {
     esac
     [ "$rc" = 0 ] && rm -f "$STATE/$1.failed"
     touch "$STATE/$1"
+    public
 }
 
 locked() {
@@ -747,7 +768,7 @@ apt-snapshot) (
     # shellcheck disable=SC2174
     mkdir -p -m 0700 "$STATE"
     exec 9>"$STATE/snapshot.lock"
-    flock -w 30 9 && apt_snapshot
+    flock -w 30 9 && apt_snapshot && public
 ) ;;
 loop)
     sleep 900

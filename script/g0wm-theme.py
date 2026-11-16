@@ -759,7 +759,7 @@ def fastfetch_colors():
     public windows. The logo is written by g0wm-theme-system.py."""
     def esc(c):
         return "38;2;" + ";".join(str(v) for v in hexrgb(c))
-    groups = {"system": ACCENT, "desktop": VISITED, "hardware": LINK}
+    groups = {"system": ACCENT, "maint": VISITED, "hardware": LINK}
     text = read(FASTFETCH)
     for k, v in (("title", ACCENT), ("keys", ACCENT), ("separator", FAINT), ("output", FG)):
         text = sub(FASTFETCH, text, rf'^(\s+"{k}": )"[\d;]+"', lambda m, v=v: f'{m[1]}"{esc(v)}"')
