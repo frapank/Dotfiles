@@ -34,7 +34,7 @@ fmt() {
 ring() {
     msg=${2:-} t=$(date +%H:%M)
     [ -n "$msg" ] || msg="Time is up"
-    notify-send -a " Timer" -u critical "$msg" "$1 · ended at $t" 2>/dev/null
+    notify-send -i g0wm-timer -a " Timer" -u critical "$msg" "$1 · ended at $t" 2>/dev/null
     { printf '\a' >/dev/tty; } 2>/dev/null
     return 0
 }

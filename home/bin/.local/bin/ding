@@ -11,12 +11,6 @@ In bash, a bare ding after ';' tells about the command line it ends.
 EOF
 }
 
-# the icon of the notification: a tick on green, a cross on red. The colors are
-# written by script/g0wm-theme.py
-ok_color='#93c2a0'
-fail_color='#d8625e'
-mark_color='#0a0a0a'
-
 # seconds as 1h02m03s, 2m03s, 3s
 fmt() {
     awk -v t="$1" 'BEGIN {
@@ -62,16 +56,13 @@ fi
 body=${secs:+"took $(fmt "$secs")"}
 if [ "$st" = 0 ]; then
     title="Done" urg=normal
-    icon=ok fill=$ok_color mark='M18 33l9 9 19-20'
+    icon=g0wm-ok
 else
     title="Failed ($st)" urg=critical
-    icon=failed fill=$fail_color mark='M21 21l22 22M43 21L21 43'
+    icon=g0wm-failed
 fi
 [ -n "$cmd" ] && body="$cmd${body:+ · $body}"
-# g0wm loads svg icons with gdk-pixbuf
-icon=${XDG_RUNTIME_DIR:-/tmp}/ding-$icon.svg
-printf '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect x="2" y="2" width="60" height="60" rx="12" fill="%s"/><path d="%s" fill="none" stroke="%s" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>\n' \
-    "$fill" "$mark" "$mark_color" >"$icon" 2>/dev/null || icon=
-notify-send ${icon:+-i "$icon"} -a " ding" -u "$urg" "$title" "$body" 2>/dev/null
+# a tick on green or a cross on red, from the icons of script/g0wm-theme.py
+notify-send -i "$icon" -a " ding" -u "$urg" "$title" "$body" 2>/dev/null
 { printf '\a' >/dev/tty; } 2>/dev/null
 exit "$st"

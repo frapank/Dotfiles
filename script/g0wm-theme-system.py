@@ -235,6 +235,53 @@ def icons(t):
 
 
 
+
+# A family of icons, scalable in hicolor (g0wm looks for the pngs first, then
+# scalable/apps/NAME.svg, and draws the svg at the size it needs). Two looks:
+# - tiles: a rounded square of a palette color, the symbol in BG. For the
+#   notifications, where they have to stand out in the bar
+# - glyphs: the symbol alone in SOFT, no square. For the runner, quiet next to
+#   the icons of the apps
+# The symbols are drawn on 64 x 64 with a stroke; {c} stands for their color.
+SCALABLE = "home/g0wm/.local/share/icons/hicolor/scalable/apps"
+SYMBOLS = {
+    "ok": '<path d="M18 33l9 9 19-20"/>',
+    "failed": '<path d="M21 21l22 22M43 21L21 43"/>',
+    "timer": '<path d="M22 15h20M22 49h20M25 15c0 10 14 12 14 17s-14 7-14 17M39 15c0 10-14 12-14 17s14 7 14 17"/>',
+    "mic": '<path d="M32 13a6 6 0 0 1 6 6v11a6 6 0 0 1-12 0V19a6 6 0 0 1 6-6zM20 29a12 12 0 0 0 24 0M32 41v9M25 50h14"/>',
+    "cam": '<path d="M14 22h24a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H14a3 3 0 0 1-3-3V25a3 3 0 0 1 3-3zM41 29l11-7v20l-11-7"/>',
+    "usb": '<path d="M32 45V13M28 17l4-4 4 4M32 41l-10-6v-5M32 36l10-6v-3"/><circle cx="22" cy="27" r="3"/>'
+           '<path d="M39 21h6v6h-6z"/><circle cx="32" cy="49" r="3.5" fill="{c}" stroke="none"/>',
+    "reboot": '<path d="M46 34a14 14 0 1 1-4-12M46 14v9h-9"/>',
+    "restart": '<path d="M46 34a14 14 0 1 1-4-12M46 14v9h-9"/>',
+    "shutdown": '<path d="M32 13v18M21 20a15 15 0 1 0 22 0"/>',
+    "screenshot": '<path d="M14 24v-8a2 2 0 0 1 2-2h8M40 14h8a2 2 0 0 1 2 2v8M50 40v8a2 2 0 0 1-2 2h-8M24 50h-8a2 2 0 0 1-2-2v-8"/>'
+                  '<circle cx="32" cy="32" r="6"/>',
+    "record": '<circle cx="32" cy="32" r="17"/><circle cx="32" cy="32" r="7" fill="{c}" stroke="none"/>',
+    "volume": '<path d="M14 26h8l11-9v30l-11-9h-8zM40 25a9 9 0 0 1 0 14M45 19a17 17 0 0 1 0 26"/>',
+}
+# the name of each icon, its look and, for a tile, its color
+TILES = {"ok": "GREEN", "failed": "RED", "timer": "ACCENT", "mic": "ACCENT", "cam": "ACCENT",
+         "usb": "LINK", "reboot": "ACCENT"}
+GLYPHS = ("restart", "shutdown", "screenshot", "record", "volume")
+
+
+def icon_family(t):
+    if not t.CHECK:
+        os.makedirs(os.path.join(t.REPO, SCALABLE), exist_ok=True)
+    head = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">'
+    stroke = 'fill="none" stroke-linecap="round" stroke-linejoin="round"'
+    for name, color in TILES.items():
+        fg = t.BG
+        body = (f'<rect x="2" y="2" width="60" height="60" rx="12" fill="{getattr(t, color)}"/>'
+                f'<g {stroke} stroke="{fg}" stroke-width="5">{SYMBOLS[name].replace("{c}", fg)}</g>')
+        t.write(os.path.join(t.REPO, SCALABLE, f"g0wm-{name}.svg"), f"{head}{body}</svg>\n")
+    for name in GLYPHS:
+        fg = t.SOFT
+        body = f'<g {stroke} stroke="{fg}" stroke-width="4">{SYMBOLS[name].replace("{c}", fg)}</g>'
+        t.write(os.path.join(t.REPO, SCALABLE, f"g0wm-{name}.svg"), f"{head}{body}</svg>\n")
+
+
 LIBREWOLF_LOGO = "home/librewolf/.config/librewolf/librewolf/chrome/g0wm-logo.svg"
 
 
@@ -507,6 +554,7 @@ def run(t):
     config_sh(t)
     plymouth(t)
     icons(t)
+    icon_family(t)
     librewolf_logo(t)
     vesktop_logo(t)
     fastfetch_logo(t)

@@ -15,9 +15,15 @@ open_logs() { as_user systemd-run --user --quiet --collect -E WAYLAND_DISPLAY --
 notify() {
     u=$1 g=$2 app=$3 text=$4
     shift 4
+    # the icons of script/g0wm-theme.py: the mic and the webcam their own, the logo else
+    case $app in
+    Microphone) nicon=g0wm-mic ;;
+    Webcam) nicon=g0wm-cam ;;
+    *) nicon=g0wm ;;
+    esac
     if [ $# -eq 0 ]; then
-        as_user notify-send -i g0wm -u "$u" -a "$g $app" -h "string:desktop-entry:$app" "$text"
-    elif [ "$(as_user notify-send -i g0wm -u "$u" -a "$g $app" -h "string:desktop-entry:$app" \
+        as_user notify-send -i "$nicon" -u "$u" -a "$g $app" -h "string:desktop-entry:$app" "$text"
+    elif [ "$(as_user notify-send -i "$nicon" -u "$u" -a "$g $app" -h "string:desktop-entry:$app" \
         -A default=Open "$text")" = default ]; then
         open_logs "$@"
     fi

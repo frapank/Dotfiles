@@ -247,7 +247,7 @@ forget() {
     done
 }
 
-notify() { as_user notify-send -i g0wm -a "$G_USB USB" "$@" >/dev/null 2>&1; }
+notify() { as_user notify-send -i g0wm-usb -a "$G_USB USB" "$@" >/dev/null 2>&1; }
 
 ask() {
     id=$1 rule=$2 why=$3
@@ -281,7 +281,7 @@ $G_LOCK plugged in while the screen was locked" ;;
 plugged in before, never allowed" ;;
     esac
     # notification id, then the action
-    as_user notify-send -i g0wm -p -u critical -t $((ASK_SECS * 1000)) -a "$G_USB USB" \
+    as_user notify-send -i g0wm-usb -p -u critical -t $((ASK_SECS * 1000)) -a "$G_USB USB" \
         -A allow="$G_OK Allow" -A block="$G_NO Block" -- "$name" "$body" 2>/dev/null | {
         read -r n && echo "$n" >"$ST/nid.$id"
         read -r a || a=
@@ -313,7 +313,7 @@ connected() {
     # shellcheck disable=SC2046
     [ "$(kinds $(ifaces "$1"))" != hub ] || return 0
     name=$(clean "$(attr "$1" name)")
-    as_user notify-send -i g0wm -u low -a "$G_USB USB" -h string:desktop-entry:USB \
+    as_user notify-send -i g0wm-usb -u low -a "$G_USB USB" -h string:desktop-entry:USB \
         -- "${name:-$(usbid "$1")} connected" >/dev/null 2>&1
 }
 
