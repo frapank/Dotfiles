@@ -46,3 +46,9 @@
     algorithm = histogram
 [merge]
     conflictStyle = zdiff3
+    tool = vimdiff
+# git mergetool: ours, the result, theirs side by side, with the diff colors of dot.vim
+[mergetool "vimdiff"]
+    layout = LOCAL,MERGED,REMOTE
+[mergetool]
+    keepBackup = false

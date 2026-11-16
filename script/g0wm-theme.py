@@ -113,12 +113,17 @@ for n, h in ANSI_HUES.items():
 ANSI["regular1"] = RED
 ANSI["bright1"] = oklch(0.78, 0.12, ANSI_HUES[1])
 
-# vim and nvim: their names, onto the greys above; only the diff tints are their own
+# vim and nvim: their names, onto the greys above; only the diff tints and the search
+# tint are their own. AMBER, the desktop's accent, marks only what you look for: search,
+# brackets, TODO, the current line number, the mode and a modified file. RED, GREEN and
+# LINK as delta and the bar: errors and removed lines, added lines, directories and links.
 EDITOR = {
     "BG": BG, "FG": FG, "ACCENT": MONO, "MUTED": SOFT, "NOISE": FAINT, "DIM": DIM,
     "SPLIT": SEP, "PMENU_BG": POPUP, "PMENU_FG": FG, "PMENU_SE": SOFT, "WILD_BG": LINE,
     "SBAR_BG": MUTE, "THUMB_BG": SOFT, "CURSOR_BG": HOVER, "STATUS_BG": SEP,
     "DIFF_ADD_BG": "#1a231a", "DIFF_CHG_BG": "#1a1a23", "DIFF_DEL_BG": "#231a1a",
+    "AMBER": ACCENT, "SEARCH_BG": "#3a2d1e", "SEL_BG": LINE,
+    "RED": RED, "GREEN": GREEN, "LINK": LINK,
 }
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1008,10 +1013,10 @@ def readability():
     pairs = [(f, b, 4.5) for f in text for b in ("BG", "POPUP")]
     pairs += [("FG", b, 4.5) for b in ("HOVER", "SEL", "PRESS")]
     pairs += [("ON_ACCENT", b, 4.5) for b in ("ACCENT", "RED", "GREEN")]
-    # the selection of tmux, vim and nvim
-    pairs += [("BG", "MONO", 4.5)]
+    # the selection of tmux, the search and the selection of vim and nvim
+    pairs += [("BG", "MONO", 4.5), ("FG", "SEARCH_BG", 4.5), ("FG", "LINE", 4.5)]
     names = {**text, "BG": BG, "POPUP": POPUP, "HOVER": HOVER, "SEL": SEL, "PRESS": PRESS,
-             "ON_ACCENT": ON_ACCENT}
+             "ON_ACCENT": ON_ACCENT, "SEARCH_BG": EDITOR["SEARCH_BG"], "LINE": LINE}
     for f, b, need in pairs:
         if contrast(names[f], names[b]) < need:
             bad.append(f"{f} on {b}: {contrast(names[f], names[b]):.2f}, needs {need}")

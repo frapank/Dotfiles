@@ -20,15 +20,55 @@ set virtualedit=block nostartofline
 set tags=./tags;,tags;
 filetype plugin indent on
 
-# PERSISTENT UNDO
-if !isdirectory($HOME .. '/.vim/undo')
-    mkdir($HOME .. '/.vim/undo', 'p', 0o700)
-endif
+# PERSISTENT UNDO, SWAP OUT OF THE PROJECTS
+for dir in ['undo', 'swap']
+    if !isdirectory($HOME .. '/.vim/' .. dir)
+        mkdir($HOME .. '/.vim/' .. dir, 'p', 0o700)
+    endif
+endfor
 set undofile undodir=~/.vim/undo
+# the trailing // names the swap file after the whole path
+set directory=~/.vim/swap//
 
 # no history, undo or swap for temporary files
 set viminfo+=r/tmp,r/dev/shm,r/run
 autocmd BufReadPre,BufNewFile /tmp/*,/dev/shm/*,/run/* setlocal noundofile noswapfile
+
+# Big files: no undo, swap or syntax over 5 MB, as nvim
+augroup VrcLargeFile
+    autocmd!
+    autocmd BufReadPre * {
+        if getfsize(expand('<afile>')) > 5 * 1024 * 1024
+            b:large_file = true
+            setlocal noundofile noswapfile foldmethod=manual
+        endif
+    }
+augroup END
+
+# FILES CHANGED OUTSIDE VIM
+# reread on focus (tmux sends it with focus-events on) and on entering a buffer
+set autoread
+augroup VrcAutoread
+    autocmd!
+    autocmd FocusGained,BufEnter * if getcmdwintype() == '' | checktime | endif
+augroup END
+
+# TERMINAL
+# Vim sets these only for xterm-like TERMs: inside tmux the RGB colors,
+# the focus events, the undercurl and its color stay off without them
+if &term =~ '^\(tmux\|screen\)'
+    &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
+    &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
+    &t_fe = "\<Esc>[?1004h"
+    &t_fd = "\<Esc>[?1004l"
+    execute "set <FocusGained>=\<Esc>[I"
+    execute "set <FocusLost>=\<Esc>[O"
+endif
+if &term =~ '^\(tmux\|screen\|foot\|xterm\)'
+    &t_Cs = "\<Esc>[4:3m"
+    &t_Ce = "\<Esc>[4:0m"
+    &t_8u = "\<Esc>[58;2;%lu;%lu;%lum"
+endif
 
 # WRAPPING & SCROLLING
 set nowrap
@@ -48,20 +88,52 @@ catch
     colorscheme habamax
 endtry
 set listchars=tab:·\ ,trail:·,nbsp:␣
+&fillchars = 'vert:│,fold: ,eob: '
 set laststatus=2
 set nojoinspaces
 
+# Folds by indent, all open: zc, zo and za when needed
+set foldmethod=indent foldlevelstart=99
+
+# Big files: after the FileType of syntax on, which would turn it back on
+autocmd FileType * if get(b:, 'large_file', false) | setlocal syntax=OFF | endif
+
 # COMPLETION
-set completeopt=menu,popup
+# the command line in the same popup as the completion, fuzzy as fzf
+set wildmenu wildoptions=pum,fuzzy
+set completeopt=menuone,popup
+if has('patch-9.1.0463')
+    set completeopt+=fuzzy
+endif
 set complete=.,w,b,u,t
 
 # STATUSLINE
+# the mode and a dot for a modified file, both amber (StlMode and StlMod in dot.vim);
+# the git branch is in the bar of tmux
 augroup VrcStatusline
     autocmd!
     autocmd DirChanged * g:cwd_tail = fnamemodify(getcwd(), ':t')
+    autocmd ModeChanged * redrawstatus
 augroup END
 g:cwd_tail = fnamemodify(getcwd(), ':t')
-set statusline=%#StatusLine#\ %f\ %m%r%=%{g:cwd_tail}\ %L\ %l:%c\ 
+
+const modes = {
+    n: 'NOR', i: 'INS', v: 'VIS', V: 'V-L', "\<C-v>": 'V-B',
+    s: 'SEL', S: 'S-L', "\<C-s>": 'S-B', R: 'REP', c: 'CMD', r: 'PRM', '!': 'SH', t: 'TER',
+}
+def g:StlMode(): string
+    return get(modes, mode()[0], mode())
+enddef
+
+set noshowmode
+&statusline = '%#StlMode# %{g:StlMode()} %#StatusLine# %f '
+    .. '%#StlMod#%{&modified ? "●" : ""}%#StatusLine#%r'
+    .. '%=%{&filetype}  %{g:cwd_tail} %L %l:%c '
+
+# NETRW
+g:netrw_banner = 0
+g:netrw_liststyle = 3
+g:netrw_dirhistmax = 0
 
 # KEYMAPS
 g:mapleader = ' '
@@ -76,7 +148,35 @@ nnoremap <silent> <leader>t :Sex<CR>
 nnoremap <silent> <Tab>     :bnext<CR>
 nnoremap <silent> <S-Tab>   :bprevious<CR>
 nnoremap <silent> <leader>m :make<CR>
-nnoremap <silent> <leader>/ :nohlsearch<CR>
+# with the redraw C-l did, now taken by the window moves
+nnoremap <silent> <leader>/ :nohlsearch<Bar>redraw!<CR>
+
+# WINDOWS AND TMUX PANES
+# C-h/j/k/l move between the windows; at the edge, inside tmux, to the next pane.
+# tmux.conf sends these keys to vim instead of moving itself
+def Navigate(dir: string)
+    const nr = winnr()
+    execute 'wincmd ' .. dir
+    if winnr() == nr && !empty($TMUX)
+        system('tmux select-pane -' .. tr(dir, 'hjkl', 'LDUR'))
+    endif
+enddef
+for k in ['h', 'j', 'k', 'l']
+    execute $'nnoremap <silent> <C-{k}> <ScriptCmd>Navigate("{k}")<CR>'
+endfor
+
+# CLIPBOARD
+# Debian's vim is -clipboard: <leader>y copies through wl-copy, in a job so vim
+# never waits on it. Paste with foot's Ctrl+Shift+v, bracketed paste keeps the indent
+def Copy(text: string)
+    const job = job_start(['wl-copy'], {in_io: 'pipe', out_io: 'null', err_io: 'null'})
+    ch_sendraw(job, text)
+    ch_close_in(job)
+enddef
+if executable('wl-copy') && !empty($WAYLAND_DISPLAY)
+    xnoremap <silent> <leader>y y<ScriptCmd>Copy(@")<CR>
+    nnoremap <silent> <leader>y <ScriptCmd>Copy(getline('.') .. "\n")<CR>
+endif
 
 # FUZZY FINDER
 # Debian's fzf ships its vim plugin only among the examples

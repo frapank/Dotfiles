@@ -66,8 +66,12 @@ o.virtualedit = "block"
 o.tags = "./tags;,tags;"
 o.exrc = true -- per-project .nvim.lua (makeprg, :Debug args); prompts for trust
 o.listchars = { tab = "· ", trail = "·", nbsp = "␣" }
+o.fillchars = { vert = "│", fold = " ", eob = " " }
 o.laststatus = 2
+o.showmode = false -- the mode is in the statusline
 o.guicursor = "a:block"
+-- the command line in the same popup as the completion, fuzzy as fzf
+o.wildoptions:append("fuzzy")
 
 o.foldmethod, o.foldlevelstart = "expr", 99
 -- Without this the default foldexpr is "0": every line evaluated, no fold
@@ -77,9 +81,25 @@ o.foldexpr = "v:lua.vim.treesitter.foldexpr()"
 if vim.fn.has("nvim-0.10") == 0 then o.termguicolors = true end
 vim.cmd("colorscheme dot")
 
+-- FILES CHANGED OUTSIDE NVIM
+-- autoread is on by default; reread on focus (tmux sends it) and on entering a buffer
+vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
+    callback = function()
+        if vim.fn.getcmdwintype() == "" then vim.cmd.checktime() end
+    end,
+})
+
+-- NETRW
+vim.g.netrw_banner = 0
+vim.g.netrw_liststyle = 3
+vim.g.netrw_dirhistmax = 0
+
 -- STATUSLINE
+-- the mode and a dot for a modified file, both amber (StlMode and StlMod in dot.lua);
+-- the git branch is in the bar of tmux
 local function cwd_tail() vim.g.cwd_tail = vim.fn.fnamemodify(vim.fn.getcwd(), ":t") end
 vim.api.nvim_create_autocmd("DirChanged", { callback = cwd_tail })
+vim.api.nvim_create_autocmd("ModeChanged", { command = "redrawstatus" })
 cwd_tail()
 
 function _G.CleanBufferName()
@@ -88,7 +108,18 @@ function _G.CleanBufferName()
     return name == "" and "[No Name]" or name
 end
 
-o.statusline = "%#StatusLine# %{v:lua.CleanBufferName()} %m%r%=%{g:cwd_tail} %L %l:%c "
+local MODES = {
+    n = "NOR", i = "INS", v = "VIS", V = "V-L", ["\22"] = "V-B",
+    s = "SEL", S = "S-L", ["\19"] = "S-B", R = "REP", c = "CMD", r = "PRM", ["!"] = "SH", t = "TER",
+}
+function _G.StlMode()
+    local m = vim.api.nvim_get_mode().mode
+    return MODES[m:sub(1, 1)] or m
+end
+
+o.statusline = "%#StlMode# %{v:lua.StlMode()} %#StatusLine# %{v:lua.CleanBufferName()} "
+    .. '%#StlMod#%{&modified ? "●" : ""}%#StatusLine#%r'
+    .. "%=%{&filetype}  %{g:cwd_tail} %L %l:%c "
 
 -- KEYMAPS
 vim.g.mapleader = " "
@@ -102,9 +133,29 @@ map("n", "<leader>n", ":cnext<CR>", { silent = true })
 map("n", "<leader>p", ":cprev<CR>", { silent = true })
 map("n", "<leader>t", ":Sex<CR>", { silent = true })
 map("n", "<leader>m", ":make<CR>", { silent = true })
-map("n", "<leader>/", ":nohlsearch<CR>", { silent = true })
+-- with the redraw C-l did, now taken by the window moves
+map("n", "<leader>/", ":nohlsearch<Bar>redraw!<CR>", { silent = true })
 map("n", "<Tab>", ":bnext<CR>", { silent = true })
 map("n", "<S-Tab>", ":bprevious<CR>", { silent = true })
+
+-- WINDOWS AND TMUX PANES
+-- C-h/j/k/l move between the windows; at the edge, inside tmux, to the next pane.
+-- tmux.conf sends these keys to nvim instead of moving itself
+for dir, pane in pairs({ h = "L", j = "D", k = "U", l = "R" }) do
+    map("n", "<C-" .. dir .. ">", function()
+        local win = vim.api.nvim_get_current_win()
+        vim.cmd.wincmd(dir)
+        if vim.api.nvim_get_current_win() == win and vim.env.TMUX then
+            vim.system({ "tmux", "select-pane", "-" .. pane })
+        end
+    end, { silent = true })
+end
+
+-- CLIPBOARD
+-- clipboard=unnamedplus already copies every yank; <leader>y as in vim:
+-- the selection, or the line
+map("x", "<leader>y", '"+y', { silent = true })
+map("n", "<leader>y", '"+yy', { silent = true })
 
 -- FIND / GREP
 -- Debian's fzf ships its vim plugin only among the examples

@@ -97,6 +97,7 @@ end
 
 -- <C-n> LSP completion (0.10 has no "fuzzy" in 'completeopt')
 vim.opt.completeopt = { "menuone", "noselect" }
+if vim.fn.has("nvim-0.11") == 1 then vim.opt.completeopt:append("fuzzy") end
 vim.keymap.set("i", "<C-n>", function()
     if vim.fn.pumvisible() == 1 or vim.bo.omnifunc ~= "v:lua.vim.lsp.omnifunc" then
         return "<C-n>"

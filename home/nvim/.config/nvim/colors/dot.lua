@@ -25,6 +25,12 @@ local STATUS_BG   = '#191919'
 local DIFF_ADD_BG = '#1a231a'
 local DIFF_CHG_BG = '#1a1a23'
 local DIFF_DEL_BG = '#231a1a'
+local AMBER       = '#e0a86a'
+local SEARCH_BG   = '#3a2d1e'
+local SEL_BG      = '#333333'
+local RED         = '#d8625e'
+local GREEN       = '#93c2a0'
+local LINK        = '#88bcdb'
 
 -- cterm fallback
 local function hex_to_rgb(hex)
@@ -103,7 +109,7 @@ local groups = {
       'PreProc', 'Include', 'Define', 'Macro', 'PreCondit',
       'Type', 'StorageClass', 'Structure', 'Typedef',
       'Special', 'SpecialChar', 'Tag', 'Delimiter', 'Debug',
-      'Underlined', 'Ignore',
+      'Ignore',
       }
 for _, g in ipairs(groups) do
     Hi(g, FG, BG)
@@ -124,15 +130,17 @@ Hi('Folded',         DIM,      SPLIT,   'italic')
 Hi('FoldColumn',     DIM,      BG)
 Hi('ColorColumn',    'NONE',   SPLIT)
 Hi('Conceal',        NOISE,    BG)
-Hi('QuickFixLine',   BG,       ACCENT)
-Hi('Substitute',     BG,       ACCENT)
+Hi('QuickFixLine',   'NONE',   SEL_BG,   'bold')
+Hi('Substitute',     BG,       AMBER)
 
 Hi('Whitespace',     SPLIT,    BG)
 
-Hi('PmenuKind',      ACCENT,     PMENU_BG)
-Hi('PmenuKindSel',   BG,       PMENU_SE)
+Hi('PmenuKind',      NOISE,    PMENU_BG)
+Hi('PmenuKindSel',   FG,       SEL_BG)
 Hi('PmenuExtra',     NOISE,    PMENU_BG)
-Hi('PmenuExtraSel',  WILD_BG,  PMENU_SE)
+Hi('PmenuMatch',     AMBER,    PMENU_BG)
+Hi('PmenuMatchSel',  AMBER,    SEL_BG,   'bold')
+Hi('PmenuExtraSel',  DIM,      SEL_BG)
 
 Hi('NormalFloat',    PMENU_FG, PMENU_BG)
 Hi('FloatBorder',    NOISE,    PMENU_BG)
@@ -142,23 +150,29 @@ Hi('LineNrAbove',    NOISE,    BG)
 Hi('LineNrBelow',    NOISE,    BG)
 
 Hi('StatusLine',     FG,       STATUS_BG, 'bold')
-Hi('StatusLineNC',   BG,       MUTED,   'bold')
+Hi('StatusLineNC',   DIM,      SPLIT)
+Hi('StatusLineTerm',   FG,     STATUS_BG, 'bold')
+Hi('StatusLineTermNC', DIM,    SPLIT)
+
+-- the statusline of init.lua: the mode and the dot of a modified file
+Hi('StlMode',        AMBER,    STATUS_BG, 'bold')
+Hi('StlMod',         AMBER,    STATUS_BG, 'bold')
 
 Hi('CursorLine',     'NONE',   CURSOR_BG)
-Hi('CursorLineNr',   ACCENT,     BG)
-Hi('MatchParen',     ACCENT,     BG)
+Hi('CursorLineNr',   AMBER,    BG)
+Hi('MatchParen',     AMBER,    BG,       'bold')
 
-Hi('Cursor',         BG,       ACCENT)
-Hi('lCursor',        BG,       ACCENT)
-Hi('CursorIM',       BG,       ACCENT)
+Hi('Cursor',         BG,       AMBER)
+Hi('lCursor',        BG,       AMBER)
+Hi('CursorIM',       BG,       AMBER)
 
-Hi('Visual',         BG,       ACCENT)
-Hi('Search',         BG,       ACCENT)
-Hi('CurSearch',      BG,       FG,      'bold')
-Hi('IncSearch',      BG,       ACCENT)
+Hi('Visual',         'NONE',   SEL_BG)
+Hi('Search',         FG,       SEARCH_BG)
+Hi('CurSearch',      BG,       AMBER,    'bold')
+Hi('IncSearch',      BG,       AMBER)
 
 Hi('Pmenu',          PMENU_FG, PMENU_BG)
-Hi('PmenuSel',       BG,       PMENU_SE)
+Hi('PmenuSel',       FG,       SEL_BG,   'bold')
 Hi('PmenuSbar',      PMENU_FG, SBAR_BG)
 Hi('PmenuThumb',     PMENU_FG, THUMB_BG)
 Hi('WildMenu',       PMENU_FG, WILD_BG)
@@ -169,34 +183,53 @@ Hi('TabLineSel',     BG,       FG,       'bold')
 
 Hi('DiffAdd',        'NONE',   DIFF_ADD_BG)
 Hi('DiffChange',     'NONE',   DIFF_CHG_BG)
-Hi('DiffDelete',     'NONE',   DIFF_DEL_BG)
-Hi('DiffText',       BG,       ACCENT,        'bold')
+Hi('DiffDelete',     RED,      DIFF_DEL_BG)
+Hi('DiffText',       BG,       AMBER,    'bold')
 
-Hi('Directory',      FG,       BG,       'bold')
+Hi('Directory',      LINK,     BG,       'bold')
 Hi('Title',          ACCENT,     BG,       'bold')
 Hi('ModeMsg',        FG,       BG,       'bold')
 Hi('MoreMsg',        DIM,      BG)
 Hi('Question',       ACCENT,     BG)
-Hi('WarningMsg',     ACCENT,     BG)
+Hi('WarningMsg',     AMBER,    BG)
 
 Hi('String',         MUTED,    BG)
 Hi('Comment',        NOISE,    BG,      'italic')
-Hi('Todo',           ACCENT,     BG,      'bold')
-Hi('SpecialComment', ACCENT,     BG)
+Hi('Todo',           AMBER,    BG,       'bold')
+Hi('SpecialComment', AMBER,    BG)
 
-Hi('Error',          ACCENT,     BG,       'reverse')
-Hi('ErrorMsg',       ACCENT,     BG,       'reverse')
+Hi('Error',          RED,      BG,       'bold')
+Hi('ErrorMsg',       RED,      BG,       'bold')
 
--- Diagnostics (LSP) - keep the monochrome black & grey look
-Hi('DiagnosticError',          ACCENT,   BG)
-Hi('DiagnosticWarn',           MUTED,  BG)
-Hi('DiagnosticInfo',           DIM,    BG)
+-- Spelling: undercurl, as vim
+Hi('SpellBad',       'NONE',   'NONE',   'undercurl', RED)
+Hi('SpellCap',       'NONE',   'NONE',   'undercurl', AMBER)
+Hi('SpellLocal',     'NONE',   'NONE',   'undercurl', DIM)
+Hi('SpellRare',      'NONE',   'NONE',   'undercurl', NOISE)
+
+-- Diagnostics (LSP): red errors, amber warnings as the notifications of the desktop
+Hi('DiagnosticError',          RED,    BG)
+Hi('DiagnosticWarn',           AMBER,  BG)
+Hi('DiagnosticInfo',           LINK,   BG)
 Hi('DiagnosticHint',           NOISE,  BG)
-Hi('DiagnosticOk',             DIM,    BG)
-Hi('DiagnosticUnderlineError', 'NONE', 'NONE', 'undercurl', ACCENT)
-Hi('DiagnosticUnderlineWarn',  'NONE', 'NONE', 'undercurl', MUTED)
-Hi('DiagnosticUnderlineInfo',  'NONE', 'NONE', 'underline', DIM)
+Hi('DiagnosticOk',             GREEN,  BG)
+Hi('DiagnosticUnderlineError', 'NONE', 'NONE', 'undercurl', RED)
+Hi('DiagnosticUnderlineWarn',  'NONE', 'NONE', 'undercurl', AMBER)
+Hi('DiagnosticUnderlineInfo',  'NONE', 'NONE', 'underline', LINK)
 Hi('DiagnosticUnderlineHint',  'NONE', 'NONE', 'underline', NOISE)
+
+Hi('Underlined',     LINK,     BG,       'underline')
+
+-- the diff and patch syntax (git commit --verbose, .patch files), as delta
+Hi('diffAdded',      GREEN,    BG)
+Hi('diffRemoved',    RED,      BG)
+Hi('diffChanged',    AMBER,    BG)
+Hi('diffFile',       LINK,     BG,       'bold')
+Hi('diffLine',       DIM,      BG)
+Hi('diffSubname',    DIM,      BG)
+
+-- treesitter's diff
+vim.cmd('hi link @diff.plus diffAdded | hi link @diff.minus diffRemoved | hi link @diff.delta diffChanged')
 
 -- Terminal colors: foot's, written by script/g0wm-theme.py
 local term_colors = {
