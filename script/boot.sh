@@ -179,6 +179,13 @@ grub_theme() {
     fi
 }
 
+# no menu: the system boots after a second, Esc in that second shows it (Shift
+# alone is not seen through UEFI)
+grub_menu() {
+    grub_set GRUB_TIMEOUT_STYLE hidden
+    grub_set GRUB_TIMEOUT 1
+}
+
 grub_quiet() {
     local f=/etc/grub.d/10_linux src n tmp
     [[ -f $f ]] || {
@@ -229,6 +236,7 @@ do_boot() {
     ok "plymouth theme g0wm"
 
     grub_theme
+    grub_menu
     grub_quiet
     # loglevel=3: the kernel errors of drivers go to the journal, not over the login
     grub_words quiet splash loglevel=3 "$(vt_palette red)" "$(vt_palette grn)" "$(vt_palette blu)"
