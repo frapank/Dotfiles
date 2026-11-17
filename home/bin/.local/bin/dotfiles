@@ -17,7 +17,6 @@ compress|pack or encrypt files, the format comes from the name
 metadata-remover|strip camera, GPS and author data, offline in a sandbox
 Privacy
 traces|show and delete histories, recent files, thumbnails, clipboard
-privacy-check|check MAC, DNS, firewall, AppArmor, camera and microphone
 conns|the open connections and the programs behind them
 isolate|run a command in a sandbox: empty home, no network
 logins|the wrong passwords since the last login, told at every login

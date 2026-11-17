@@ -119,7 +119,6 @@ With usbguard new devices stay blocked. When you plug one in a notification arri
 
 - watchdog: sends notifications for crashes, disk errors, temperature, battery, microphone and webcam in use, AppArmor denials etc.
 - logs: to read the logs, like logs apparmor or logs firewall.
-- privacy-check: checks in one go that network, DNS, AppArmor and the rest are fine.
 - conns: shows the open connections with the program and its AppArmor profile.
 - traces: shows or deletes recent files, histories, thumbnails, trash and clipboard.
 
