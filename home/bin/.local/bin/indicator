@@ -14,7 +14,7 @@ usage: indicator mic | cam [close] | dns [restart|logs] | maint [retry|logs] | t
   maint        which jobs of maint failed
   maint retry  run them again, in a terminal for doas
   maint logs   what maint logged, in a terminal
-  timer        the background timers and when they ring
+  timer        the timers and when they ring
   reboot       which kernel waits for a reboot, and a button to do it
   usb          the USB devices left blocked, and a button to allow the first
   usb dismiss  hide them from the bar until they are plugged in again
@@ -167,7 +167,7 @@ maint/logs) exec foot logs -p service maint ;;
 reboot/) reboot_ask ;;
 usb/) usb_ask ;;
 usb/dismiss) usb_dismiss ;;
-timer/) show "󱎫 Timer" "$(timer -l)" "Middle click cancels them" 6000 ;;
+timer/) show "󱎫 Timer" "$(timer -l)" "Scroll switches the one shown, middle click cancels them" 6000 ;;
 -h/ | --help/) usage ;;
 *)
     usage >&2

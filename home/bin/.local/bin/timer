@@ -4,20 +4,24 @@ set -u
 usage() {
     cat <<EOF
 Usage: timer [-b] DURATION|@HH:MM [MESSAGE]
-  or:  timer -l | -k
+  or:  timer -l | -k | -n | -p
 Count down to the end, then a critical notification with MESSAGE and a bell.
 The end is wall-clock time, so a timer survives a suspend and fires on resume.
 
   DURATION  90, 90s, 25m, 1h30m, 1h2m3s
   @HH:MM    until that time, tomorrow if it has already passed
   -b        in the background, the terminal stays free
-  -l        list the background timers
-  -k        cancel the background timers
+  -l        list the timers, in the terminal and in the background
+  -k        cancel them all
+  -n, -p    show the next or the previous one in the bar
 EOF
 }
 
-# the bar shows the background timers: tell it now, not at its next look
+# the bar shows the timers: tell it now, not at its next look
 bar() { pkill -USR1 -u "$(id -u)" -x g0wm-status.sh 2>/dev/null || :; }
+
+# the timer the bar shows, by its pid; the one that rings first without it
+sel=${XDG_RUNTIME_DIR:-/tmp}/timer.sel
 
 die() {
     echo "timer: $*" >&2
@@ -70,7 +74,20 @@ list() {
 		printf "%-8s %s%s\n", $1, lab, msg == "" ? "" : "  " msg
 		n++
 	}
-	END { if (!n) print "No background timers." }'
+	END { if (!n) print "No timers." }'
+}
+
+# -n / -p: the bar shows the timer after or before the one it shows, in the
+# order they ring, round the end
+pick() {
+    pid=$(pgrep -u "$(id -u)" -af -- '/timer --until [0-9]' | awk '{
+		for (i = 1; i < NF; i++) if ($i == "--until") { print $1, $(i + 1); break }
+	}' | sort -k2,2n -k1,1n | awk -v cur="$(cat "$sel" 2>/dev/null)" -v step="$1" '
+		{ p[NR] = $1; if ($1 == cur) at = NR }
+		END { if (NR) print p[((at ? at - 1 + step : step) % NR + NR) % NR + 1] }')
+    [ -n "$pid" ] || die "no timers"
+    printf '%s\n' "$pid" >"$sel"
+    bar
 }
 
 case ${1:-} in
@@ -83,13 +100,23 @@ case ${1:-} in
     exit 0
     ;;
 -k)
-    pkill -u "$(id -u)" -f -- '/timer --until [0-9]' || die "no background timers"
+    pkill -u "$(id -u)" -f -- '/timer --until [0-9]' || die "no timers"
     bar
     exit 0
     ;;
+-n | -p)
+    pick "$([ "$1" = -n ] && echo 1 || echo -1)"
+    exit 0
+    ;;
 --until)
-    # what -b starts: --until EPOCH LABEL [MESSAGE]
+    # what every timer runs: --until EPOCH LABEL [MESSAGE]. The bar finds the
+    # timers by it, -l and -k too
     [ $# -ge 3 ] || exit 2
+    # Ctrl-C or the terminal closed: off the bar at once. No TERM trap, sh
+    # would run it only after the sleep, and -k tells the bar itself
+    trap '[ -t 2 ] && printf "\r\033[K" >&2; bar; exit 130' INT
+    trap 'bar; exit 129' HUP
+    bar
     wait_until "$2"
     ring "$3" "${4:-}"
     exit 0
@@ -132,10 +159,8 @@ esac
 if [ "$bg" = 1 ]; then
     setsid -f "$0" --until "$end" "$label" "${2:-}" </dev/null >/dev/null 2>&1
     echo "Timer $label, rings at $(date -d "@$end" +%H:%M:%S)."
-    bar
     exit 0
 fi
 
-trap 'printf "\r\033[K" >&2; exit 130' INT TERM
-wait_until "$end"
-ring "$label" "${2:-}"
+# in the terminal, as the same process a background one is
+exec "$0" --until "$end" "$label" "${2:-}"

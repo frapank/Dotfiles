@@ -377,26 +377,44 @@ read_net() {
     human $((dtx * 1000 / dms)) && net_up=$hu
 }
 
-# the background timer that rings first (timer -b runs "timer --until EPOCH"):
-# looked for when timer sends USR1, when the known one ends and every minute,
-# counted down in between
-timer_scan=-60000 timer_end=
+# the timer shown (every timer runs as "timer --until EPOCH ..."): the one
+# picked by scrolling (timer -n/-p write its pid to timer.sel), else the one
+# that rings first; " 2/3" after it while there are more. Looked for when
+# timer sends USR1, when one of them ends and every minute, counted down in
+# between
+timer_scan=-60000 timer_end= timer_next= timer_pos=
 timer_left() {
     timer_text=
-    if ((now - timer_scan >= 60000)) || { [[ -n $timer_end ]] && ((now >= timer_end)); }; then
-        timer_scan=$now timer_end=
-        local -a w
-        local i min=
+    if ((now - timer_scan >= 60000)) || { [[ -n $timer_next ]] && ((now >= timer_next)); }; then
+        timer_scan=$now timer_end= timer_next= timer_pos=
+        local -a w pids=() ends=()
+        local i n sel= soon=0 show= rank=1
+        { read -r sel <"$run_dir/timer.sel"; } 2>/dev/null
         while read -ra w; do
             for ((i = 1; i < ${#w[@]} - 1; i++)); do
                 [[ ${w[i]} == --until && ${w[i + 1]} =~ ^[0-9]+$ ]] || continue
-                [[ -z $min ]] || ((w[i + 1] < min)) && min=${w[i + 1]}
+                pids+=("${w[0]}") ends+=("${w[i + 1]}")
+                break
             done
         done < <(pgrep -u "$UID" -af -- '/timer --until [0-9]' 2>/dev/null)
-        [[ -n $min ]] && timer_end=$((now + (min - EPOCHSECONDS) * 1000))
+        n=${#pids[@]}
+        ((n)) || return 0
+        # in the order they ring, the pid between two that ring together, as
+        # timer -n/-p go through them
+        for ((i = 0; i < n; i++)); do
+            ((ends[i] < ends[soon] || (ends[i] == ends[soon] && pids[i] < pids[soon]))) && soon=$i
+            [[ ${pids[i]} == "$sel" ]] && show=$i
+        done
+        show=${show:-$soon}
+        for ((i = 0; i < n; i++)); do
+            ((ends[i] < ends[show] || (ends[i] == ends[show] && pids[i] < pids[show]))) && rank=$((rank + 1))
+        done
+        timer_end=$((now + (ends[show] - EPOCHSECONDS) * 1000))
+        timer_next=$((now + (ends[soon] - EPOCHSECONDS) * 1000))
+        ((n > 1)) && timer_pos=" $rank/$n"
     fi
     [[ -n $timer_end ]] && ((timer_end > now)) || return 0
-    clock_text $(((timer_end - now + 999) / 1000)) && timer_text=$ct
+    clock_text $(((timer_end - now + 999) / 1000)) && timer_text=$ct$timer_pos
 }
 
 # the newest kernel installed (/boot is root's only), when it is not the one
