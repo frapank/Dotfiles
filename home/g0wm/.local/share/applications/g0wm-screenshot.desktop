@@ -1,6 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Screenshot
+# the runner finds an entry by its name and by its untranslated one: Name is
+# the command, so typing it finds the entry too, shown as Name[en] or Name[it]
+Name=screenshot
+Name[en]=Screenshot
+Name[it]=Screenshot
 Comment=Capture a region, copied and saved
 Exec=screenshot
 Icon=g0wm-screenshot

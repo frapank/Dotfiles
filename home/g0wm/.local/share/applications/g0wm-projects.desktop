@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+# the runner finds an entry by its name and by its untranslated one: Name is
+# the command, so typing it finds the entry too, shown as Name[en] or Name[it]
+Name=tmux-project
+Name[en]=Projects
+Name[it]=Projects
+Comment=A tmux session per folder, picked with fzf
+Exec=tmux-project
+Icon=g0wm-projects
+Terminal=true

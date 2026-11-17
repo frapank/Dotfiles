@@ -1,6 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Record Screen
+# the runner finds an entry by its name and by its untranslated one: Name is
+# the command, so typing it finds the entry too, shown as Name[en] or Name[it]
+Name=record
+Name[en]=Record Screen
+Name[it]=Record Screen
 Comment=Record the screen, run again to stop
 Exec=record
 Icon=g0wm-record
