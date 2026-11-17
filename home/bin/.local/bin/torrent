@@ -1,0 +1,453 @@
+#!/usr/bin/env python3
+"""Search public indexes and RSS/Torznab feeds, select with fzf, download with aria2."""
+
+import base64
+import concurrent.futures
+import getopt
+import html
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import unicodedata
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from urllib.request import Request, urlopen
+import xml.etree.ElementTree as ET
+
+
+LIMIT = 8 * 1024 * 1024
+TRACKERS = ("udp://tracker.opentrackr.org:1337/announce", "udp://open.stealth.si:80/announce")
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "torrent/config.json"
+PROG = "torrent"
+USAGE = """\
+Usage: torrent [-d DIR] QUERY...
+Search torrents in public indexes and RSS/Torznab feeds, pick one with fzf and
+download it with aria2c: Enter downloads the whole torrent, Esc cancels.
+Downloads run in the foreground, upload while downloading and stop seeding
+when done: there is no background service.
+
+  -d, --directory DIR  download into DIR (default: download_dir in the config,
+                       else the current folder)
+  -h, --help           show this help
+
+Sources: Knaben, Pirate Bay, Nyaa, YTS and the RSS/Torznab feeds of the
+config, ~/.config/torrent/config.json.
+
+Examples:
+  torrent debian 13 netinst
+  torrent -d ~/Media big buck bunny
+
+Exit status: 0, or the one of aria2c; 1 on failure, 2 on bad usage.
+"""
+
+# the output: on a terminal a status label in its color, dimmed headers and
+# summaries; plain text in a pipe
+COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+OK, WARN, FAIL, DIM, OFF = (("\033[32m", "\033[33m", "\033[31m", "\033[2m", "\033[0m")
+                            if COLOR else ("",) * 5)
+ECOLOR = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
+
+
+def row(label, text):
+    """A status row: ok, warn or fail in its color, or a dimmed info."""
+    if label == "info":
+        print(f"  {DIM}info  {text}{OFF}")
+    else:
+        print(f"  {dict(ok=OK, warn=WARN, fail=FAIL)[label]}{label:<4}{OFF}  {text}")
+
+
+def dim(text):
+    """A table header or a summary line, dimmed."""
+    print(f"{DIM}{text}{OFF}")
+
+
+def help_text():
+    """The help; on a terminal styled as man does: bold titles, underlined
+    placeholders, dimmed examples."""
+    if not COLOR:
+        return USAGE
+    b, u, d, n = "\033[1m", "\033[4m", "\033[2m", "\033[0m"
+    ul = lambda t: re.sub(r"[A-Z][A-Z0-9_]+", lambda m: u + m[0] + n, t)
+    out, examples = [], False
+    for line in USAGE.split("\n"):
+        if not line:
+            examples = False
+        if examples:
+            out.append(d + line + n)
+        elif re.match(r"(Usage|  or):", line):
+            i = line.index(":") + 1
+            out.append(b + line[:i] + n + ul(line[i:]))
+        elif re.match(r"[A-Z][A-Za-z]*( [a-z]+)?:", line):
+            i = line.index(":") + 1
+            examples = line == "Examples:"
+            out.append(b + line[:i] + n + line[i:])
+        elif re.match(r"  [^ ]", line):
+            m = re.search(r"   *|$", line[2:])
+            out.append("  " + ul(line[2:2 + m.start()]) + line[2 + m.start():])
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
+def err(msg):
+    """An error, the name in red on a terminal."""
+    if ECOLOR:
+        print(f"\033[1;31m{PROG}:\033[0m {msg}", file=sys.stderr)
+    else:
+        print(f"{PROG}: {msg}", file=sys.stderr)
+
+
+def usage_error(msg):
+    """A usage error: what is wrong, then where the help is."""
+    err(msg)
+    try_help = f"Try '{PROG} --help' for more information."
+    print(f"\033[2m{try_help}\033[0m" if ECOLOR else try_help, file=sys.stderr)
+    sys.exit(2)
+
+
+class Ticker:
+    """How far a job over many items got: on a terminal, a dimmed line on
+    standard error with the item, how many are done and the time left from
+    the average so far; clear() before printing anything else."""
+
+    def __init__(self, total):
+        self.total, self.start, self.shown = total, time.monotonic(), False
+
+    def tick(self, done, label):
+        if not ECOLOR or self.total < 2:
+            return
+        left = ""
+        if done > 1:
+            s = round((time.monotonic() - self.start) * (self.total - done + 1) / (done - 1))
+            left = f"  ~{s // 60}m {s % 60:02d}s left" if s >= 60 else f"  ~{s}s left"
+        sys.stderr.write(f"\r\033[K\033[2m{done}/{self.total}  {label}{left}\033[0m")
+        sys.stderr.flush()
+        self.shown = True
+
+    def clear(self):
+        if self.shown:
+            sys.stderr.write("\r\033[K")
+            sys.stderr.flush()
+            self.shown = False
+
+
+def clean(value):
+    return " ".join("".join(c if not unicodedata.category(c).startswith("C") else " "
+                            for c in html.unescape(str(value))).split())[:240]
+
+
+def number(value):
+    try:
+        return max(0, int(value))
+    except (ValueError, TypeError):
+        return 0
+
+
+def url(base, **params):
+    parts = urlsplit(base)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.update(params)
+    return urlunsplit(parts._replace(query=urlencode(query, quote_via=quote)))
+
+
+def fetch(address):
+    if urlsplit(address).scheme not in ("http", "https"):
+        raise ValueError("expected an HTTP or HTTPS URL")
+    request = Request(address, headers={"User-Agent": "torrent/1.0", "Accept-Encoding": "identity"})
+    with urlopen(request, timeout=18) as response:
+        data = response.read(LIMIT + 1)
+    if len(data) > LIMIT:
+        raise ValueError("response exceeds 8 MiB")
+    return data
+
+
+def infohash(value):
+    value = str(value or "").strip()
+    if re.fullmatch(r"[a-fA-F0-9]{40}", value) and int(value, 16):
+        return value.lower()
+    if re.fullmatch(r"[a-zA-Z2-7]{32}", value):
+        return infohash(base64.b32decode(value.upper()).hex())
+    return ""
+
+
+def magnet_hash(magnet):
+    for key, value in parse_qsl(urlsplit(magnet).query):
+        if key == "xt" and value.lower().startswith("urn:btih:"):
+            return infohash(value[9:])
+    return ""
+
+
+def result(title, size, seeds, source, magnet="", hash_value="", download=""):
+    title = clean(title or "")
+    if not magnet.startswith("magnet:"):
+        magnet = ""
+    digest = magnet_hash(magnet) or infohash(hash_value)
+    if digest and not magnet_hash(magnet):
+        magnet = "magnet:?" + urlencode([("xt", "urn:btih:" + digest), ("dn", title)] +
+                                        [("tr", tracker) for tracker in TRACKERS])
+    if not digest:
+        magnet = ""
+    # Torrent URLs stay separate from public magnets, preserving private trackers.
+    if not title or not (magnet or urlsplit(download).scheme in ("http", "https")):
+        return None
+    return dict(title=title, size=clean(size or "?"), seeds=number(seeds),
+                source=clean(source), target=magnet or download, key=digest if magnet else download)
+
+
+def human_size(value):
+    size = number(value)
+    if not size:
+        return "?"
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if size < 1024 or unit == "TiB":
+            return f"{size:.1f} {unit}"
+        size /= 1024
+
+
+def knaben(query):
+    data = json.loads(fetch(url("https://api.knaben.org/v2/search", q=query, o="seeders", s=300)))
+    return [result(r.get("title"), human_size(r.get("bytes")), r.get("seeders"),
+                   "Knaben/" + str(r.get("tracker") or "unknown"), r.get("magnetUrl") or "",
+                   r.get("hash"), r.get("link") or "") for r in data["hits"]]
+
+
+def piratebay(query):
+    data = json.loads(fetch(url("https://apibay.org/q.php", q=query, cat=0)))
+    return [result(r.get("name"), human_size(r.get("size")), r.get("seeders"),
+                   "Pirate Bay", hash_value=r.get("info_hash")) for r in data if str(r.get("id")) != "0"]
+
+
+def yts(query):
+    for base in ("https://yts.rs", "https://yts.mx"):
+        try:
+            data = json.loads(fetch(url(base + "/api/v2/list_movies.json", query_term=query, limit=50)))
+            if data.get("status", "ok") != "ok" or "movie_count" not in data.get("data", {}):
+                raise ValueError("unexpected API response")
+            break
+        except (OSError, ValueError):
+            if base == "https://yts.mx":
+                raise
+    return [result(f"{m['title_long']} [{t.get('quality', '?')} {t.get('type', '')}]",
+                   human_size(t.get("size_bytes")), t.get("seeds"), "YTS", hash_value=t.get("hash"))
+            for m in (data["data"].get("movies") or []) for t in (m.get("torrents") or [])]
+
+
+def feed(query, source):
+    address = source["url"].replace("{query}", quote(query, safe=""))
+    if source.get("type", "torznab") == "torznab":
+        params = dict(t="search", q=query, limit=100)
+        if source.get("api_key"):
+            params["apikey"] = source["api_key"]
+        address = url(address, **params)
+    root = ET.fromstring(fetch(address))
+    if root.tag != "rss" or root.find("channel") is None:
+        raise ValueError("expected an RSS/Torznab feed")
+    rows = []
+    for item in root.findall("./channel/item"):
+        attrs = {}
+        for child in item:
+            key = child.tag.rsplit("}", 1)[-1]
+            attrs[child.get("name", key).lower()] = child.get("value", child.text or "")
+        enclosure = item.find("enclosure")
+        download = enclosure.get("url", "") if enclosure is not None else attrs.get("link", "")
+        magnet = attrs.get("magneturl", "")
+        if download.startswith("magnet:"):
+            magnet, download = download, ""
+        size = attrs.get("size", "")
+        if size.isdigit():
+            size = human_size(size)
+        digest = attrs.get("infohash", "")
+        if source.get("type", "torznab") == "torznab" and download.startswith(("http://", "https://")):
+            digest = ""  # Preserve authenticated/private .torrent downloads.
+        rows.append(result(attrs.get("title"), size, attrs.get("seeders"), source["name"],
+                           magnet, digest, download))
+    return rows
+
+
+def settings():
+    if not CONFIG.exists():
+        return {}
+    data = json.loads(CONFIG.read_text())
+    if not isinstance(data, dict):
+        raise ValueError("config must be a JSON object")
+    disabled = data.get("disabled_sources", [])
+    feeds = data.get("feeds", [])
+    if not isinstance(disabled, list) or not all(isinstance(s, str) for s in disabled):
+        raise ValueError("disabled_sources must be a list of names")
+    if not isinstance(feeds, list):
+        raise ValueError("feeds must be a list")
+    for source in feeds:
+        if (not isinstance(source, dict) or not isinstance(source.get("name"), str)
+                or not isinstance(source.get("url"), str)
+                or urlsplit(source["url"]).scheme not in ("http", "https")
+                or source.get("type", "torznab") not in ("torznab", "rss")
+                or not isinstance(source.get("api_key", ""), str)):
+            raise ValueError("each feed needs name, HTTP(S) url and type rss or torznab")
+        if source.get("type") == "rss" and "{query}" not in source["url"]:
+            raise ValueError("RSS search URLs must contain {query}")
+    if not isinstance(data.get("download_dir", ""), str):
+        raise ValueError("download_dir must be a path string")
+    return data
+
+
+def search(query, config):
+    sources = [("Knaben", knaben), ("Pirate Bay", piratebay), ("YTS", yts),
+               ("Nyaa", lambda q: feed(q, dict(name="Nyaa", type="rss",
+                                              url="https://nyaa.si/?page=rss&q={query}")))]
+    sources += [(s["name"], lambda q, s=s: feed(q, s)) for s in config.get("feeds", [])]
+    sources = [(n, f) for n, f in sources if n not in config.get("disabled_sources", [])]
+    # Torznab feeds may be private: their magnets never mix trackers with others.
+    private = {s["name"] for s in config.get("feeds", []) if s.get("type", "torznab") == "torznab"}
+    if not sources:
+        raise ValueError("no sources enabled")
+    merged, successful = {}, 0
+    ticker = Ticker(len(sources))
+    ticker.tick(1, "searching")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        tasks = {pool.submit(f, query): n for n, f in sources}
+        for done, task in enumerate(concurrent.futures.as_completed(tasks), 1):
+            name = clean(tasks[task])
+            try:
+                rows = [r for r in task.result() if r]
+                successful += 1
+            except (OSError, ValueError, KeyError, TypeError, AttributeError, ET.ParseError) as error:
+                reason = f"HTTP {error.code}" if isinstance(error, HTTPError) else type(error).__name__
+                ticker.clear()
+                row("fail", f"{name}: unavailable ({reason})")
+                ticker.tick(min(done + 1, len(sources)), "searching")
+                continue
+            ticker.clear()
+            row("ok", f"{name}: {len(rows)} result{'' if len(rows) == 1 else 's'}")
+            ticker.tick(min(done + 1, len(sources)), "searching")
+            for item in rows:
+                key = item["key"]
+                item["private"] = tasks[task] in private
+                if key not in merged:
+                    item["sources"] = {item["source"]}
+                    merged[key] = item
+                else:
+                    old = merged[key]
+                    old["seeds"] = max(old["seeds"], item["seeds"])
+                    old["sources"].add(item["source"])
+                    if old["target"].startswith("magnet:") and not (old["private"] or item["private"]):
+                        trackers = [(k, v) for k, v in parse_qsl(urlsplit(item["target"]).query)
+                                    if k == "tr"]
+                        pairs = list(dict.fromkeys(parse_qsl(urlsplit(old["target"]).query) + trackers))
+                        old["target"] = "magnet:?" + urlencode(pairs)
+    ticker.clear()
+    if not successful:
+        raise ValueError("all sources failed; check your connection or configure another feed")
+    found = sorted(merged.values(), key=lambda r: (-r["seeds"], r["title"].casefold(), r["key"]))
+    dim(f"Found {len(found)} torrent{'' if len(found) == 1 else 's'} in {successful} of {len(sources)} sources.")
+    return found
+
+
+def choose(rows):
+    lines = [f"{i}\t{r['seeds']:>6}  {r['size']:>10}  {r['title']}  [{', '.join(sorted(r['sources']))}]"
+             for i, r in enumerate(rows)]
+    env = dict(os.environ, FZF_DEFAULT_OPTS="", FZF_DEFAULT_OPTS_FILE="")
+    colors = [s for s in shlex.split(os.environ.get("FZF_DEFAULT_OPTS", "")) if s.startswith("--color=")]
+    proc = subprocess.run(["fzf", *colors, "--sync", "--delimiter=\t", "--with-nth=2..", "--no-sort", "--no-multi",
+                           "--layout=reverse", "--height=80%", "--prompt=Filter> ",
+                           "--header=SEEDS        SIZE  TITLE  [SOURCE] | Enter: download | Esc: cancel"],
+                          input="\n".join(lines) + "\n", text=True, stdout=subprocess.PIPE, env=env)
+    if proc.returncode in (1, 130):
+        return None
+    if proc.returncode:
+        raise ValueError("fzf failed")
+    return rows[int(proc.stdout.split("\t", 1)[0])]
+
+
+def download(item, directory):
+    directory = str(Path(directory).expanduser().resolve())
+    Path(directory).mkdir(parents=True, exist_ok=True)
+    dim(f"Downloading {item['title']} into {directory}.")
+    with tempfile.TemporaryDirectory(prefix="torrent-") as temporary:
+        target = item["target"]
+        if not target.startswith("magnet:"):
+            # Fetch credential-bearing URLs here, never in aria2's argv or logs.
+            try:
+                data = fetch(target)
+            except HTTPError as error:
+                # Jackett and Prowlarr answer magnet-only results with a redirect
+                # to the magnet, which urllib refuses to follow.
+                location = (error.headers or {}).get("Location", "")
+                if error.code not in (301, 302, 303, 307, 308) or not location.startswith("magnet:"):
+                    raise
+                target = location
+            else:
+                if not (data.startswith(b"d") and data.endswith(b"e")):
+                    raise ValueError("download endpoint did not return a torrent file")
+                target = str(Path(temporary) / "selected.torrent")
+                Path(target).write_bytes(data)
+        # its one progress line only: no summaries every minute, no table at the end;
+        # Ctrl-C is left to aria2c, so it stops cleanly and saves its resume state
+        proc = subprocess.Popen(["aria2c", "--no-conf=true", "--continue=true", "--seed-time=0",
+                                 "--bt-save-metadata=true", "--auto-file-renaming=false",
+                                 "--allow-overwrite=false", "--summary-interval=0",
+                                 "--download-result=hide", "--console-log-level=warn",
+                                 "--dir=" + directory, "--", target])
+        while True:
+            try:
+                rc = proc.wait()
+                break
+            except KeyboardInterrupt:
+                continue
+    if rc == 0:
+        dim(f"Downloaded {item['title']}.")
+    else:
+        err(f"aria2c failed (exit {rc})")
+    return rc
+
+
+def main():
+    try:
+        opts, args = getopt.gnu_getopt(sys.argv[1:], "hd:", ["help", "directory="])
+    except getopt.GetoptError as e:
+        if "requires argument" in e.msg:
+            usage_error(f"option requires an argument -- '{e.opt}'" if len(e.opt) == 1
+                        else f"option '--{e.opt}' requires an argument")
+        if "must not have an argument" in e.msg:
+            usage_error(f"option '--{e.opt}' doesn't allow an argument")
+        usage_error(f"invalid option -- '{e.opt}'" if len(e.opt) == 1 else f"unrecognized option '--{e.opt}'")
+    directory = None
+    for o, a in opts:
+        if o in ("-h", "--help"):
+            print(help_text(), end="")
+            return 0
+        if o in ("-d", "--directory"):
+            directory = a
+    query = " ".join(args).strip()
+    if not query:
+        usage_error("missing QUERY")
+    for program in ("fzf", "aria2c"):
+        if not shutil.which(program):
+            raise ValueError(f"{program} is missing (install {'aria2' if program == 'aria2c' else program})")
+    config = settings()
+    rows = search(query, config)
+    if not rows:
+        print("No torrents found.")
+        return 0
+    selected = choose(rows)
+    return download(selected, directory or config.get("download_dir") or ".") if selected else 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except (OSError, ValueError, ET.ParseError) as error:
+        # Network exceptions can embed API keys; report only their class/status.
+        message = f"HTTP {error.code}" if isinstance(error, HTTPError) else (
+            "network request failed" if isinstance(error, URLError) else
+            "file or process operation failed" if isinstance(error, OSError) else str(error))
+        err(message)
+        sys.exit(1)

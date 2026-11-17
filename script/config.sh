@@ -119,6 +119,7 @@ APT=(env DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l 
         grim slurp swappy wl-clipboard wf-recorder libnotify-bin wlsunset
         # terminal tools
         tree bat htop unzip zip 7zip wget curl rsync jq file lsof strace psmisc
+        aria2 fzf python3
         ncdu fastfetch
         # qr
         qrencode zbar-tools

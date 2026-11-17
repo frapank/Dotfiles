@@ -79,6 +79,7 @@ TOOLS='Files
 open|open files with their default app, text right in the terminal
 extract|unpack archives of any format, never overwrites
 compress|pack or encrypt files, the format comes from the name
+torrent|search multiple torrent sources, select with fzf and download with aria2
 metadata-remover|strip camera, GPS and author data, offline in a sandbox
 Privacy
 traces|show and delete histories, recent files, thumbnails, clipboard
