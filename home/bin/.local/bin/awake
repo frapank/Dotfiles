@@ -1,6 +1,78 @@
 #!/bin/sh
 set -u
 
+usage() {
+    cat <<EOF
+Usage: awake [on|off|toggle|longer|shorter|info]
+Keep the screen from locking by itself; it still locks before sleep. The eye
+in the bar shows it is on.
+
+  on, off, toggle  turn it on or off (default: toggle)
+  longer, shorter  turn it off 30 minutes later or earlier, up to 8 hours
+  info             how long it has been on and how long is left, in the bar
+  -h, --help       show this help
+
+Exit status: 0, 1 if the idle service is off, 2 on bad usage.
+EOF
+}
+
+# the help; on a terminal styled as man does: bold titles, underlined
+# placeholders, dimmed examples
+help() {
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
+            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
+            function ul(s, r) {
+                while (match(s, /[A-Z][A-Z0-9_]+/)) {
+                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
+                    s = substr(s, RSTART + RLENGTH)
+                }
+                return r s
+            }
+            /^$/ { ex = 0 }
+            ex { print d $0 n; next }
+            /^(Usage|  or):/ {
+                i = index($0, ":")
+                print b substr($0, 1, i) n ul(substr($0, i + 1))
+                next
+            }
+            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
+                i = index($0, ":")
+                ex = $0 == "Examples:"
+                print b substr($0, 1, i) n substr($0, i + 1)
+                next
+            }
+            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
+                i = RSTART
+                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
+                next
+            }
+            { print }'
+    else
+        usage
+    fi
+}
+
+# an error, the name in red on a terminal
+err() {
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf '\033[1;31m%s:\033[0m %s\n' awake "$*" >&2
+    else
+        printf '%s: %s\n' awake "$*" >&2
+    fi
+}
+
+# a usage error: what is wrong, then where the help is
+bad() {
+    err "$*"
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf "\033[2mTry 'awake --help' for more information.\033[0m\n" >&2
+    else
+        printf "Try 'awake --help' for more information.\n" >&2
+    fi
+    exit 2
+}
+
 # the screen does not lock by itself, it still locks before sleep
 run=${XDG_RUNTIME_DIR:-/tmp}
 flag=$run/awake
@@ -121,6 +193,7 @@ info() {
 }
 
 case ${1:-toggle} in
+-h | --help) help ;;
 on) on ;;
 off) off ;;
 toggle) if [ -e "$flag" ]; then off; else on; fi ;;
@@ -128,8 +201,5 @@ longer) change "$step" ;;
 shorter) change "-$step" ;;
 info) info ;;
 wait) wait_end ;;
-*)
-    echo "usage: awake [on|off|toggle|longer|shorter|info]" >&2
-    exit 2
-    ;;
+*) bad "unknown action '$1'" ;;
 esac

@@ -21,28 +21,37 @@ NAME = re.compile(r'home-(\d{4}-\d{2}-\d{2}_\d{4})')
 MAINT_LOCK = '/var/lib/maint/lock'
 
 USAGE = f"""\
-Usage: {PROG} FILE
-  or:  {PROG} -r SNAPSHOT FILE [DEST]
-  or:  {PROG} -d SNAPSHOT [-t SNAPSHOT] [FOLDER]
-  or:  {PROG} -l
+Usage: {PROG} [--] FILE
+  or:  {PROG} restore SNAPSHOT FILE [DEST]
+  or:  {PROG} diff SNAPSHOT [-t SNAPSHOT] [FOLDER]
+  or:  {PROG} list
 List the versions of FILE kept in the daily snapshots of /home, or copy the
 one in SNAPSHOT back. FILE can be a file or a folder and may no longer exist.
 Nothing is overwritten: the copy goes to DEST, by default next to FILE with
 the snapshot in its name. Asks for doas; the snapshots are then read with
 your own permissions, so you only get back what was yours to read.
 
-  -l           list the snapshots
-  -r SNAPSHOT  copy FILE back from SNAPSHOT, a date (2026-09-25) or a name
+  list         list the snapshots
+  restore      copy FILE back from SNAPSHOT, a date (2026-09-25) or a name
                from the list (2026-09-25_2007)
-  -d SNAPSHOT  list what changed in your home since SNAPSHOT, or only in
+  diff         list what changed in your home since SNAPSHOT, or only in
                FOLDER: A added, M modified, D deleted, R moved or renamed.
                A new or deleted folder is one line. Only names are compared,
                no file is read. Downloads, ~/.cache and the other folders
                kept out of the snapshots never show up.
-  -t SNAPSHOT  with -d: up to SNAPSHOT instead of now
+  -t SNAPSHOT  with diff: up to SNAPSHOT instead of now
+  -h, --help   show this help
 
 The snapshots are on the same disk as /home: they are not a backup.
-To delete a file from all of them, see 'forget --help'.
+To delete a file from all of them, see 'forget --help'. To see the versions
+of a file named list, restore or diff, put -- before it.
+
+Examples:
+  {PROG} ~/Documents/thesis.odt
+  {PROG} restore 2026-09-25 ~/Documents/thesis.odt
+  {PROG} diff 2026-09-25 ~/Documents
+
+Exit status: 0, 1 on failure, 2 on bad usage.
 """
 
 FORGET_USAGE = """\
@@ -52,7 +61,14 @@ good once you delete it yourself. FILE can be a file or a folder and may no
 longer exist; the live FILE is left alone. Asks for doas; the deletion then
 runs with your own permissions, so you can only remove what you could delete.
 
-  -n  only show the snapshots that hold each FILE, delete nothing
+  -n          only show the snapshots that hold each FILE, delete nothing
+  -h, --help  show this help
+
+Examples:
+  forget -n ~/.bash_history
+  forget ~/Documents/old-bank-statement.pdf
+
+Exit status: 0, 1 if a copy could not be deleted, 2 on bad usage.
 """
 
 
@@ -60,14 +76,74 @@ def q(s):
     return "'" + ''.join(c if c.isprintable() else '?' for c in s) + "'"
 
 
+# the output: on a terminal a status label in its color, dimmed headers and
+# summaries; plain text in a pipe
+COLOR = sys.stdout.isatty() and not os.environ.get('NO_COLOR')
+OK, WARN, FAIL, DIM, OFF = (('\033[32m', '\033[33m', '\033[31m', '\033[2m', '\033[0m')
+                            if COLOR else ('',) * 5)
+ECOLOR = sys.stderr.isatty() and not os.environ.get('NO_COLOR')
+
+
+def row(label, text):
+    """A status row: ok, warn or fail in its color, or a dimmed info."""
+    if label == 'info':
+        print(f'  {DIM}info  {text}{OFF}')
+    else:
+        print(f'  {dict(ok=OK, warn=WARN, fail=FAIL)[label]}{label:<4}{OFF}  {text}')
+
+
+def dim(text, file=None):
+    """A table header or a summary line, dimmed."""
+    color = ECOLOR if file is sys.stderr else COLOR
+    print(f'\033[2m{text}\033[0m' if color else text, file=file or sys.stdout)
+
+
+def help_text(text):
+    """The help; on a terminal styled as man does: bold titles, underlined
+    placeholders, dimmed examples."""
+    if not COLOR:
+        return text
+    b, u, d, n = '\033[1m', '\033[4m', '\033[2m', '\033[0m'
+    ul = lambda t: re.sub(r'[A-Z][A-Z0-9_]+', lambda m: u + m[0] + n, t)
+    out, examples = [], False
+    for line in text.split('\n'):
+        if not line:
+            examples = False
+        if examples:
+            out.append(d + line + n)
+        elif re.match(r'(Usage|  or):', line):
+            i = line.index(':') + 1
+            out.append(b + line[:i] + n + ul(line[i:]))
+        elif re.match(r'[A-Z][A-Za-z]*( [a-z]+)?:', line):
+            i = line.index(':') + 1
+            examples = line == 'Examples:'
+            out.append(b + line[:i] + n + line[i:])
+        elif re.match(r'  [^ ]', line):
+            m = re.search(r'   *|$', line[2:])
+            out.append('  ' + ul(line[2:2 + m.start()]) + line[2 + m.start():])
+        else:
+            out.append(line)
+    return '\n'.join(out)
+
+
+def err(msg):
+    """An error, the name in red on a terminal."""
+    if ECOLOR:
+        print(f'\033[1;31m{PROG}:\033[0m {msg}', file=sys.stderr)
+    else:
+        print(f'{PROG}: {msg}', file=sys.stderr)
+
+
 def die(msg, code=1):
-    print(f'{PROG}: {msg}', file=sys.stderr)
+    err(msg)
     sys.exit(code)
 
 
 def usage_error(msg):
-    print(f'{PROG}: {msg}', file=sys.stderr)
-    print(f"Try '{PROG} --help' for more information.", file=sys.stderr)
+    """A usage error: what is wrong, then where the help is."""
+    err(msg)
+    try_help = f"Try '{PROG} --help' for more information."
+    print(f'\033[2m{try_help}\033[0m' if ECOLOR else try_help, file=sys.stderr)
     sys.exit(2)
 
 
@@ -180,7 +256,7 @@ def list_versions(snaps, path):
     except OSError:
         now = None
     rows.append(('now', *describe(now)))
-    print(f'{"SNAPSHOT":<16} {"SIZE":>7}  STATE')
+    dim(f'{"SNAPSHOT":<16} {"SIZE":>7}  STATE')
     for label, size, state in rows:
         print(f'{label:<16} {size:>7}  {state}')
 
@@ -259,9 +335,9 @@ def delete(snaps, items):
                     shutil.rmtree(name, dir_fd=fd)
                 else:
                     os.unlink(name, dir_fd=fd)
-                print(f'removed {q(it["real"])} from {label}')
+                row('ok', f'{q(it["real"])} in {label}')
             except OSError as e:
-                print(f'{PROG}: {q(it["real"])} in {label}: {e.strerror}', file=sys.stderr)
+                row('fail', f'{q(it["real"])} in {label}: {e.strerror}')
                 failed += 1
             finally:
                 if fd is not None:
@@ -302,8 +378,11 @@ def forget(snaps, user, paths, dry):
     failed = sum(1 for f in found if f is None or not f['labels'])
     items = [f for f in found if f and f['labels']]
     if dry:
+        if items:
+            w = max(len(q(it['real'])) for it in items)
+            dim(f'{"FILE":<{w}}  SNAPSHOTS')
         for it in items:
-            print(f'{q(it["real"])}: ' + ', '.join(it['labels']))
+            print(f'{q(it["real"]):<{w}}  ' + ', '.join(it['labels']))
         return 1 if failed else 0
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, interrupted)
@@ -313,15 +392,17 @@ def forget(snaps, user, paths, dry):
         for it in items:
             failed += len(set(it['labels']) - writable)
             it['labels'] = [label for label in it['labels'] if label in writable]
-        failed += as_user(user, delete, snaps, items)
+        not_deleted = as_user(user, delete, snaps, items)
+        failed += not_deleted
+        removed = sum(len(it['labels']) for it in items) - not_deleted
     finally:
         # all of them: a killed run may have left others writable
         for label, _ in snaps:
             set_ro(label, 'true')
     for it in items:
         if it['live']:
-            print(f"{PROG}: {q(it['real'])} still exists: delete it too, or the next snapshot keeps it",
-                  file=sys.stderr)
+            row('warn', f"{q(it['real'])} still exists: delete it too, or the next snapshot keeps it")
+    dim('Deleted 1 copy.' if removed == 1 else f'Deleted {removed} copies.')
     return 1 if failed else 0
 
 
@@ -384,7 +465,7 @@ def restore(snaps, want, path, dest):
         die(f'{q(dest)}: copied with errors: {len(e.args[0])} file(s) failed')
     except OSError as e:
         die(f'{q(e.filename or dest)}: {e.strerror}')
-    print(f'{q(real)} ({label}) -> {q(dest)}')
+    dim(f'Copied {q(real)} from {label} to {q(dest)}.')
 
 
 DIFF_TMP = '.snap-diff'
@@ -567,7 +648,7 @@ def diff(snaps, user, since, until, folder):
         print(line)
     words = {'A': 'added', 'M': 'modified', 'D': 'deleted', 'R': 'moved'}
     total = ', '.join(f'{count[k]} {w}' for k, w in words.items() if k in count) or 'no changes'
-    print(f'{old} -> {new}: {total}', file=sys.stderr)
+    dim(f'{old} -> {new}: {total}.', file=sys.stderr)
 
 
 def main():
@@ -576,8 +657,11 @@ def main():
     forgetting = argv[:1] == ['--forget']
     if forgetting:
         PROG, argv = 'forget', argv[1:]
+    action = None
+    if not forgetting and argv[:1] in (['list'], ['restore'], ['diff']):
+        action, argv = argv[0], argv[1:]
     try:
-        opts, args = getopt.gnu_getopt(argv, 'hn' if forgetting else 'hlr:d:t:', ['help'])
+        opts, args = getopt.gnu_getopt(argv, 'hn' if forgetting else 'ht:', ['help'])
     except getopt.GetoptError as e:
         if 'requires argument' in e.msg:
             usage_error(f"option requires an argument -- '{e.opt}'")
@@ -588,18 +672,18 @@ def main():
     dry = False
     for o, a in opts:
         if o in ('-h', '--help'):
-            print(FORGET_USAGE if forgetting else USAGE, end='')
+            print(help_text(FORGET_USAGE if forgetting else USAGE), end='')
             return 0
         if o == '-n':
             dry = True
-        if o == '-l':
-            mode = 'list'
-        if o == '-r':
-            mode, want = 'restore', a
-        if o == '-d':
-            mode, want = 'diff', a
         if o == '-t':
             until = a
+    if action in ('restore', 'diff'):
+        if not args:
+            usage_error('missing SNAPSHOT')
+        mode, want, args = action, args[0], args[1:]
+    elif action == 'list':
+        mode = 'list'
     if mode == 'list' and args:
         usage_error(f'extra operand {q(args[0])}')
     if mode == 'versions' and len(args) != 1:
@@ -611,7 +695,7 @@ def main():
     if mode == 'diff' and len(args) > 1:
         usage_error(f'extra operand {q(args[1])}')
     if until is not None and mode != 'diff':
-        usage_error('-t goes with -d')
+        usage_error('-t goes with diff')
 
     if os.geteuid() != 0:
         os.execvp('doas', ['doas', '--', os.path.realpath(sys.argv[0]), *sys.argv[1:]])

@@ -2,12 +2,15 @@
 set -uf
 usage() {
     cat <<EOF
-Usage: traces [-c] [-s] [WHAT]...
+Usage: traces [WHAT]...
+  or:  traces clean [-s] [WHAT]...
 Show the traces of what you did that stay on this machine: recent files,
-histories, thumbnails, trash and clipboard. With -c, delete them.
+histories, thumbnails, trash and clipboard. With clean, delete them.
 
-  -c  delete the traces of each WHAT (default: all of them)
-  -s  with -c, also delete them from the snapshots of /home (asks for doas)
+  clean       delete the traces of each WHAT (default: all of them)
+  -s          with clean, also delete them from the snapshots of /home (asks
+              for doas)
+  -h, --help  show this help
 
 WHAT:
   recent      recently used files, positions in documents, videos watched,
@@ -17,17 +20,99 @@ WHAT:
   thumbnails  previews of images and documents
   trash       everything in the trash
   clipboard   the clipboard and the primary selection
+
+Examples:
+  traces
+  traces clean history clipboard
+  traces clean -s
+
+Exit status: 0, 1 if something could not be deleted, 2 on bad usage.
 EOF
 }
 
-die() {
-    echo "traces: $*" >&2
-    exit 1
+# the help; on a terminal styled as man does: bold titles, underlined
+# placeholders, dimmed examples
+help() {
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
+            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
+            function ul(s, r) {
+                while (match(s, /[A-Z][A-Z0-9_]+/)) {
+                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
+                    s = substr(s, RSTART + RLENGTH)
+                }
+                return r s
+            }
+            /^$/ { ex = 0 }
+            ex { print d $0 n; next }
+            /^(Usage|  or):/ {
+                i = index($0, ":")
+                print b substr($0, 1, i) n ul(substr($0, i + 1))
+                next
+            }
+            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
+                i = index($0, ":")
+                ex = $0 == "Examples:"
+                print b substr($0, 1, i) n substr($0, i + 1)
+                next
+            }
+            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
+                i = RSTART
+                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
+                next
+            }
+            { print }'
+    else
+        usage
+    fi
 }
-try() {
-    echo "Try 'traces --help' for more information." >&2
+
+# an error, the name in red on a terminal
+err() {
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf '\033[1;31m%s:\033[0m %s\n' traces "$*" >&2
+    else
+        printf '%s: %s\n' traces "$*" >&2
+    fi
+}
+
+# a usage error: what is wrong, then where the help is
+bad() {
+    err "$*"
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf "\033[2mTry 'traces --help' for more information.\033[0m\n" >&2
+    else
+        printf "Try 'traces --help' for more information.\n" >&2
+    fi
     exit 2
 }
+
+die() {
+    err "$*"
+    exit 1
+}
+
+# the output: on a terminal a status label in its color, dimmed headers and
+# summaries; plain text in a pipe
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    o_ok=$(printf '\033[32m') o_warn=$(printf '\033[33m') o_fail=$(printf '\033[31m')
+    o_dim=$(printf '\033[2m') o_off=$(printf '\033[0m')
+else
+    o_ok= o_warn= o_fail= o_dim= o_off=
+fi
+
+# a status row: ok, warn or fail in its color, or a dimmed info, then the text
+row() {
+    case $1 in
+    ok) printf '  %s%-4s%s  %s\n' "$o_ok" ok "$o_off" "$2" ;;
+    warn) printf '  %s%-4s%s  %s\n' "$o_warn" warn "$o_off" "$2" ;;
+    fail) printf '  %s%-4s%s  %s\n' "$o_fail" fail "$o_off" "$2" ;;
+    *) printf '  %s%-4s  %s%s\n' "$o_dim" info "$2" "$o_off" ;;
+    esac
+}
+
+# a table header or a summary line, dimmed
+dim() { printf '%s%s%s\n' "$o_dim" "$*" "$o_off"; }
 
 ALL='recent history thumbnails trash clipboard'
 LO=$HOME/.config/libreoffice/4/user/registrymodifications.xcu
@@ -51,28 +136,30 @@ present() { [ -e "$1" ] && [ ! -L "$1" ]; }
 
 picklist() { [ -f "$LO" ] && [ ! -L "$LO" ] && grep -c "HistoryInfo\['PickList'\]/ItemList" "$LO"; }
 
+# the rows of WHAT in the table: what, size, path
 show() {
-    printf '%s\n' "$1"
-    n=0
     for p in $(paths "$1"); do
         present "$p" || continue
-        printf '  %6s  ~%s\n' "$(du -sh -- "$p" 2>/dev/null | cut -f1)" "${p#"$HOME"}"
-        n=$((n + 1))
+        line "$1" "$(du -sh -- "$p" 2>/dev/null | cut -f1)" "~${p#"$HOME"}"
     done
     if [ "$1" = recent ] && c=$(picklist) && [ "$c" -gt 0 ]; then
-        printf '  %6s  LibreOffice recent documents\n' "$c"
-        n=$((n + 1))
+        line "$1" "$c" "LibreOffice recent documents"
     fi
     if [ "$1" = clipboard ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
         for sel in '' --primary; do
             # shellcheck disable=SC2086 # empty selection flag
             [ -n "$(wl-paste $sel --list-types 2>/dev/null)" ] || continue
             if [ -n "$sel" ]; then name='primary selection'; else name=clipboard; fi
-            printf '  %6s  %s\n' full "$name"
-            n=$((n + 1))
+            line "$1" full "$name"
         done
     fi
-    [ "$n" -gt 0 ] || echo '          nothing'
+}
+
+n=0
+line() {
+    [ "$n" -gt 0 ] || dim "$(printf '%-11s %6s  %s' WHAT SIZE PATH)"
+    printf '%-11s %6s  %s\n' "$1" "$2" "$3"
+    n=$((n + 1))
 }
 
 clean() {
@@ -81,10 +168,12 @@ clean() {
         # read-only folders (unpacked archives in the trash) block rm
         [ -d "$p" ] && chmod -R u+rwX -- "$p" 2>/dev/null
         if rm -rf -- "$p"; then
-            echo "removed '~${p#"$HOME"}'"
+            row ok "~${p#"$HOME"}"
+            done=$((done + 1))
             # ~/.cache is kept out of the snapshots
             case $p in "$HOME"/.cache/*) ;; *) printf '%s\n' "$p" >>"$forget" ;; esac
         else
+            row fail "~${p#"$HOME"}"
             bad=1
         fi
     done
@@ -94,10 +183,11 @@ clean() {
         pkill -u "$(id -u)" -x gvfsd-metadata 2>/dev/null
         if c=$(picklist) && [ "$c" -gt 0 ]; then
             if pgrep -u "$(id -u)" -x soffice.bin >/dev/null; then
-                echo "traces: LibreOffice is open: close it and run this again for its recent documents" >&2
+                row warn "LibreOffice is open: close it and run this again for its recent documents"
                 bad=1
             elif sed -i "/HistoryInfo\['PickList'\]/d" "$LO"; then
-                echo "removed $c LibreOffice recent documents"
+                row ok "$c LibreOffice recent documents"
+                done=$((done + 1))
                 printf '%s\n' "$LO" >>"$forget"
             else
                 bad=1
@@ -106,84 +196,99 @@ clean() {
         ;;
     history)
         if pgrep -u "$(id -u)" -x 'bash|vim|nvim' >/dev/null; then
-            echo "traces: open shells and editors write their history back when they close:" \
-                "run 'history -c' in each shell, close the editors" >&2
+            row warn "open shells and editors write their history back when they close: run 'history -c' in each shell, close the editors"
         fi
         ;;
     clipboard)
         if [ -n "${WAYLAND_DISPLAY:-}" ]; then
-            wl-copy --clear && wl-copy --primary --clear && echo "cleared the clipboard" || bad=1
+            if wl-copy --clear && wl-copy --primary --clear; then
+                row ok "clipboard"
+                done=$((done + 1))
+            else
+                row fail "clipboard"
+                bad=1
+            fi
         fi
         ;;
     esac
 }
 
 case ${1:-} in help | --help)
-    usage
+    help
     exit 0
     ;;
 esac
+c=0
+if [ "${1:-}" = clean ]; then
+    c=1
+    shift
+fi
 for a; do
     case $a in
     --) break ;;
     --*)
-        echo "traces: unrecognized option '$a'" >&2
-        try
+        bad "unrecognized option '$a'"
         ;;
     -*) ;;
     *) break ;;
     esac
 done
 
-c=0 s=0
-while getopts :csh o; do
+s=0
+while getopts :sh o; do
     case $o in
     \?)
-        echo "traces: invalid option -- '$OPTARG'" >&2
-        try
+        bad "invalid option -- '$OPTARG'"
         ;;
-    c) c=1 ;;
     s) s=1 ;;
     h)
-        usage
+        help
         exit 0
         ;;
-    *) try ;;
+    *) bad "invalid option -- '$OPTARG'" ;;
     esac
 done
 shift $((OPTIND - 1))
 [ "$s" = 0 ] || [ "$c" = 1 ] || {
-    echo "traces: -s works only with -c" >&2
-    try
+    bad "-s works only with clean"
 }
 for w; do
-    case " $ALL " in *" $w "*) ;; *)
-        echo "traces: '$w': unknown, see 'traces --help'" >&2
-        exit 2
-        ;;
-    esac
+    case " $ALL " in *" $w "*) ;; *) bad "unknown WHAT '$w'" ;; esac
 done
 # shellcheck disable=SC2086 # word list
 [ $# -gt 0 ] || set -- $ALL
 
 bad=0
 if [ "$c" = 0 ]; then
-    first=1
-    for w; do
-        [ "$first" = 1 ] || echo
-        first=0
-        show "$w"
-    done
+    for w; do show "$w"; done
+    [ "$n" -gt 0 ] && exit 0
+    if [ $# -gt 1 ]; then
+        echo "No traces."
+    else
+        case $1 in
+        recent) echo 'No recent files.' ;;
+        history) echo 'No histories.' ;;
+        thumbnails) echo 'No thumbnails.' ;;
+        trash) echo 'The trash is empty.' ;;
+        clipboard) echo 'The clipboard is empty.' ;;
+        esac
+    fi
     exit 0
 fi
 
 forget=$(mktemp) || die "cannot create a temporary file"
 trap 'rm -f -- "$forget"' EXIT
+done=0
 for w; do clean "$w"; done
 if [ "$s" = 1 ] && [ -s "$forget" ]; then
     command -v forget >/dev/null || die "forget is not installed: the snapshots still hold the old copies"
     tr '\n' '\0' <"$forget" | xargs -0 forget -- || bad=1
 elif [ -s "$forget" ] && [ -d /home/.snapshots ]; then
-    echo "traces: the snapshots of /home still hold the old copies: 'traces -cs' deletes them too" >&2
+    row info "the snapshots of /home still hold the old copies: 'traces clean -s' deletes them too"
 fi
+case $done in
+0) dim "Nothing to delete." ;;
+1) dim "Deleted 1 trace." ;;
+*) dim "Deleted $done traces." ;;
+esac
 exit "$bad"

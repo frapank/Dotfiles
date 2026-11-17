@@ -17,7 +17,7 @@
     <name>Remove Metadata</name>
     <submenu></submenu>
     <unique-id>1790500000000000-2</unique-id>
-    <command>metadata-remover -n %F</command>
+    <command>metadata-remover --notify %F</command>
     <description>Remove camera, GPS, author and other metadata, in place</description>
     <range></range>
     <patterns>*</patterns>
@@ -33,7 +33,7 @@
     <name>Show Metadata</name>
     <submenu></submenu>
     <unique-id>1790500000000000-3</unique-id>
-    <command>foot -H sh -c 'exec metadata-remover -s "$@"' metadata-remover %F</command>
+    <command>foot -H sh -c 'exec metadata-remover show "$@"' metadata-remover %F</command>
     <description>List the metadata of the selected files</description>
     <range></range>
     <patterns>*</patterns>

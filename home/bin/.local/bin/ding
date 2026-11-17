@@ -6,9 +6,74 @@ usage() {
 Usage: ding COMMAND [ARG]...
   or:  COMMAND; ding
 Notify when COMMAND ends, with its exit status and how long it took; the
-terminal also rings, so foot marks itself urgent. ding exits as COMMAND did.
+terminal also rings, so foot marks itself urgent.
 In bash, a bare ding after ';' tells about the command line it ends.
+
+  -h, --help  show this help
+
+Examples:
+  ding make
+  make -j8; ding
+
+Exit status: the one of COMMAND, 2 on bad usage.
 EOF
+}
+
+# the help; on a terminal styled as man does: bold titles, underlined
+# placeholders, dimmed examples
+help() {
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
+            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
+            function ul(s, r) {
+                while (match(s, /[A-Z][A-Z0-9_]+/)) {
+                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
+                    s = substr(s, RSTART + RLENGTH)
+                }
+                return r s
+            }
+            /^$/ { ex = 0 }
+            ex { print d $0 n; next }
+            /^(Usage|  or):/ {
+                i = index($0, ":")
+                print b substr($0, 1, i) n ul(substr($0, i + 1))
+                next
+            }
+            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
+                i = index($0, ":")
+                ex = $0 == "Examples:"
+                print b substr($0, 1, i) n substr($0, i + 1)
+                next
+            }
+            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
+                i = RSTART
+                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
+                next
+            }
+            { print }'
+    else
+        usage
+    fi
+}
+
+# an error, the name in red on a terminal
+err() {
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf '\033[1;31m%s:\033[0m %s\n' ding "$*" >&2
+    else
+        printf '%s: %s\n' ding "$*" >&2
+    fi
+}
+
+# a usage error: what is wrong, then where the help is
+bad() {
+    err "$*"
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf "\033[2mTry 'ding --help' for more information.\033[0m\n" >&2
+    else
+        printf "Try 'ding --help' for more information.\n" >&2
+    fi
+    exit 2
 }
 
 # seconds as 1h02m03s, 2m03s, 3s
@@ -26,7 +91,7 @@ st= secs= cmd=
 while [ $# -gt 0 ]; do
     case $1 in
     -h | --help)
-        usage
+        help
         exit 0
         ;;
     -s | -t | -c)
@@ -49,8 +114,7 @@ if [ $# -gt 0 ]; then
     st=$?
     secs=$(($(date +%s) - t0))
 elif [ -z "$st" ]; then
-    usage >&2
-    exit 2
+    bad "missing COMMAND"
 fi
 
 body=${secs:+"took $(fmt "$secs")"}

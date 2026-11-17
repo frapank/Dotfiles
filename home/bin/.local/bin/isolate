@@ -10,27 +10,86 @@ no sound, no D-Bus, no logs and no other process, and only TERM and LANG are
 passed from the environment. The current folder is visible read-only, unless
 it is your home or holds it. What is written in the empty home is lost.
 
-  -n       allow the network; then no Unix sockets, which would reach the
-           host's X11 and D-Bus. It is the host's network, 127.0.0.1 too:
-           the command can reach local servers (dnscrypt-proxy, databases)
-  -w       make the current folder writable
-  -r PATH  also make PATH visible, read-only; can be repeated
+  -n          allow the network; then no Unix sockets, which would reach the
+              host's X11 and D-Bus. It is the host's network, 127.0.0.1 too:
+              the command can reach local servers (dnscrypt-proxy, databases)
+  -w          make the current folder writable
+  -r PATH     also make PATH visible, read-only; can be repeated
+  -h, --help  show this help
 
-Exit status is the one of COMMAND.
+Examples:
+  isolate
+  isolate -n -w pip install -r requirements.txt
+
+Exit status: the one of COMMAND, 125 if the sandbox cannot start or on bad
+usage.
 EOF
 }
 
-die() {
-    echo "isolate: $*" >&2
+# the help; on a terminal styled as man does: bold titles, underlined
+# placeholders, dimmed examples
+help() {
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
+            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
+            function ul(s, r) {
+                while (match(s, /[A-Z][A-Z0-9_]+/)) {
+                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
+                    s = substr(s, RSTART + RLENGTH)
+                }
+                return r s
+            }
+            /^$/ { ex = 0 }
+            ex { print d $0 n; next }
+            /^(Usage|  or):/ {
+                i = index($0, ":")
+                print b substr($0, 1, i) n ul(substr($0, i + 1))
+                next
+            }
+            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
+                i = index($0, ":")
+                ex = $0 == "Examples:"
+                print b substr($0, 1, i) n substr($0, i + 1)
+                next
+            }
+            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
+                i = RSTART
+                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
+                next
+            }
+            { print }'
+    else
+        usage
+    fi
+}
+
+# an error, the name in red on a terminal
+err() {
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf '\033[1;31m%s:\033[0m %s\n' isolate "$*" >&2
+    else
+        printf '%s: %s\n' isolate "$*" >&2
+    fi
+}
+
+# a usage error: what is wrong, then where the help is
+bad() {
+    err "$*"
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf "\033[2mTry 'isolate --help' for more information.\033[0m\n" >&2
+    else
+        printf "Try 'isolate --help' for more information.\n" >&2
+    fi
     exit 125
 }
-try() {
-    echo "Try 'isolate --help' for more information." >&2
+
+die() {
+    err "$*"
     exit 125
 }
 
 case ${1:-} in help | --help)
-    usage
+    help
     exit 0
     ;;
 esac
@@ -38,8 +97,7 @@ for a; do
     case $a in
     --) break ;;
     --*)
-        echo "isolate: unrecognized option '$a'" >&2
-        try
+        bad "unrecognized option '$a'"
         ;;
     -*) ;;
     *) break ;;
@@ -50,12 +108,10 @@ net=0 write=0 extra=()
 while getopts :nwr:h o; do
     case $o in
     :)
-        echo "isolate: option requires an argument -- '$OPTARG'" >&2
-        try
+        bad "option requires an argument -- '$OPTARG'"
         ;;
     \?)
-        echo "isolate: invalid option -- '$OPTARG'" >&2
-        try
+        bad "invalid option -- '$OPTARG'"
         ;;
     n) net=1 ;;
     w) write=1 ;;
@@ -64,10 +120,10 @@ while getopts :nwr:h o; do
         extra+=(--ro-bind "$p" "$p")
         ;;
     h)
-        usage
+        help
         exit 0
         ;;
-    *) try ;;
+    *) bad "invalid option -- '$OPTARG'" ;;
     esac
 done
 shift $((OPTIND - 1))

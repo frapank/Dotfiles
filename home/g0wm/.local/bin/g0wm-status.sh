@@ -378,7 +378,7 @@ read_net() {
 }
 
 # the timer shown (every timer runs as "timer --until EPOCH ..."): the one
-# picked by scrolling (timer -n/-p write its pid to timer.sel), else the one
+# picked by scrolling (timer next/prev write its pid to timer.sel), else the one
 # that rings first; " 2/3" after it while there are more. Looked for when
 # timer sends USR1, when one of them ends and every minute, counted down in
 # between
@@ -400,7 +400,7 @@ timer_left() {
         n=${#pids[@]}
         ((n)) || return 0
         # in the order they ring, the pid between two that ring together, as
-        # timer -n/-p go through them
+        # timer next/prev go through them
         for ((i = 0; i < n; i++)); do
             ((ends[i] < ends[soon] || (ends[i] == ends[soon] && pids[i] < pids[soon]))) && soon=$i
             [[ ${pids[i]} == "$sel" ]] && show=$i

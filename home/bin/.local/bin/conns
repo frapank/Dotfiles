@@ -4,6 +4,7 @@ import getopt
 import ipaddress
 import os
 import pwd
+import re
 import sys
 
 PROG = 'conns'
@@ -12,14 +13,50 @@ Usage: {PROG} [-a] [-l]
 Show the network connections open right now, with the program that opened
 them and its AppArmor profile. Addresses are never resolved: nothing leaves
 this machine. Run it with doas to see the programs of the system and of the
-other users too. Exits 1 if something needs attention: DNS that does not go
-through dnscrypt-proxy, LAN discovery traffic, a TCP port open to the network.
+other users too.
 
-  -a  also show what stays inside this machine (loopback)
-  -l  also show the listening ports and the unconnected UDP sockets
+  -a          also show what stays inside this machine (loopback)
+  -l          also show the listening ports and the unconnected UDP sockets
+  -h, --help  show this help
 
 UDP sent without connect() shows no peer: the firewall DNS lock covers it.
+
+Examples:
+  conns
+  doas conns -l
+
+Exit status: 0, 1 if something needs attention (DNS that does not go through
+dnscrypt-proxy, LAN discovery traffic, a TCP port open to the network), 2 on
+bad usage.
 """
+
+
+def help_text():
+    """The help; on a terminal styled as man does: bold titles, underlined
+    placeholders, dimmed examples."""
+    if not sys.stdout.isatty() or os.environ.get('NO_COLOR'):
+        return USAGE
+    b, u, d, n = '\033[1m', '\033[4m', '\033[2m', '\033[0m'
+    ul = lambda t: re.sub(r'[A-Z][A-Z0-9_]+', lambda m: u + m[0] + n, t)
+    out, examples = [], False
+    for line in USAGE.split('\n'):
+        if not line:
+            examples = False
+        if examples:
+            out.append(d + line + n)
+        elif re.match(r'(Usage|  or):', line):
+            i = line.index(':') + 1
+            out.append(b + line[:i] + n + ul(line[i:]))
+        elif re.match(r'[A-Z][A-Za-z]*( [a-z]+)?:', line):
+            i = line.index(':') + 1
+            examples = line == 'Examples:'
+            out.append(b + line[:i] + n + line[i:])
+        elif re.match(r'  [^ ]', line):
+            m = re.search(r'   *|$', line[2:])
+            out.append('  ' + ul(line[2:2 + m.start()]) + line[2 + m.start():])
+        else:
+            out.append(line)
+    return '\n'.join(out)
 
 TCP_STATES = {
     '01': 'ESTAB', '02': 'SYN-SENT', '03': 'SYN-RECV', '04': 'FIN-WAIT-1',
@@ -34,9 +71,41 @@ def q(s):
     return ''.join(c if c.isprintable() else '?' for c in s)
 
 
+def err(msg):
+    """An error, the name in red on a terminal."""
+    if sys.stderr.isatty() and not os.environ.get('NO_COLOR'):
+        print(f'\033[1;31m{PROG}:\033[0m {msg}', file=sys.stderr)
+    else:
+        print(f'{PROG}: {msg}', file=sys.stderr)
+
+
+# the output: on a terminal a status label in its color, dimmed headers and
+# summaries; plain text in a pipe
+COLOR = sys.stdout.isatty() and not os.environ.get('NO_COLOR')
+OK, WARN, FAIL, DIM, OFF = (('\033[32m', '\033[33m', '\033[31m', '\033[2m', '\033[0m')
+                            if COLOR else ('',) * 5)
+
+
+def row(label, text):
+    """A status row: ok, warn or fail in its color, or a dimmed info."""
+    if label == 'info':
+        print(f'  {DIM}info  {text}{OFF}')
+    else:
+        print(f'  {dict(ok=OK, warn=WARN, fail=FAIL)[label]}{label:<4}{OFF}  {text}')
+
+
+def dim(text):
+    """A table header or a summary line, dimmed."""
+    print(f'{DIM}{text}{OFF}')
+
+
 def usage_error(msg):
-    print(f'{PROG}: {msg}', file=sys.stderr)
-    print(f"Try '{PROG} --help' for more information.", file=sys.stderr)
+    """A usage error: what is wrong, then where the help is."""
+    err(msg)
+    try_help = f"Try '{PROG} --help' for more information."
+    if sys.stderr.isatty() and not os.environ.get('NO_COLOR'):
+        try_help = f'\033[2m{try_help}\033[0m'
+    print(try_help, file=sys.stderr)
     sys.exit(2)
 
 
@@ -126,7 +195,7 @@ def main():
     loopback = listening = False
     for o, _ in opts:
         if o in ('-h', '--help'):
-            print(USAGE, end='')
+            print(help_text(), end='')
             return 0
         loopback = loopback or o == '-a'
         listening = listening or o == '-l'
@@ -167,15 +236,15 @@ def main():
     rows.sort(key=lambda r: (not r[5], r[4], r[0], r[3]))
     if rows:
         w = [max(len(r[i]) for r in rows + [('PROTO', 'STATE', 'LOCAL', 'REMOTE')]) for i in range(4)]
-        print(f'{"PROTO":<{w[0]}}  {"STATE":<{w[1]}}  {"LOCAL":<{w[2]}}  {"REMOTE":<{w[3]}}  PROGRAM')
+        dim(f'{"PROTO":<{w[0]}}  {"STATE":<{w[1]}}  {"LOCAL":<{w[2]}}  {"REMOTE":<{w[3]}}  PROGRAM')
         for proto, state, local, remote, who, why in rows:
-            mark = f'  ! {"; ".join(why)}' if why else ''
-            print(f'{proto:<{w[0]}}  {state:<{w[1]}}  {local:<{w[2]}}  {remote:<{w[3]}}  {who}{mark}')
+            print(f'{proto:<{w[0]}}  {state:<{w[1]}}  {local:<{w[2]}}  {remote:<{w[3]}}  {who}')
+            for reason in why:
+                row('warn', reason)
     else:
-        print('no connections')
+        print('No connections.')
     if hidden and os.geteuid() != 0:
-        sys.stdout.flush()
-        print(f"\n{PROG}: {hidden} socket(s) of other users: run 'doas {PROG}' to see their programs", file=sys.stderr)
+        row('info', f"{hidden} socket(s) of other users: run 'doas {PROG}' to see their programs")
     return 1 if warnings else 0
 
 

@@ -51,7 +51,7 @@ restore() {
         echo "nothing copied"
         return 0
     fi
-    "$SNAP" -r "$label" -- "$1"
+    "$SNAP" restore "$label" -- "$1"
 }
 
 forget_ui() {

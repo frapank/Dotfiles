@@ -3,23 +3,88 @@ set -eu
 
 usage() {
     cat <<EOF
-Usage: qr [TEXT]
-  or:  qr -c
-  or:  qr -o FILE.png [TEXT]
-  or:  qr -s | -d IMAGE
+Usage: qr [-o FILE.png] [--] [TEXT]
+  or:  qr clip
+  or:  qr scan | read IMAGE
 Show TEXT (default: standard input) as a QR code on the terminal, to pass a
 link or a password to the phone with no cloud in between.
 
-  -c        encode the clipboard
-  -o FILE   write a png instead
-  -s        read a QR code from a region of the screen
-  -d IMAGE  read a QR code from IMAGE
-What -s and -d read is printed and copied, notified if there is no terminal.
+  clip        encode the clipboard
+  scan        read a QR code from a region of the screen
+  read IMAGE  read a QR code from IMAGE
+  -o FILE     write a png instead
+  -h, --help  show this help
+What scan and read find is printed and copied, notified if there is no
+terminal. To encode the word clip, scan or read itself, put -- before it.
+
+Examples:
+  qr https://example.org
+  pass show wifi | qr
+  qr scan
+
+Exit status: 0, 1 on failure, 2 on bad usage.
 EOF
 }
 
+# the help; on a terminal styled as man does: bold titles, underlined
+# placeholders, dimmed examples
+help() {
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
+            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
+            function ul(s, r) {
+                while (match(s, /[A-Z][A-Z0-9_]+/)) {
+                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
+                    s = substr(s, RSTART + RLENGTH)
+                }
+                return r s
+            }
+            /^$/ { ex = 0 }
+            ex { print d $0 n; next }
+            /^(Usage|  or):/ {
+                i = index($0, ":")
+                print b substr($0, 1, i) n ul(substr($0, i + 1))
+                next
+            }
+            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
+                i = index($0, ":")
+                ex = $0 == "Examples:"
+                print b substr($0, 1, i) n substr($0, i + 1)
+                next
+            }
+            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
+                i = RSTART
+                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
+                next
+            }
+            { print }'
+    else
+        usage
+    fi
+}
+
+# an error, the name in red on a terminal
+err() {
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf '\033[1;31m%s:\033[0m %s\n' qr "$*" >&2
+    else
+        printf '%s: %s\n' qr "$*" >&2
+    fi
+}
+
+# a usage error: what is wrong, then where the help is
+bad() {
+    err "$*"
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf "\033[2mTry 'qr --help' for more information.\033[0m\n" >&2
+    else
+        printf "Try 'qr --help' for more information.\n" >&2
+    fi
+    exit 2
+}
+
 die() {
-    echo "qr: $*" >&2
+    err "$*"
     exit 1
 }
 
@@ -53,11 +118,11 @@ encode() {
 file=
 case ${1:-} in
 -h | --help)
-    usage
+    help
     exit 0
     ;;
--s)
-    [ $# -eq 1 ] || exit 2
+scan)
+    [ $# -eq 1 ] || bad "extra operand '$2'"
     geo=$(slurp 2>/dev/null) || exit 0
     tmp=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/qr.XXXXXX")
     trap 'rm -f -- "$tmp"' EXIT
@@ -65,36 +130,34 @@ case ${1:-} in
     decode "$tmp"
     exit
     ;;
--d)
-    [ $# -eq 2 ] || exit 2
+read)
+    [ $# -ge 2 ] || bad "missing IMAGE"
+    [ $# -eq 2 ] || bad "extra operand '$3'"
     [ -r "$2" ] || die "cannot read $2"
     decode "$2"
     exit
     ;;
--c)
-    [ $# -eq 1 ] || exit 2
+clip)
+    [ $# -eq 1 ] || bad "extra operand '$2'"
     wl-paste -n | encode
     exit
     ;;
 -o)
-    [ $# -ge 2 ] || exit 2
+    [ $# -ge 2 ] || bad "option requires an argument -- 'o'"
     file=$2
     shift 2
     ;;
--?*)
-    usage >&2
-    exit 2
-    ;;
+--) ;;
+--?*) bad "unrecognized option '$1'" ;;
+-?*) bad "invalid option -- '${1#-}'" ;;
 esac
 
+[ "${1:-}" = -- ] && shift
 case $# in
 0)
-    [ -t 0 ] && die "no TEXT and nothing on standard input (try 'qr --help')"
+    [ -t 0 ] && bad "missing TEXT, and nothing on standard input"
     encode
     ;;
 1) printf '%s' "$1" | encode ;;
-*)
-    usage >&2
-    exit 2
-    ;;
+*) bad "extra operand '$2'" ;;
 esac

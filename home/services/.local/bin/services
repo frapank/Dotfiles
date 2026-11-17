@@ -25,14 +25,101 @@ are the units of Debian.
   log NAME          what it printed, the same as 'logs service NAME'
   session           start them and stop them when g0wm quits: g0wm autostart runs it
   failed NAME       tell that NAME gave up: its units run it
+  -h, --help        show this help
+
+Examples:
+  services
+  services restart nightlight
+
+Exit status: 0, 1 on failure, 2 on bad usage; status NAME: 3 if it does not
+run.
 EOF
 }
 
+# the help; on a terminal styled as man does: bold titles, underlined
+# placeholders, dimmed examples
+help() {
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
+            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
+            function ul(s, r) {
+                while (match(s, /[A-Z][A-Z0-9_]+/)) {
+                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
+                    s = substr(s, RSTART + RLENGTH)
+                }
+                return r s
+            }
+            /^$/ { ex = 0 }
+            ex { print d $0 n; next }
+            /^(Usage|  or):/ {
+                i = index($0, ":")
+                print b substr($0, 1, i) n ul(substr($0, i + 1))
+                next
+            }
+            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
+                i = index($0, ":")
+                ex = $0 == "Examples:"
+                print b substr($0, 1, i) n substr($0, i + 1)
+                next
+            }
+            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
+                i = RSTART
+                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
+                next
+            }
+            { print }'
+    else
+        usage
+    fi
+}
+
+# an error, the name in red on a terminal
+err() {
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf '\033[1;31m%s:\033[0m %s\n' services "$*" >&2
+    else
+        printf '%s: %s\n' services "$*" >&2
+    fi
+}
+
+# a usage error: what is wrong, then where the help is
+bad() {
+    err "$*"
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf "\033[2mTry 'services --help' for more information.\033[0m\n" >&2
+    else
+        printf "Try 'services --help' for more information.\n" >&2
+    fi
+    exit 2
+}
+
 die() {
-    printf 'services: %s\n' "$*" >&2
+    err "$*"
     [ -t 2 ] || notify-send -i g0wm -a " services" "$*" 2>/dev/null
     exit 1
 }
+
+# the output: on a terminal a status label in its color, dimmed headers and
+# summaries; plain text in a pipe
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    o_ok=$(printf '\033[32m') o_warn=$(printf '\033[33m') o_fail=$(printf '\033[31m')
+    o_dim=$(printf '\033[2m') o_off=$(printf '\033[0m')
+else
+    o_ok= o_warn= o_fail= o_dim= o_off=
+fi
+
+# a status row: ok, warn or fail in its color, or a dimmed info, then the text
+row() {
+    case $1 in
+    ok) printf '  %s%-4s%s  %s\n' "$o_ok" ok "$o_off" "$2" ;;
+    warn) printf '  %s%-4s%s  %s\n' "$o_warn" warn "$o_off" "$2" ;;
+    fail) printf '  %s%-4s%s  %s\n' "$o_fail" fail "$o_off" "$2" ;;
+    *) printf '  %s%-4s  %s%s\n' "$o_dim" info "$2" "$o_off" ;;
+    esac
+}
+
+# a table header or a summary line, dimmed
+dim() { printf '%s%s%s\n' "$o_dim" "$*" "$o_off"; }
 
 sc() { systemctl --user "$@"; }
 
@@ -120,7 +207,7 @@ toggle() {
             sc disable $now -- "$n.service" || rc=1
         fi
     done
-    [ -n "$now" ] || echo "saved for the next login: the session is not running"
+    [ -n "$now" ] || row info "saved for the next login: the session is not running"
     return "$rc"
 }
 
@@ -132,11 +219,11 @@ status() {
     fi
     w=7
     for n in $(names); do [ "${#n}" -le "$w" ] || w=${#n}; done
-    printf '%-*s  %-9s %-11s %s\n' "$w" SERVICE NOW 'AT LOGIN' WHAT
+    dim "$(printf '%-*s  %-9s %-11s %s' "$w" SERVICE NOW 'AT LOGIN' WHAT)"
     for n in $(names); do
         printf '%-*s  %-9s %-11s %s\n' "$w" "$n" "$(now "$n")" "$(at_login "$n")" "$(desc "$n")"
     done
-    running || printf '\nthe session is not running: g0wm starts it with %s\n' "'services session'"
+    running || row info "the session is not running: g0wm starts it with 'services session'"
     return 0
 }
 
@@ -215,7 +302,7 @@ session() {
 self=$(command -v "$0") || self=$0
 case ${1:-status} in
 -h | --help | help)
-    usage
+    help
     exit 0
     ;;
 esac
@@ -231,12 +318,8 @@ disable) toggle 0 "$@" ;;
 log) log "$@" ;;
 session) session ;;
 failed)
-    [ $# -eq 1 ] || die "failed what?"
+    [ $# -eq 1 ] || bad "missing NAME"
     failed "$1"
     ;;
-*)
-    echo "services: unknown command '$cmd'" >&2
-    echo "Try 'services --help' for more information." >&2
-    exit 2
-    ;;
+*) bad "unknown command '$cmd'" ;;
 esac

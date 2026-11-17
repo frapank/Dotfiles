@@ -7,7 +7,72 @@ Usage: dotfiles [COMMAND]
 List the commands these dotfiles add: first the ones to use by hand, then,
 dimmed, the helpers behind the g0wm keys and the default apps.
 With COMMAND, show its --help.
+
+  -h, --help  show this help
+
+Examples:
+  dotfiles
+  dotfiles timer
+
+Exit status: 0, 1 if COMMAND is not installed, 2 on bad usage.
 EOF
+}
+
+# the help; on a terminal styled as man does: bold titles, underlined
+# placeholders, dimmed examples
+help() {
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
+            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
+            function ul(s, r) {
+                while (match(s, /[A-Z][A-Z0-9_]+/)) {
+                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
+                    s = substr(s, RSTART + RLENGTH)
+                }
+                return r s
+            }
+            /^$/ { ex = 0 }
+            ex { print d $0 n; next }
+            /^(Usage|  or):/ {
+                i = index($0, ":")
+                print b substr($0, 1, i) n ul(substr($0, i + 1))
+                next
+            }
+            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
+                i = index($0, ":")
+                ex = $0 == "Examples:"
+                print b substr($0, 1, i) n substr($0, i + 1)
+                next
+            }
+            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
+                i = RSTART
+                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
+                next
+            }
+            { print }'
+    else
+        usage
+    fi
+}
+
+# an error, the name in red on a terminal
+err() {
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf '\033[1;31m%s:\033[0m %s\n' dotfiles "$*" >&2
+    else
+        printf '%s: %s\n' dotfiles "$*" >&2
+    fi
+}
+
+# a usage error: what is wrong, then where the help is
+bad() {
+    err "$*"
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf "\033[2mTry 'dotfiles --help' for more information.\033[0m\n" >&2
+    else
+        printf "Try 'dotfiles --help' for more information.\n" >&2
+    fi
+    exit 2
 }
 
 TOOLS='Files
@@ -24,7 +89,7 @@ Shell
 tmux-project|a tmux session per folder, from zoxide (prefix f)
 ding|notify when a command ends: ding make, or make; ding
 timer|a countdown with a notification: timer 25m tea, timer @14:30
-qr|show text as a QR code, read one from the screen (-s)
+qr|show text as a QR code, read one from the screen (qr scan)
 colorpick|click a pixel, copy its color as #rrggbb
 Snapshots of /home
 snap|the older versions of a file, copy one back, what changed since a day
@@ -44,7 +109,7 @@ osd|the volume, brightness and media keys, the bar clicks
 indicator|the clicks on the mic, cam and dns icons
 power|the power key: sleep, reboot, shut down
 photo video pdf office browser files audio|the default app
-wifi bluetooth|their manager, or on/off
+wifi bluetooth|their manager, or on/off/toggle/info
 open-default|what photo, video, pdf... run
 g0wm-status.sh|the text of the bar
 start-g0wm|g0wm after the login on tty1'
@@ -66,7 +131,14 @@ where() {
     return 1
 }
 
-tool() { printf '%s\n' "$TOOLS" | grep -q "^$1|"; }
+# the helpers with a --help, the default apps and the session scripts have none
+HELPED='screenshot record nightlight awake osd indicator power wifi bluetooth open-default'
+
+tool() {
+    printf '%s\n' "$TOOLS" | grep -q "^$1|" && return 0
+    case " $HELPED " in *" $1 "*) return 0 ;; esac
+    return 1
+}
 
 list() {
     printf '%s\n' "$TOOLS" | while IFS='|' read -r name what; do
@@ -86,25 +158,18 @@ list() {
             printf '  %s%s: %s%s\n' "$D" "$names" "$what" "$O"
         fi
     done
-    printf "\nEach one has --help: 'dotfiles NAME' shows it.\n"
+    printf "\n'dotfiles NAME' shows its --help.\n"
 }
 
 case ${1:-} in
 '') list ;;
--h | --help | help) usage ;;
--*)
-    echo "dotfiles: unknown option '$1'" >&2
-    echo "Try 'dotfiles --help' for more information." >&2
-    exit 2
-    ;;
+-h | --help | help) help ;;
+-*) bad "unrecognized option '$1'" ;;
 *)
-    # helpers have no --help and would just run
-    tool "$1" || {
-        echo "dotfiles: '$1' is not one of the commands, see 'dotfiles'" >&2
-        exit 2
-    }
+    # the default apps have no --help and would just run
+    tool "$1" || bad "unknown command '$1'"
     p=$(where "$1") || {
-        echo "dotfiles: $1 is not installed" >&2
+        err "$1 is not installed"
         exit 1
     }
     [ "$1" != maint ] || {

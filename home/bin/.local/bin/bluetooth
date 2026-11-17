@@ -1,5 +1,77 @@
 #!/bin/sh
+set -u
+
+usage() {
+    cat <<EOF
+Usage: bluetooth [on|off|toggle|info]
+Turn the Bluetooth adapter on or off. With no argument, open the device
+manager. It is off at every boot.
+
+  on, off, toggle  turn the adapter on or off
+  info             whether it is on and what is connected, in the bar
+  -h, --help       show this help
+
+Exit status: 0, 1 if the adapter refuses.
+EOF
+}
+
+# the help; on a terminal styled as man does: bold titles, underlined
+# placeholders, dimmed examples
+help() {
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
+            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
+            function ul(s, r) {
+                while (match(s, /[A-Z][A-Z0-9_]+/)) {
+                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
+                    s = substr(s, RSTART + RLENGTH)
+                }
+                return r s
+            }
+            /^$/ { ex = 0 }
+            ex { print d $0 n; next }
+            /^(Usage|  or):/ {
+                i = index($0, ":")
+                print b substr($0, 1, i) n ul(substr($0, i + 1))
+                next
+            }
+            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
+                i = index($0, ":")
+                ex = $0 == "Examples:"
+                print b substr($0, 1, i) n substr($0, i + 1)
+                next
+            }
+            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
+                i = RSTART
+                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
+                next
+            }
+            { print }'
+    else
+        usage
+    fi
+}
+
+show() {
+    notify-send -a "󰂯 Bluetooth" -u low -e -t 1500 -h string:x-dunst-stack-tag:osd-bluetooth \
+        "$1" ${2:+"$2"} 2>/dev/null
+}
+
+on() { bluetoothctl show 2>/dev/null | grep -q 'Powered: yes'; }
+
 case ${1:-} in
+-h | --help)
+    help
+    exit 0
+    ;;
 on | off) exec bluetoothctl power "$1" ;;
+toggle) if on; then exec bluetoothctl power off; else exec bluetoothctl power on; fi ;;
+info)
+    if on; then
+        show "On" "$(bluetoothctl devices Connected 2>/dev/null | cut -d' ' -f3- | paste -sd, - | sed 's/,/, /g')"
+    else
+        show "Off"
+    fi
+    ;;
+*) exec blueman-manager "$@" ;;
 esac
-exec blueman-manager "$@"

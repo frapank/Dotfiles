@@ -1,8 +1,81 @@
 #!/bin/sh
-[ $# -ge 2 ] || {
-    echo "usage: dbus-filter APP PROGRAM [ARGS...]" >&2
+usage() {
+    cat <<EOF
+Usage: dbus-filter APP PROGRAM [ARG]...
+Run PROGRAM in the sandbox of APP: a filtered D-Bus, its own Wayland socket,
+an empty runtime folder. The wrappers in /usr/local/bin (librewolf, papers,
+libreoffice...) run it.
+
+  -h, --help  show this help
+
+Exit status: the one of PROGRAM, 2 on bad usage.
+EOF
+}
+
+# the help; on a terminal styled as man does: bold titles, underlined
+# placeholders, dimmed examples
+help() {
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
+            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
+            function ul(s, r) {
+                while (match(s, /[A-Z][A-Z0-9_]+/)) {
+                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
+                    s = substr(s, RSTART + RLENGTH)
+                }
+                return r s
+            }
+            /^$/ { ex = 0 }
+            ex { print d $0 n; next }
+            /^(Usage|  or):/ {
+                i = index($0, ":")
+                print b substr($0, 1, i) n ul(substr($0, i + 1))
+                next
+            }
+            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
+                i = index($0, ":")
+                ex = $0 == "Examples:"
+                print b substr($0, 1, i) n substr($0, i + 1)
+                next
+            }
+            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
+                i = RSTART
+                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
+                next
+            }
+            { print }'
+    else
+        usage
+    fi
+}
+
+# an error, the name in red on a terminal
+err() {
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf '\033[1;31m%s:\033[0m %s\n' dbus-filter "$*" >&2
+    else
+        printf '%s: %s\n' dbus-filter "$*" >&2
+    fi
+}
+
+# a usage error: what is wrong, then where the help is
+bad() {
+    err "$*"
+    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf "\033[2mTry 'dbus-filter --help' for more information.\033[0m\n" >&2
+    else
+        printf "Try 'dbus-filter --help' for more information.\n" >&2
+    fi
     exit 2
 }
+
+case ${1:-} in -h | --help)
+    help
+    exit 0
+    ;;
+esac
+[ $# -ge 1 ] || bad "missing APP"
+[ $# -ge 2 ] || bad "missing PROGRAM"
 app=$1 prog=$2
 shift 2
 
