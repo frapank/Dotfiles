@@ -862,7 +862,9 @@ def g0wm_colors():
             "title": (DIM, BAR, BAR), "titlesel": (FG, BAR, BAR), "status": (DIM, BAR, BAR),
             # the notifications and the runner are part of the bar: its background too
             "notify": (FG, BAR, ACCENT), "notifylow": (FG, BAR, GREEN), "notifycrit": (FG, BAR, RED),
-            "runner": (FG, BAR, BAR), "runnersuggest": (DIM, BAR, BAR), "runnersel": (BAR, FG, FG),
+            # the selected entry on LINE, as PmenuSel and fzf's bg+: the inverted pill was the
+            # brightest thing on screen while typing
+            "runner": (FG, BAR, BAR), "runnersuggest": (DIM, BAR, BAR), "runnersel": (FG, LINE, LINE),
             "runnericon": (FG, LINE, MUTE)}
     text = read(G0WM)
     for k, cs in rows.items():
