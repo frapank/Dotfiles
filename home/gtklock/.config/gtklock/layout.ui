@@ -20,14 +20,14 @@
             <property name="halign">center</property>
             <property name="orientation">vertical</property>
             <child>
-              <object class="GtkLabel" id="clock-label">
-                <property name="name">clock-label</property>
+              <object class="GtkLabel" id="date-label">
+                <property name="name">date-label</property>
                 <property name="halign">center</property>
               </object>
             </child>
             <child>
-              <object class="GtkLabel" id="date-label">
-                <property name="name">date-label</property>
+              <object class="GtkLabel" id="clock-label">
+                <property name="name">clock-label</property>
                 <property name="halign">center</property>
               </object>
             </child>

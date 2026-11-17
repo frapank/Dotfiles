@@ -25,12 +25,15 @@ window {
 #clock-label {
     color: @g0_fg;
     font-size: 80px;
-    font-weight: 600;
+    /* light, with digits of one width so the minutes don't shift */
+    font-weight: 300;
+    font-feature-settings: "tnum";
 }
 
 #date-label {
     color: @g0_dim;
-    font-size: 16px;
+    font-size: 13px;
+    letter-spacing: 3px;
 }
 
 #input-label {
@@ -46,7 +49,8 @@ window {
     color: @g0_fg;
     caret-color: @g0_accent;
 
-    border: 1px solid @g0_line;
+    /* no border, the field is its fill: it is always focused here */
+    border: 1px solid @g0_field;
     border-radius: 8px;
     box-shadow: none;
 
@@ -56,7 +60,7 @@ window {
 }
 
 #input-field:focus {
-    border-color: @g0_fg;
+    border-color: @g0_field;
 }
 
 /* the show password icon */
