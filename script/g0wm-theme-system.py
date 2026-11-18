@@ -460,8 +460,13 @@ def at(t, size, colors, cx=W / 2, cy=H / 2, extra=""):
 
 
 def wp_tone(t):
+    colors = {"g": fill(t.SEL), "dog": fill(t.PRESS), "fur": fill(t.DESK), "prompt": fill(t.DESK)}
+    body = at(t, 1900, colors)
+    dog = logo_layers(t)["dog"]
+    head = dog[dog.index("M", 1):]
+    body = body.replace(f'd="{dog}"', f'd="{head}"')
     return svg("The logo, tone on tone, 88% of the screen height.",
-               at(t, 1900, {"g": fill(t.SEL), "dog": fill(t.PRESS), "fur": fill(t.DESK), "prompt": fill(t.DESK)}), t.DESK)
+               body, t.DESK)
 
 
 def wp_portrait(t):
