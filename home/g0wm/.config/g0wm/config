@@ -120,26 +120,25 @@ key logo+q spawn foot
 key logo+f spawn thunar
 key logo+b spawn librewolf
 key Print spawn screenshot
-key shift+Print spawn screenshot screen
-key ctrl+Print spawn screenshot edit
+key Print*2 spawn screenshot screen
+key Print*3 spawn screenshot edit
 key logo+Print spawn record
-key logo+shift+Print spawn record region
-key logo+ctrl+Print spawn record --no-audio
+key logo+Print*2 spawn record region
+key logo+Print*3 spawn record --no-audio
 key logo+equal spawn nightlight
 key logo+minus spawn awake
-key logo+n notifyscroll
-key logo+shift+n notifyopen
+key logo+n notifyopen
+key logo+n*2 notifyactions
+key logo+n*3 notifydismissall
 key logo+ctrl+n notifynext
 key logo+alt+n notifyprev
-key logo+ctrl+shift+n notifydismissall
-key logo+a notifyactions
 key logo+c killclient
 key logo+v togglefloating
+key logo+v*2 togglefullscreen
 key logo+shift+p toggleprivate
 key logo+shift+g togglegaps
-key logo+shift+t toggletitlebar
 key logo+t toggletabbed "| |"
-key logo+shift+f togglefullscreen
+key logo+t*2 toggletitlebar
 key logo+shift+r reloadsettings
 key logo+r runnertoggle
 key logo+h focusstack -1
