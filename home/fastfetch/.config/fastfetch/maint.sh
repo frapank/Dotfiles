@@ -33,8 +33,14 @@ status)
     failed=$(get failed)
     if [ -n "$failed" ]; then
         echo "failed: $failed"
+    elif [ -n "$(get running)" ]; then
+        echo "running: $(get running)"
+    elif [ -n "$(get postponed)" ]; then
+        echo "postponed: $(get postponed)"
+    elif [ "$(get job_home_state)" = never ]; then
+        echo "no home snapshot run yet"
     else
-        echo "all jobs ok"
+        echo "no jobs need attention"
     fi
     ;;
 esac

@@ -2,106 +2,39 @@
 set -u
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
+
+# shellcheck source=root/helpers/usr/local/lib/dotfiles/cli.sh
+. /usr/local/lib/dotfiles/cli.sh
+
 usage() {
     cat <<EOF
-Usage: maint status | run
-  or:  maint JOB
-Snapshots, updates and cleanup: the maint service runs 'maint run' every
-hour, and each job when it is due. By hand, as root, a job runs now.
+Usage: maint status [JOB] | plan [JOB] | logs [JOB]
+  or:  maint run | retry [JOB...] | JOB
+Snapshots, updates and cleanup: the maint service checks every hour.
+A job run by hand starts now; retry waits for an active run to finish.
 
-  status        when each job last ran, the snapshots, the last scrub
-  run           every job that is due
-  JOB           one job now: home thumbs trash update disks kernels packages
-                firmware integrity cves vesktop scrub blocklist
+  status [JOB]  state, last success, next due time; with JOB: attempt and duration
+  plan [JOB]    show due jobs and local prerequisites, without changing anything
+  logs [JOB]    latest job output, or the maintenance journal without JOB
+  run           run due jobs, continue after failures and return failure if any failed
+  retry [JOB...] retry failed or interrupted jobs, or the named jobs; waits for the lock
+  JOB           home thumbs trash update disks kernels packages firmware integrity
+                cves vesktop scrub blocklist
   apt-snapshot  the snapshot of / that apt takes before it changes anything
   -h, --help    show this help
 
-Examples:
-  doas maint status
-  doas maint update
+Plan does not probe the network or refresh package lists. Readiness can change
+before execution. Failed and postponed jobs are checked again after one hour.
 
-Exit status: 0, 1 if a job failed or it is not run as root, 2 on bad usage.
+Examples:
+  doas maint status update
+  doas maint plan
+  doas maint logs update
+  doas maint retry
+
+Exit status: 0 on success or postponement, 1 on failure, 2 on bad usage.
 EOF
 }
-
-# the help; on a terminal styled as man does: bold titles, underlined
-# placeholders, dimmed examples
-help() {
-    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
-            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
-            function ul(s, r) {
-                while (match(s, /[A-Z][A-Z0-9_]+/)) {
-                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
-                    s = substr(s, RSTART + RLENGTH)
-                }
-                return r s
-            }
-            /^$/ { ex = 0 }
-            ex { print d $0 n; next }
-            /^(Usage|  or):/ {
-                i = index($0, ":")
-                print b substr($0, 1, i) n ul(substr($0, i + 1))
-                next
-            }
-            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
-                i = index($0, ":")
-                ex = $0 == "Examples:"
-                print b substr($0, 1, i) n substr($0, i + 1)
-                next
-            }
-            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
-                i = RSTART
-                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
-                next
-            }
-            { print }'
-    else
-        usage
-    fi
-}
-
-# an error, the name in red on a terminal
-err() {
-    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
-        printf '\033[1;31m%s:\033[0m %s\n' maint "$*" >&2
-    else
-        printf '%s: %s\n' maint "$*" >&2
-    fi
-}
-
-# a usage error: what is wrong, then where the help is
-bad() {
-    err "$*"
-    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
-        printf "\033[2mTry 'maint --help' for more information.\033[0m\n" >&2
-    else
-        printf "Try 'maint --help' for more information.\n" >&2
-    fi
-    exit 2
-}
-
-# the output: on a terminal a status label in its color, dimmed headers and
-# summaries; plain text in a pipe
-if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-    o_ok=$(printf '\033[32m') o_warn=$(printf '\033[33m') o_fail=$(printf '\033[31m')
-    o_dim=$(printf '\033[2m') o_off=$(printf '\033[0m')
-else
-    o_ok= o_warn= o_fail= o_dim= o_off=
-fi
-
-# a status row: ok, warn or fail in its color, or a dimmed info, then the text
-row() {
-    case $1 in
-    ok) printf '  %s%-4s%s  %s\n' "$o_ok" ok "$o_off" "$2" ;;
-    warn) printf '  %s%-4s%s  %s\n' "$o_warn" warn "$o_off" "$2" ;;
-    fail) printf '  %s%-4s%s  %s\n' "$o_fail" fail "$o_off" "$2" ;;
-    *) printf '  %s%-4s  %s%s\n' "$o_dim" info "$2" "$o_off" ;;
-    esac
-}
-
-# a table header or a summary line, dimmed
-dim() { printf '%s%s%s\n' "$o_dim" "$*" "$o_off"; }
 
 SNAPDIR=/home/.snapshots
 KEEP=14
@@ -151,7 +84,7 @@ notify_job() {
         case $(as_user notify-send -i g0wm -a "󰖷 Maintenance" -u critical \
             -A default=Logs -A retry=Retry "Maintenance failed" "$1 failed" 2>/dev/null) in
         default) as_user foot -- /usr/local/bin/logs -p service maint ;;
-        retry) as_user foot --hold -- doas /usr/local/sbin/maint "$1" ;;
+        retry) as_user foot --hold -- doas /usr/local/sbin/maint retry "$1" ;;
         esac
     ) >/dev/null 2>&1 &
 }
@@ -240,7 +173,8 @@ job_home() {
     used=$(df --output=pcent /home | tail -n1 | tr -dc 0-9)
     if [ "$((100 - used))" -lt "$MIN_FREE" ]; then
         log "home: /home is $used% full, no new snapshot, keeping the newest $KEEP_LOW"
-        prune "$SNAPDIR" home "$KEEP_LOW"
+        prune "$SNAPDIR" home "$KEEP_LOW" || return 1
+        postpone "Home filesystem is $used% full"
         return 2
     fi
 
@@ -258,7 +192,7 @@ job_home() {
 
 job_thumbs() {
     if ! pgrep -xo g0wm >/dev/null; then
-        log "thumbs: nobody logged in"
+        postpone "nobody logged in"
         return 2
     fi
     as_user /usr/local/libexec/thumbs-clean 2>&1
@@ -268,7 +202,7 @@ job_thumbs() {
 
 job_trash() {
     if ! pgrep -xo g0wm >/dev/null; then
-        log "trash: nobody logged in"
+        postpone "nobody logged in"
         return 2
     fi
     as_user /usr/local/libexec/trash-clean 2>&1
@@ -300,7 +234,7 @@ job_integrity() {
         return 0
     }
     if apt_busy; then
-        log "integrity: apt is running"
+        postpone "apt is running"
         return 2
     fi
     debsums -c 2>/dev/null | LC_ALL=C sort -u >"$STATE/integrity.new"
@@ -331,7 +265,7 @@ job_cves() {
         return 1
     }
     curl -fsS -I -o /dev/null --proto =https --tlsv1.2 --max-time 30 https://security-tracker.debian.org/tracker/ 2>/dev/null || {
-        log "cves: security-tracker.debian.org not reachable"
+        postpone "security-tracker.debian.org not reachable"
         return 2
     }
     # what comes from the network is parsed as nobody
@@ -362,7 +296,7 @@ job_firmware() {
     fwupdmgr refresh >/dev/null 2>&1
     # 2: metadata already fresh
     case $? in 0 | 2) ;; *)
-        log "firmware: metadata not reachable"
+        postpone "metadata not reachable"
         return 2
         ;;
     esac
@@ -396,12 +330,12 @@ job_vesktop() {
         return 0
     }
     if ! pgrep -xo g0wm >/dev/null; then
-        log "vesktop: nobody logged in"
+        postpone "nobody logged in"
         return 2
     fi
     tag=$(curl -fsS --proto =https --tlsv1.2 --max-time 30 https://api.github.com/repos/Vencord/Vesktop/releases/latest |
         python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])' 2>/dev/null) || {
-        log "vesktop: GitHub not reachable"
+        postpone "GitHub not reachable"
         return 2
     }
     tag=${tag#v}
@@ -507,8 +441,9 @@ net_bad() {
 
 # notify once a day when updates have waited for days
 net_postponed() {
-    [ -e "$STATE/update" ] || return 0
-    days=$((($(date +%s) - $(stat -c %Y "$STATE/update")) / DAY))
+    load_job update
+    [ "$m_success" != 0 ] || return 0
+    days=$((($(date +%s) - m_success) / DAY))
     [ "$days" -ge 3 ] && due netwait "$DAY" || return 0
     touch "$STATE/netwait"
     # waits for this run to release the lock
@@ -531,11 +466,12 @@ update_now() {
 
     if [ -n "$list" ]; then
         if ! apt_get -d full-upgrade 2>&1; then
-            ufail "Update failed" "Download failed, nothing was installed. Retried tomorrow."
+            ufail "Update failed" "Download failed, nothing was installed. Retried in one hour."
             return 3
         fi
         b=$(battery)
         if [ -n "$b" ] && [ "$b" -le "$BATTERY_MIN" ]; then
+            postpone "Battery at $b%"
             unotify -u normal "Update postponed" "Battery at $b%, nothing was installed. Retried within the hour."
             return 2
         fi
@@ -549,10 +485,10 @@ update_now() {
             return 3
         fi
     fi
-    prune "$ROOTSNAP" root "$ROOT_KEEP"
-    grub_quiet
+    prune "$ROOTSNAP" root "$ROOT_KEEP" || return 1
+    grub_quiet || return 1
     [ ! -x /usr/local/sbin/nosuid ] || /usr/local/sbin/nosuid | sed 's/^/nosuid: /'
-    grub_snaps
+    grub_snaps || return 1
 
     if printf '%s\n' "$list" | grep -q '^linux-image-'; then
         unotify -u critical "Update done!" "$total package(s) updated. Restart to use the new kernel."
@@ -582,16 +518,16 @@ stale() {
 
 job_update() {
     if ! pgrep -xo g0wm >/dev/null; then
-        log "update: nobody logged in"
+        postpone "nobody logged in"
         return 2
     fi
     if apt_busy; then
-        log "update: apt is running"
+        postpone "apt is running"
         return 2
     fi
     b=$(battery)
     if [ -n "$b" ] && [ "$b" -le "$BATTERY_MIN" ]; then
-        log "update: battery at $b%"
+        postpone "battery at $b%"
         return 2
     fi
     used=$(df --output=pcent / | tail -n1 | tr -dc 0-9)
@@ -605,7 +541,7 @@ job_update() {
         DEBIAN_FRONTEND=noninteractive dpkg --configure -a --force-confdef --force-confold 2>&1 || return 1
     fi
     if ! apt-get -qq --error-on=any update >/dev/null 2>&1; then
-        log "update: repositories not reachable"
+        postpone "repositories not reachable"
         return 2
     fi
     list=$(pending) || {
@@ -625,10 +561,11 @@ job_update() {
     if [ "${FORCE:-0}" = 0 ] && [ "$1" -gt 0 ] && why=$(net_bad "$1" "${2:-}"); then
         log "update: $why"
         net_postponed "$why"
+        postpone "$why"
         return 2
     fi
     if ! systemd-inhibit --list >/dev/null 2>&1; then
-        log "update: cannot block sleep (logind not running)"
+        postpone "cannot block sleep (logind not running)"
         return 2
     fi
     systemd-inhibit --what=sleep:shutdown:handle-lid-switch:handle-suspend-key:handle-hibernate-key \
@@ -687,7 +624,7 @@ grub_snaps() {
 # apt removes the old kernels with the orphans: the ones a snapshot of / boots stay marked manual while it exists
 job_kernels() {
     if apt_busy; then
-        log "kernels: apt is running"
+        postpone "apt is running"
         return 2
     fi
     kept=$STATE/kernels
@@ -733,7 +670,7 @@ job_kernels() {
 
 job_packages() {
     if apt_busy; then
-        log "packages: apt is running"
+        postpone "apt is running"
         return 2
     fi
     apt_get autoremove --purge 2>&1 || return 1
@@ -744,11 +681,11 @@ job_packages() {
 
 job_scrub() {
     if ! on_ac; then
-        log "scrub: on battery"
+        postpone "on battery"
         return 2
     fi
     if btrfs scrub status / 2>/dev/null | grep -q 'Status:.*running'; then
-        log "scrub: already running"
+        postpone "already running"
         return 2
     fi
     btrfs scrub limit -a -l "$SCRUB_LIMIT" / >/dev/null 2>&1 || true
@@ -764,145 +701,62 @@ job_blocklist() {
     /usr/local/sbin/dns-blocklist 2>&1
 }
 
-# scheduling
+# shellcheck source=root/maint/usr/local/lib/maint.sh
+. /usr/local/lib/maint.sh
 
-due() {
-    [ -e "$STATE/$1" ] || return 0
-    age=$(($(date +%s) - $(stat -c %Y "$STATE/$1")))
-    [ "$age" -lt 0 ] || [ "$age" -ge "$(($2 - 1800))" ]
-}
-
-# what fastfetch shows of maint (fastfetch/maint.sh): dates and counts, no names
-# or paths, readable by everyone
-public() {
-    {
-        for pubj in update scrub; do
-            [ -e "$STATE/$pubj" ] && printf '%s=%s\n' "$pubj" "$(stat -c %Y "$STATE/$pubj")"
-        done
-        printf 'home=%s\n' "$(snapshots "$SNAPDIR" home 2>/dev/null | wc -l)"
-        printf 'root=%s\n' "$(snapshots "$ROOTSNAP" root 2>/dev/null | wc -l)"
-        pubfail=
-        for pubf in "$STATE"/*.failed; do
-            [ -e "$pubf" ] || continue
-            pubf=${pubf##*/}
-            pubfail="$pubfail ${pubf%.failed}"
-        done
-        printf 'failed=%s\n' "${pubfail# }"
-    } >"$PUBLIC.tmp" && chmod 0644 "$PUBLIC.tmp" && mv -f "$PUBLIC.tmp" "$PUBLIC"
-}
-
-job() {
-    log "$1: start"
-    "job_$1"
-    rc=$?
-    case $rc in
-    0) log "$1: ok" ;;
-    2)
-        log "$1: skipped, retried within the hour"
+main() {
+    case ${1:-} in -h | --help)
+        [ $# -eq 1 ] || bad "extra operand '$2'"
+        help
         return 0
         ;;
+    esac
+    command=${1:-}
+    [ $# -eq 0 ] || shift
+    case $command in
+    status | plan | logs)
+        [ $# -le 1 ] || bad "extra operand '$2'"
+        [ $# -eq 0 ] || valid_job "$1" || bad "unknown job '$1'"
+        ;;
+    retry)
+        for name; do valid_job "$name" || bad "unknown job '$name'"; done
+        ;;
+    run | update-now | apt-snapshot | loop)
+        [ $# -eq 0 ] || bad "extra operand '$1'"
+        ;;
+    '') bad 'missing COMMAND' ;;
     *)
-        log "$1: FAILED ($rc)"
-        date >"$STATE/$1.failed"
-        [ "$rc" = 3 ] || notify_job "$1"
+        valid_job "$command" || bad "unknown job '$command'"
+        [ $# -eq 0 ] || bad "extra operand '$1'"
         ;;
     esac
-    [ "$rc" = 0 ] && rm -f "$STATE/$1.failed"
-    touch "$STATE/$1"
-    public
-}
-
-locked() {
-    # shellcheck disable=SC2174
-    mkdir -p -m 0700 "$STATE"
-    exec 9>"$STATE/lock"
-    flock -n 9 || {
-        log "maint is already running"
-        exit 1
+    [ "$(id -u)" = 0 ] || {
+        err 'run as root'
+        return 1
     }
+    case $command in
+    status) status "$@" ;;
+    plan) plan "$@" ;;
+    logs) job_logs "$@" ;;
+    retry) retry "$@" ;;
+    run) (locked && run_due) ;;
+    update) (locked && FORCE=1 job update) ;;
+    update-now) update_now ;;
+    apt-snapshot) (
+        mkdir -p "$STATE"
+        exec 9>"$STATE/snapshot.lock"
+        flock -w 30 9 && apt_snapshot && public
+    ) ;;
+    loop)
+        public || return 1
+        sleep 900
+        while :; do
+            (locked && run_due)
+            sleep 3600
+        done
+        ;;
+    *) (locked && job "$command") ;;
+    esac
 }
 
-run_due() {
-    grub_quiet
-    due home "$DAY" && job home
-    due thumbs "$DAY" && job thumbs
-    due trash "$DAY" && job trash
-    due update "$DAY" && job update
-    due disks "$((7 * DAY))" && job disks
-    due kernels "$((7 * DAY))" && job kernels
-    due packages "$((7 * DAY))" && job packages
-    due firmware "$((7 * DAY))" && job firmware
-    due integrity "$((7 * DAY))" && job integrity
-    due cves "$((7 * DAY))" && job cves
-    due vesktop "$DAY" && job vesktop
-    due scrub "$((30 * DAY))" && job scrub
-    [ -x /usr/local/sbin/dns-blocklist ] && due blocklist "$DAY" && job blocklist
-    return 0
-}
-
-status() {
-    dim "$(printf '%-10s %-17s %s' JOB 'LAST RUN' STATE)"
-    for j in home thumbs trash update disks kernels packages firmware integrity cves vesktop scrub blocklist; do
-        if [ -e "$STATE/$j" ]; then last=$(date -r "$STATE/$j" '+%F %R'); else last=never; fi
-        if [ -e "$STATE/$j.failed" ]; then
-            printf '%-10s %-17s %sfail%s  %s\n' "$j" "$last" "$o_fail" "$o_off" "$(cat "$STATE/$j.failed")"
-        elif [ "$last" = never ]; then
-            printf '%-10s %-17s %s-%s\n' "$j" "$last" "$o_dim" "$o_off"
-        else
-            printf '%-10s %-17s %sok%s\n' "$j" "$last" "$o_ok" "$o_off"
-        fi
-    done
-    printf '\n'
-    dim "SNAPSHOTS OF $SNAPDIR"
-    snapshots "$SNAPDIR" home 2>/dev/null
-    printf '\n'
-    dim "SNAPSHOTS OF $ROOTSNAP"
-    snapshots "$ROOTSNAP" root 2>/dev/null
-    printf '\n'
-    btrfs scrub status / 2>/dev/null | grep -E '^(Scrub started|Status|Error summary)'
-}
-
-case ${1:-} in -h | --help)
-    help
-    exit 0
-    ;;
-esac
-[ "$(id -u)" = 0 ] || {
-    err "run as root"
-    exit 1
-}
-case ${1:-} in
-status) status ;;
-run) (
-    locked
-    run_due
-) ;;
-update) (
-    # by hand: whatever the connection
-    locked
-    FORCE=1 job update
-) ;;
-home | thumbs | trash | disks | kernels | packages | firmware | integrity | cves | vesktop | scrub | blocklist) (
-    locked
-    job "$1"
-) ;;
-update-now) update_now ;;
-apt-snapshot) (
-    # shellcheck disable=SC2174
-    mkdir -p -m 0700 "$STATE"
-    exec 9>"$STATE/snapshot.lock"
-    flock -w 30 9 && apt_snapshot && public
-) ;;
-loop)
-    sleep 900
-    while :; do
-        (
-            locked
-            run_due
-        )
-        sleep 3600
-    done
-    ;;
-'') bad "missing COMMAND" ;;
-*) bad "unknown job '$1'" ;;
-esac
+main "$@"

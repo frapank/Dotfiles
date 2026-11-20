@@ -127,11 +127,13 @@ case ${1:-} in
         echo "maint: snapshots, updates and cleanup, run by the maint service every hour"
         exec cat <<EOF
 
-  doas maint status    when each job last ran, the snapshots, the last scrub
-  doas maint run       every job that is due
-  doas maint JOB       one job now: home thumbs trash update disks kernels packages
-                       firmware integrity cves vesktop scrub blocklist
-  logs service maint   what it did
+  doas maint status [JOB]  state, last success, next due time and job details
+  doas maint plan [JOB]    show what is due and what would be postponed
+  doas maint logs [JOB]    latest job output, or the maintenance journal
+  doas maint retry [JOB]   retry failures, waiting for the current run
+  doas maint run          every job that is due
+  doas maint JOB          one job now: home thumbs trash update disks kernels packages
+                          firmware integrity cves vesktop scrub blocklist
 EOF
     }
     exec "$p" --help

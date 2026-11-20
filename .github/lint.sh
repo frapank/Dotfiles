@@ -107,6 +107,7 @@ done
 if ((${#missing[@]})); then fail "not in the list of home/bin/.local/bin/dotfiles: ${missing[*]}"; else pass "dotfiles lists every command"; fi
 
 python3 .github/helpers.py || fail "helper behavior"
+python3 .github/maint.py || fail "maintenance behavior"
 
 echo "c"
 xml=/usr/share/wayland-protocols/staging/security-context/security-context-v1.xml

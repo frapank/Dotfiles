@@ -22,4 +22,9 @@ After an update needrestart lists the services still running the old libraries, 
 Monthly: btrfs scrub, on AC power only.
 'snap FILE' lists the versions of a file in the snapshots of /home, 'snap restore DATE FILE' copies one back, 'snap diff DATE' lists what changed in your home since then.
 'forget FILE' deletes a file from all the snapshots of /home, 'traces clean -s' does it for histories and recent files.
-'doas maint status', 'doas maint home|update', 'logs service maint'.
+'doas maint status [JOB]' shows state, last success, next due time and job details.
+'doas maint plan [JOB]' checks schedules and local prerequisites without changing anything or probing the network.
+'doas maint logs [JOB]' reads the latest job output or the maintenance journal.
+'doas maint retry [JOB...]' retries failures or the named jobs, waiting for an active run to finish.
+Attempts and successes are tracked separately; failures and postponements become due again after one hour.
+The bar and Fastfetch show running, failed and postponed work.

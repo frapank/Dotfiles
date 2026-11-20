@@ -359,7 +359,7 @@ class Helpers(unittest.TestCase):
         function = re.search(r'^notify_job\(\) \{.*?^\}', source, re.M | re.S)[0]
         self.mock('notify-send', 'printf "%s" "${CHOICE:-}"')
         self.mock('foot')
-        for action, expected in [('retry', 'foot --hold -- doas /usr/local/sbin/maint update'),
+        for action, expected in [('retry', 'foot --hold -- doas /usr/local/sbin/maint retry update'),
                                  ('default', 'foot -- /usr/local/bin/logs -p service maint')]:
             result = subprocess.run(['sh', '-c', 'as_user() { "$@"; }\n' + function +
                                      '\nnotify_job update; wait'], env=dict(self.env, CHOICE=action),
@@ -391,8 +391,7 @@ class Helpers(unittest.TestCase):
         self.run_helper('desktop', 'maint', 'info', CHOICE='logs')
         self.assertIn('foot logs -p service maint', self.calls())
         self.run_helper('desktop', 'maint', 'info', CHOICE='retry')
-        self.assertIn('/usr/local/sbin/maint "$j"', self.calls())
-        self.assertIn('sh update scrub', self.calls())
+        self.assertIn('foot -H doas /usr/local/sbin/maint retry', self.calls())
         self.assertIn('retry=Retry', self.calls())
 
     def test_no_color_on_terminal(self):

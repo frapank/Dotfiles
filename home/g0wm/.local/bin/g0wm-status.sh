@@ -466,11 +466,17 @@ read_usbwait() {
     done </run/usb-pending
 }
 
-read_maint() { # the jobs that failed at their last run, nothing while all went fine
-    maint_failed=
-    local l
+read_maint() {
+    maint_failed= maint_running= maint_postponed=
+    local k v
     [[ -r /var/lib/maint-status ]] || return 0
-    while IFS= read -r l; do [[ $l == failed=?* ]] && maint_failed=${l#failed=}; done </var/lib/maint-status
+    while IFS='=' read -r k v; do
+        case $k in
+        failed) maint_failed=$v ;;
+        running) maint_running=$v ;;
+        postponed) maint_postponed=$v ;;
+        esac
+    done </var/lib/maint-status
 }
 
 mic_on() {
@@ -588,7 +594,17 @@ render() { # module -> r, escaped, coloured and in its area; empty when hidden
         ;;
     cam) [[ -e /run/watchdog/cam ]] && fmt "${C[cam_format]}" '' "${C[icon_cam]}" ;;
     dns) dns_up || fmt "${C[dns_format]}" '' "${C[icon_dns]}" ;;
-    maint) [[ -n $maint_failed ]] && fmt "${C[maint_format]}" "$maint_failed" "${C[icon_maint]}" ;;
+    maint)
+        if [[ -n $maint_failed ]]; then
+            fmt "${C[maint_format]}" failed "${C[icon_maint]}"
+        elif [[ -n $maint_running ]]; then
+            col=
+            fmt "${C[maint_format]}" running "${C[icon_maint]}"
+        elif [[ -n $maint_postponed ]]; then
+            col=${C[color_timer]}
+            fmt "${C[maint_format]}" waiting "${C[icon_maint]}"
+        fi
+        ;;
     timer) [[ -n $timer_text ]] && fmt "${C[timer_format]}" "$timer_text" "${C[icon_timer]}" ;;
     reboot) [[ -n $kernel_new ]] && fmt "${C[reboot_format]}" "$kernel_new" "${C[icon_reboot]}" ;;
     usbwait) ((usb_n)) && fmt "${C[usbwait_format]}" "$usb_n" "${C[icon_usbwait]}" ;;
@@ -682,7 +698,7 @@ hz=100
 exec {idle_fd}<> <(:)
 now=0 phones_at=-1000000000 phones_every=10000 vol_phones=0
 clk_date= clk_time= bat_caps=() bat_charging=0 vol_pct= vol_muted=0 cpu_pct=0
-ram_pct=0 ram_used=0 ram_total=0 net_down=0B net_up=0B maint_failed= timer_text=
+ram_pct=0 ram_used=0 ram_total=0 net_down=0B net_up=0B maint_failed= maint_running= maint_postponed= timer_text=
 bt_pct= usb_n=0 rec_t= ct= hu= bi= r= g=
 now_ms
 [[ -v members[cpu] ]] && read_cpu

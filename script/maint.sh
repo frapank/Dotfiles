@@ -50,6 +50,7 @@ do_maint() {
     put_tree session
     svc_refresh maint.service put_tree maint
     run "maint parses" sh -n /usr/local/sbin/maint
+    run "maint state parses" sh -n /usr/local/lib/maint.sh
     run "thumbs-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/thumbs-clean
     run "trash-clean parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/trash-clean
     run "disk-health parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' /usr/local/libexec/disk-health

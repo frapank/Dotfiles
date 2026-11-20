@@ -69,12 +69,37 @@ Maintenance failures offer Logs and Retry; DNS information offers Restart and Lo
 ## Maint
 
 maint is the service that handles the maintenance of the system automatically. Every hour it checks what there is to do and does it:
-- every day: snapshot of /home (it keeps 14), cleanup of old thumbnails and trash, update of the system and of the DNS blocklist.
-- every week: old kernels and orphan packages (apt autoremove; the kernels a snapshot of / boots are kept), firmware and Vesktop, a .deb apt does not update (notification only), disk health, the integrity of the package files (debsums), the security fixes in Debian not installed yet (debsecan).
+- every day: snapshot of /home (it keeps 14), cleanup of old thumbnails and trash, update of the system and of the DNS blocklist, and the Vesktop version check.
+- every week: old kernels and orphan packages (apt autoremove; the kernels a snapshot of / boots are kept), firmware, disk health, the integrity of the package files (debsums), the security fixes in Debian not installed yet (debsecan).
 - every month: btrfs scrub, only with the PC plugged in.
 
 The update starts only if you are logged in, with the battery above 20% and enough free disk. First it takes a snapshot of / that can be booted from GRUB, then it installs. Every phase sends a notification, the last one lists the services still on the old libraries (needrestart) and restarts them. apt takes the same snapshot when you run it by hand, before dpkg changes anything. A snapshot boots with a throwaway overlay in RAM (overlayroot).
 For the snapshots there are snap, that shows and restores the versions of a file, and forget, that deletes it from all the snapshots.
+
+`doas maint status` shows each job's state, last successful run and next due time.
+`doas maint status update` also shows the latest attempt, finish time, duration and
+reason. Attempts and successes are stored separately under `/var/lib/maint/jobs`;
+existing job data is preserved. A failed legacy timestamp cannot establish the
+last success and is shown as unknown. A run interrupted by a crash or reboot is
+reported as interrupted and becomes due again. The public status used by the bar
+and Fastfetch contains success timestamps and running, failed and postponed jobs;
+job logs and detailed failure reasons remain readable only by root.
+
+- `doas maint plan [JOB]` checks schedules and local prerequisites without writing
+  state, downloading packages or probing the network. Network and package checks
+  happen during execution. Due times are checked on the next hourly service pass.
+- `doas maint logs JOB` reads the latest attempt's output, including a running job.
+  The latest log is kept per job and capped at 256 KiB after completion. Without
+  JOB it opens the maintenance journal, which also retains earlier runs.
+- `doas maint retry [JOB...]` retries failed or interrupted jobs, or the named jobs.
+  If maintenance is busy, it prints `Retry queued` and waits for the lock in the
+  terminal. With no named jobs, failures are checked again after the wait.
+- Failed and postponed jobs become due again after one hour. Postponements keep
+  the previous success time and record their reason. Direct job commands and
+  `maint run` return failure when work fails; a postponed job is not an error.
+
+The bar shows `running`, `waiting` or `failed`; its notification lists the jobs.
+The retry buttons use `maint retry` and wait for an active run to finish.
 
 ## Sandbox
 
@@ -169,6 +194,9 @@ With usbguard new devices stay blocked. When you plug one in a notification arri
 - traces: shows or deletes recent files, histories, thumbnails, trash and clipboard.
 
 ## Installer tests
+
+`python3 .github/maint.py` checks maintenance state, scheduling, read-only plans,
+job results, logs and retry locking with disposable jobs and temporary state.
 
 `python3 .github/helpers.py` checks helper arguments, status output, compatibility
 wrappers, bar actions, restore output and notification follow-ups with mocked session commands. The lint job runs it too.

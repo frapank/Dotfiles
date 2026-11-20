@@ -181,26 +181,34 @@ Middle click: restart · Right click: logs" 2>/dev/null) || return 0
 maint_failed() { sed -n 's/^failed=//p' /var/lib/maint-status 2>/dev/null; }
 
 maint() {
+    [ -r /var/lib/maint-status ] || {
+        notice "󰖷 Maintenance" "No maintenance status yet"
+        return 0
+    }
     f=$(maint_failed)
+    running=$(sed -n 's/^running=//p' /var/lib/maint-status 2>/dev/null)
+    postponed=$(sed -n 's/^postponed=//p' /var/lib/maint-status 2>/dev/null)
+    body="${running:+Running: $running
+}${postponed:+Postponed: $postponed
+}Middle click: retry failed jobs · Right click: logs"
     if [ -n "$f" ]; then
         choice=$(notify-send -a "󰖷 Maintenance" -u low -t 10000 \
-            -A retry=Retry -A logs=Logs "Failed: $f" \
-            "Middle click: retry · Right click: logs" 2>/dev/null) || return 0
+            -A retry=Retry -A logs=Logs "Failed: $f" "$body" 2>/dev/null) || return 0
         case $choice in
         retry) maint_retry ;;
         logs) exec "$0" maint logs ;;
         esac
+    elif [ -n "$running" ]; then
+        notice "󰖷 Maintenance" "Running: $running" "$body"
+    elif [ -n "$postponed" ]; then
+        notice "󰖷 Maintenance" "Postponed: $postponed" "$body"
     else
-        notice "󰖷 Maintenance" "Every job went fine" "Right click: logs"
+        notice "󰖷 Maintenance" "No jobs need attention" "Right click: logs"
     fi
 }
 
 maint_retry() {
-    f=$(maint_failed)
-    # names written by maint, checked anyway since they go to doas
-    case $f in '' | *[!a-z\ ]*) exit 0 ;; esac
-    # shellcheck disable=SC2016,SC2086
-    exec foot -H doas sh -c 'for j; do /usr/local/sbin/maint "$j"; done' sh $f
+    exec foot -H doas /usr/local/sbin/maint retry
 }
 
 # a newer kernel than the running one: which, and the reboot it waits for
