@@ -53,32 +53,33 @@ def inside(x, y, x0, y0, x1, y1, r):
 
 
 def entry(t):
-    """The password box: gtklock's, focused (1px FG border, radius 8)."""
+    """gtklock's password field: flat POPUP fill, radius 8, no visible border."""
     w, h, r, n = 380, 46, 8, 4
-    fill, line = (t.hexrgb(t.POPUP), t.hexrgb(t.FG))
+    fill = t.hexrgb(t.POPUP)
     subs = [(i + 0.5) / n for i in range(n)]
 
     def pixel(x, y):
-        outer = inner = 0
+        outer = 0
         for sy in subs:
             for sx in subs:
                 if inside(x + sx, y + sy, 0, 0, w, h, r):
                     outer += 1
-                    inner += inside(x + sx, y + sy, 1, 1, w - 1, h - 1, r - 1)
         if not outer:
             return (0, 0, 0, 0)
-        rgb = tuple(round((inner * f + (outer - inner) * b) / outer) for f, b in zip(fill, line))
-        return (*rgb, round(255 * outer / (n * n)))
+        return (*fill, round(255 * outer / (n * n)))
 
-    p = os.path.join(t.REPO, "root/plymouth/usr/share/plymouth/themes/g0wm/entry.png")
-    data = png(w, h, pixel)
-    if not t.CHECK:
-        with open(p, "wb") as f:
-            f.write(data)
-    else:
-        with open(p, "rb") as f:
-            if f.read() != data:
-                t.STALE.append(os.path.relpath(p, t.REPO))
+    write_png(t, f"{PLYMOUTH}/entry.png", png(w, h, pixel))
+
+    # Plymouth repeats the whole tile: transparent space separates the dots,
+    # like gtklock's letter-spacing, without the stock beveled bullet.
+    fg = t.hexrgb(t.FG)
+
+    def bullet(x, y):
+        covered = sum((x + sx - 8.5) ** 2 + (y + sy - 8.5) ** 2 <= 5.5 ** 2
+                      for sy in subs for sx in subs)
+        return (*fg, round(255 * covered / (n * n)))
+
+    write_png(t, f"{PLYMOUTH}/bullet.png", png(17, 17, bullet))
 
 
 # The logo of g0wm: four layers in script/g0wm-logo.svg, painted in this order.
