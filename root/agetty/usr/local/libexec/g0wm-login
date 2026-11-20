@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# run as root by agetty on tty1: /etc/issue in a frame, the name, then login(1)
+# run as root by agetty on tty1: /etc/issue centered, the name, then login(1)
 
 ISSUE=/etc/issue
 # the awake and grumpy dogs, in place of the first block of /etc/issue
@@ -138,7 +138,7 @@ remember() {
     (printf '%s %s\n' "$1" "$2" >"$STATE/last") 2>/dev/null
 }
 
-# the battery label of the frame, fixed width, red under 15%
+# the battery label below the prompts, fixed width, red under 15%
 battery() {
     for b in /sys/class/power_supply/BAT*; do
         if ! { read -r cap <"$b/capacity" && read -r st <"$b/status"; } 2>/dev/null; then
@@ -181,7 +181,7 @@ now() {
 }
 
 # the escapes of agetty in /etc/issue, then the block in the middle of a
-# ROWS x COLS screen in a frame when it fits, the prompt of the user name last.
+# ROWS x COLS screen, the prompt of the user name last.
 # The places of the clock, the battery and the message go in $POS
 draw() {
     art=
@@ -292,7 +292,7 @@ draw() {
 		for (i = first; i <= last; i++)
 			if (visible(line[i]) > w)
 				w = visible(line[i])
-		# the dog, the first block, in the middle of the frame
+		# the dog, the first block, in the middle of the block
 		aw = 0
 		for (j = first; j <= last && visible(line[j]); j++)
 			if (visible(line[j]) > aw)
@@ -303,37 +303,19 @@ draw() {
 		rows = ENVIRON["ROWS"] + 0
 		cols = ENVIRON["COLS"] + 0
 		h = last - first + 1 + 4
-		# the frame: 1 row and indent + 1 columns around the block
-		fw = w + indent + 4
-		fh = h + 4
-		frame = cols >= fw && rows >= fh
-		if (frame) {
-			top = int((rows - fh) / 2) + 3
-			left = int((cols - fw) / 2) + 3
-		} else {
-			top = rows > h ? int((rows - h) / 2) + 1 : 1
-			left = cols > w ? int((cols - w) / 2) + 1 : 1
-		}
+		bat = ENVIRON["BAT"]
+		showbat = bat != "" && rows >= h + 2 && cols >= w
+		if (showbat)
+			h += 2
+		top = rows > h ? int((rows - h) / 2) + 1 : 1
+		left = cols > w ? int((cols - w) / 2) + 1 : 1
 
 		# the cursor too, ~/.bash_profile hides it
 		printf "%s[0m%s[?25h%s[H%s[2J%s[3J", e, e, e, e, e
-		if (frame) {
-			bar = ""
-			for (i = 0; i < fw - 2; i++)
-				bar = bar "─"
-			printf "%s[1;30m%s[%d;%dH╭%s╮", e, e, top - 2, left - 2, bar
-			for (r = top - 1; r <= top + h; r++)
-				printf "%s[%d;%dH│%s[%d;%dH│", e, r, left - 2, e, r, left + fw - 3
-			bat = ENVIRON["BAT"]
-			if (bat != "" && (nb = fw - visible(bat) - 6) > 0) {
-				bot = ""
-				for (i = 0; i < nb; i++)
-					bot = bot "─"
-				printf "%s[%d;%dH╰%s %s%s[1;30m ──╯%s[0m", e, top + h + 1, left - 2, bot, bat, e, e
-				if (pos != "")
-					printf "bat %d %d\n", top + h + 1, left + nb > pos
-			} else
-				printf "%s[%d;%dH╰%s╯%s[0m", e, top + h + 1, left - 2, bar, e
+		if (showbat) {
+			printf "%s[%d;%dH%s%s[0m", e, top + h - 1, left + indent, bat, e
+			if (pos != "")
+				printf "bat %d %d\n", top + h - 1, left + indent > pos
 		}
 		r = top
 		for (i = first; i <= last; i++) {
