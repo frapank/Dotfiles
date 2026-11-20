@@ -68,7 +68,7 @@ def paths():
         str(HOME / 'personal-git'), str(HOME / 'Documents'),
         str(HOME / 'Documents/keep.txt'), str(HOME / 'Downloads'),
     }
-    for name in ('apt', 'locale', 'logs', 'session', 'watchdog', 'cli'):
+    for name in ('apt', 'locale', 'logs', 'session', 'watchdog', 'cli', 'helpers'):
         for p in (REPO / 'root' / name).rglob('*'):
             if p.is_file():
                 result.add('/' + str(p.relative_to(REPO / 'root' / name)))
@@ -269,7 +269,7 @@ def assert_installed():
             st = dst.stat()
             check(st.st_uid == u.pw_uid and stat.S_IMODE(st.st_mode) ==
                   (0o700 if os.access(src, os.X_OK) else 0o600), f'incorrect permissions {dst}')
-    for name in ('apt', 'locale', 'logs', 'session', 'watchdog', 'cli'):
+    for name in ('apt', 'locale', 'logs', 'session', 'watchdog', 'cli', 'helpers'):
         for src in (REPO / 'root' / name).rglob('*'):
             if not src.is_file():
                 continue
@@ -293,6 +293,7 @@ def assert_installed():
           Path('/etc/default/locale').resolve() == Path('/etc/locale.conf'), 'legacy locale link missing')
     check(service_state() == {'is-enabled': 'enabled', 'is-active': 'active'},
           'watchdog not enabled and active')
+    check('Usage: logs' in run('/usr/local/bin/logs', '--help'), 'logs help failed')
     # Actual program startup, with the newly installed configs.
     subprocess.run(['runuser', '-u', 'tester', '--', 'env', f'HOME={HOME}',
                     'nvim', '--headless', '+qa'], check=True, timeout=30, cwd=HOME)

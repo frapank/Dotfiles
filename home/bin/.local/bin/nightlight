@@ -1,75 +1,22 @@
 #!/bin/sh
 set -u
 
+# shellcheck source=root/helpers/usr/local/lib/dotfiles/cli.sh
+. /usr/local/lib/dotfiles/cli.sh
+
 usage() {
     cat <<EOF
-Usage: nightlight [on|off|toggle|warmer|cooler|info]
+Usage: nightlight [on|off|toggle|warmer|cooler|status|info]
 The blue light filter: warmer colors on the screen, made by wlsunset.
 
   on, off, toggle  turn it on or off (default: toggle)
   warmer, cooler   250 K warmer or cooler, between 2500 and 6000 K
+  status           print the current state
   info             the temperature, in the bar
   -h, --help       show this help
 
 Exit status: 0, 1 if the nightlight service fails, 2 on bad usage.
 EOF
-}
-
-# the help; on a terminal styled as man does: bold titles, underlined
-# placeholders, dimmed examples
-help() {
-    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
-            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
-            function ul(s, r) {
-                while (match(s, /[A-Z][A-Z0-9_]+/)) {
-                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
-                    s = substr(s, RSTART + RLENGTH)
-                }
-                return r s
-            }
-            /^$/ { ex = 0 }
-            ex { print d $0 n; next }
-            /^(Usage|  or):/ {
-                i = index($0, ":")
-                print b substr($0, 1, i) n ul(substr($0, i + 1))
-                next
-            }
-            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
-                i = index($0, ":")
-                ex = $0 == "Examples:"
-                print b substr($0, 1, i) n substr($0, i + 1)
-                next
-            }
-            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
-                i = RSTART
-                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
-                next
-            }
-            { print }'
-    else
-        usage
-    fi
-}
-
-# an error, the name in red on a terminal
-err() {
-    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
-        printf '\033[1;31m%s:\033[0m %s\n' nightlight "$*" >&2
-    else
-        printf '%s: %s\n' nightlight "$*" >&2
-    fi
-}
-
-# a usage error: what is wrong, then where the help is
-bad() {
-    err "$*"
-    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
-        printf "\033[2mTry 'nightlight --help' for more information.\033[0m\n" >&2
-    else
-        printf "Try 'nightlight --help' for more information.\n" >&2
-    fi
-    exit 2
 }
 
 # the temperature in kelvin, which ~/.config/services/nightlight/run reads
@@ -110,6 +57,8 @@ shift_temp() {
     exit 0
 }
 
+[ $# -le 1 ] || bad "extra operand '$2'"
+
 case ${1:-toggle} in
 -h | --help) help ;;
 on) on ;;
@@ -124,6 +73,17 @@ toggle)
     ;;
 warmer) shift_temp -$step ;;
 cooler) shift_temp $step ;;
+status)
+    services status nightlight >/dev/null
+    state=$?
+    case $state in
+    0) printf 'on\n' ;;
+    3) printf 'off\n' ;;
+    *) exit 1 ;;
+    esac
+    kelvin
+    printf 'temperature=%s\n' "$k"
+    ;;
 info)
     kelvin
     show "$k K"

@@ -20,8 +20,8 @@ installer's interactive menu through a PTY; no APT, filesystem or systemd comman
 are mocked. A prepared clean baseline branches into two independent VM disks:
 
 1. **First installation:** check installed configuration contents, ownership and
-   modes, retained personal files, folders, locale, groups, doas, sudo removal,
-   watchdog activation and editor startup.
+   modes, the shared helper library and logs startup, retained personal files,
+   folders, locale, groups, doas, sudo removal, watchdog activation and editor startup.
 2. **Second installation:** run the same installer again and compare managed
    files, permissions, installed package names, manual package marks, shell,
    groups, service state and watchdog sysctls. No extra home backups should

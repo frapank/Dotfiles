@@ -1,54 +1,22 @@
 #!/bin/sh
 set -u
 
+# shellcheck source=root/helpers/usr/local/lib/dotfiles/cli.sh
+. /usr/local/lib/dotfiles/cli.sh
+
 usage() {
     cat <<EOF
-Usage: wifi [on|off|toggle|info]
+Usage: wifi [on|off|toggle|status|info|settings]
 Turn the Wi-Fi radio on or off. With no argument, open the network settings.
 
   on, off, toggle  turn the radio on or off
+  status           print the current state
   info             whether it is on and the network it is on, in the bar
+  settings         open the device settings (default)
   -h, --help       show this help
 
-Exit status: 0, 1 if NetworkManager refuses.
+Exit status: 0, 1 if NetworkManager refuses, 2 on bad usage.
 EOF
-}
-
-# the help; on a terminal styled as man does: bold titles, underlined
-# placeholders, dimmed examples
-help() {
-    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
-            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
-            function ul(s, r) {
-                while (match(s, /[A-Z][A-Z0-9_]+/)) {
-                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
-                    s = substr(s, RSTART + RLENGTH)
-                }
-                return r s
-            }
-            /^$/ { ex = 0 }
-            ex { print d $0 n; next }
-            /^(Usage|  or):/ {
-                i = index($0, ":")
-                print b substr($0, 1, i) n ul(substr($0, i + 1))
-                next
-            }
-            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
-                i = index($0, ":")
-                ex = $0 == "Examples:"
-                print b substr($0, 1, i) n substr($0, i + 1)
-                next
-            }
-            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
-                i = RSTART
-                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
-                next
-            }
-            { print }'
-    else
-        usage
-    fi
 }
 
 show() {
@@ -56,7 +24,19 @@ show() {
         "$1" ${2:+"$2"} 2>/dev/null
 }
 
-on() { [ "$(nmcli radio wifi)" = enabled ]; }
+read_state() {
+    state=$(nmcli radio wifi) || return 1
+    case $state in
+    enabled) state=on ;;
+    disabled) state=off ;;
+    *)
+        err "unknown radio state: $state"
+        return 1
+        ;;
+    esac
+}
+
+[ $# -le 1 ] || bad "extra operand '$2'"
 
 case ${1:-} in
 -h | --help)
@@ -64,13 +44,22 @@ case ${1:-} in
     exit 0
     ;;
 on | off) exec nmcli radio wifi "$1" ;;
-toggle) if on; then exec nmcli radio wifi off; else exec nmcli radio wifi on; fi ;;
+toggle)
+    read_state || exit 1
+    if [ "$state" = on ]; then exec nmcli radio wifi off; else exec nmcli radio wifi on; fi
+    ;;
+status)
+    read_state || exit 1
+    printf '%s\n' "$state"
+    ;;
 info)
-    if on; then
+    read_state || exit 1
+    if [ "$state" = on ]; then
         show "On" "$(nmcli -t -f active,ssid dev wifi 2>/dev/null | sed -n 's/^yes://p' | head -n 1)"
     else
         show "Off"
     fi
     ;;
-*) exec nm-connection-editor "$@" ;;
+'' | settings) exec nm-connection-editor ;;
+*) bad "unknown action '$1'" ;;
 esac

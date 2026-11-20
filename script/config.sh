@@ -125,7 +125,7 @@ APT=(env DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l 
         qrencode zbar-tools
         # archives
         tar gzip bzip2 xz-utils zstd lz4 lzip libarchive-tools cpio unrar gnupg age
-        # metadata-remover
+        # metadata
         mat2 libimage-exiftool-perl ffmpeg bubblewrap
     )
     PKG_SESSION=(gnome-keyring libsecret-1-0 libpam-gnome-keyring mate-polkit network-manager-gnome
@@ -158,7 +158,7 @@ USER_GROUPS=(wheel video)
 # a section K is asked with the text of sections/K.txt, installs PKG_K (upper case)
 # and runs the STEPS of K; '-' marks the steps that always run
 SECTIONS=(update locale cli lsp harden usb apparmor net boot hw power logs swap maint dirs desktop media apps games session theme fonts doas)
-STEPS=(-:do_repos update:do_update -:do_packages hw:do_hw locale:do_locale harden:do_harden
+STEPS=(-:do_helpers -:do_repos update:do_update -:do_packages hw:do_hw locale:do_locale harden:do_harden
     usb:do_usb apparmor:do_apparmor net:do_net_files -:do_groups logs:do_logs swap:do_swap
     maint:do_maint dirs:do_dirs maint:do_nosnap cli:do_home_cli desktop:do_g0wm media:do_media
     apps:do_apps games:do_games session:do_session fonts:do_fonts theme:do_theme boot:do_boot

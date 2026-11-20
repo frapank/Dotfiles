@@ -1,0 +1,279 @@
+#!/bin/sh
+set -u
+
+# shellcheck source=root/helpers/usr/local/lib/dotfiles/cli.sh
+. /usr/local/lib/dotfiles/cli.sh
+
+usage() {
+    cat <<EOF
+Usage: desktop volume|mic up|down|mute
+  or:  desktop brightness up|down
+  or:  desktop media play|next|prev
+  or:  desktop battery | clock | timer | reboot
+  or:  desktop mic info | cam [info|close]
+  or:  desktop dns [info|restart|logs] | maint [info|retry|logs]
+  or:  desktop usb [info|dismiss]
+Handle the media keys and bar clicks: change settings, show who uses the
+microphone or camera, inspect services and pending actions.
+
+  -h, --help  show this help
+
+Exit status: 0, 1 on failure, 2 on bad usage.
+EOF
+}
+
+osd_show() {
+    notify-send -a "$2" -u low -e -t "${5:-1500}" -h "string:x-dunst-stack-tag:osd-$1" \
+        ${4:+-h "int:value:$4"} "$3" 2>/dev/null
+}
+
+volume() {
+    # the bar redraws its volume icon now instead of at its next read
+    pkill -USR1 -u "$(id -u)" -x g0wm-status.sh 2>/dev/null
+    v=$(wpctl get-volume "$1") || exit 1
+    case $v in
+    *MUTED*) osd_show "$2" "$3" "Muted" 0 ;;
+    *)
+        p=$(echo "$v" | awk '{ printf "%d", $2 * 100 + 0.5 }')
+        osd_show "$2" "$3" "$p%" "$p"
+        ;;
+    esac
+}
+
+brightness() {
+    p=$(brightnessctl -m 2>/dev/null | cut -d, -f4) || exit 1
+    p=${p%\%}
+    osd_show brightness " Brightness" "$p%" "$p"
+}
+
+battery() {
+    # sum over the batteries, in energy (uWh/uW) or charge (uAh/uA)
+    t=$(cat /sys/class/power_supply/BAT*/uevent 2>/dev/null | awk -F= '
+		$1 ~ /_STATUS$/ { st = st == "" || $2 != "Full" ? $2 : st }
+		$1 ~ /_(ENERGY|CHARGE)_NOW$/ { now += $2 }
+		$1 ~ /_(ENERGY|CHARGE)_FULL$/ { full += $2 }
+		$1 ~ /_(POWER|CURRENT)_NOW$/ { rate += $2 < 0 ? -$2 : $2 }
+		END {
+			if (st == "") exit 1
+			# the percentage, a tab, then the text
+			p = full > 0 ? int(now * 100 / full + 0.5) : 0
+			if (p > 100) p = 100
+			if (st == "Full") { print p "\tFully charged"; exit }
+			if (rate <= 0) { print p "\t" p "% · " (st == "Charging" ? "Charging" : "Not charging"); exit }
+			h = st == "Charging" ? (full - now) / rate : now / rate
+			m = int(h * 60 + 0.5)
+			left = m < 60 ? m "m" : int(m / 60) "h " sprintf("%02d", m % 60) "m"
+			print p "\t" p "% · " left " " (st == "Charging" ? "until full" : "remaining")
+		}') || {
+        osd_show battery " Battery" "No battery"
+        exit 0
+    }
+    tab=$(printf '\t')
+    osd_show battery " Battery" "${t#*"$tab"}" "${t%%"$tab"*}" 3000
+}
+
+player() {
+    sleep "$1"
+    st=$(playerctl status 2>/dev/null) || {
+        osd_show player " Media" "No player"
+        exit 0
+    }
+    a=$(playerctl metadata artist 2>/dev/null)
+    t=$(playerctl metadata title 2>/dev/null)
+    [ -n "$a" ] && [ -n "$t" ] && t="$a - $t"
+    osd_show player " Media" "$st${t:+ · $t}"
+}
+
+notice() { # app summary [body] [ms]
+    notify-send -a "$1" -u low -e -t "${4:-4000}" "$2" ${3:+"$3"} 2>/dev/null
+}
+
+# the programs on PipeWire's recording streams: the sound card itself is
+# open by PipeWire only
+mic() {
+    who=$(pactl list source-outputs 2>/dev/null | awk -F' = ' '
+		/^Source Output #/ { if (app != "") print app; app = ""; bin = 0; next }
+		/application\.process\.binary = / { gsub(/"/, "", $2); app = $2; bin = 1; next }
+		/application\.name = / && !bin { gsub(/"/, "", $2); app = $2 }
+		END { if (app != "") print app }' | sort -u | paste -sd , - | sed 's/,/, /g')
+    if [ -n "$who" ]; then
+        notice " Microphone" "In use by $who"
+    else
+        notice " Microphone" "Not in use"
+    fi
+}
+
+# hidepid shows only this user's programs, the only ones it could close too
+campids() { fuser /dev/video* 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+$' | sort -u; }
+
+camnames() { # pids -> names
+    [ -n "$1" ] || return 0
+    ps -o comm= -p "$(echo "$1" | paste -sd, -)" | sort -u | paste -sd , - | sed 's/,/, /g'
+}
+
+cam() {
+    pids=$(campids)
+    if [ -n "$pids" ]; then
+        notice " Webcam" "In use by $(camnames "$pids")"
+    else
+        notice " Webcam" "Not in use"
+    fi
+}
+
+cam_close() {
+    pids=$(campids)
+    [ -n "$pids" ] || {
+        notice " Webcam" "Not in use"
+        exit 0
+    }
+    a=$(notify-send -a " Webcam" -u normal -t 10000 -A close=Close -A keep=Cancel \
+        "Close $(camnames "$pids")?" "They lose what they have not saved" 2>/dev/null)
+    [ "$a" = close ] || exit 0
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null
+}
+
+dns() {
+    l=$(logs -n service dnscrypt-proxy boot 2>/dev/null | tail -n 1)
+    if [ -z "$l" ]; then
+        notice " DNS" "Not answering" "dnscrypt-proxy logged nothing since boot"
+        return
+    fi
+    # 2026-10-06 15:31:20 daemon.notice: dnscrypt-proxy: [...] [NOTICE] message
+    t=${l#* } t=${t%%:[0-9][0-9] *}
+    m=${l##*] }
+    notice " DNS" "Not answering" "last message at $t: $m"
+}
+
+# the jobs that failed at their last run, from what maint leaves readable
+maint_failed() { sed -n 's/^failed=//p' /var/lib/maint-status 2>/dev/null; }
+
+maint() {
+    f=$(maint_failed)
+    if [ -n "$f" ]; then
+        notice "󰖷 Maintenance" "Failed: $f" "Middle click runs them again, right click shows the log" 8000
+    else
+        notice "󰖷 Maintenance" "Every job went fine"
+    fi
+}
+
+maint_retry() {
+    f=$(maint_failed)
+    # names written by maint, checked anyway since they go to doas
+    case $f in '' | *[!a-z\ ]*) exit 0 ;; esac
+    # shellcheck disable=SC2016,SC2086
+    exec foot -H doas sh -c 'for j; do /usr/local/sbin/maint "$j"; done' sh $f
+}
+
+# a newer kernel than the running one: which, and the reboot it waits for
+reboot_ask() {
+    run=$(uname -r)
+    new=$(for d in /usr/lib/modules/*/; do
+        [ -e "${d}modules.dep" ] || continue
+        d=${d%/}
+        printf '%s\n' "${d##*/}"
+    done | sort -V | tail -n 1)
+    if [ -z "$new" ] || [ "$new" = "$run" ]; then
+        notice "󰜉 Reboot" "Running the newest kernel" "$run"
+        return
+    fi
+    a=$(notify-send -i g0wm-reboot -a "󰜉 Reboot" -t 15000 -A reboot="󰜉 Reboot" \
+        "Restart to use the new kernel" "running $run · installed $new" 2>/dev/null)
+    [ "$a" = reboot ] && exec loginctl reboot
+}
+
+# the USB devices usb left blocked with no answer: "ID PORT NAME" lines
+usb_pending() {
+    d=${XDG_RUNTIME_DIR:-/tmp}/usb-dismissed
+    [ -r /run/usb-pending ] || return 0
+    while read -r id port name; do
+        [ -n "$id" ] || continue
+        [ -r "$d" ] && grep -qx "$id" "$d" && continue
+        printf '%s %s %s\n' "$id" "$port" "$name"
+    done </run/usb-pending
+}
+
+usb_ask() {
+    l=$(usb_pending)
+    [ -n "$l" ] || {
+        notice "󰕓 USB" "Nothing is waiting"
+        return
+    }
+    first=$(printf '%s\n' "$l" | head -n 1)
+    port=$(printf '%s' "$first" | cut -d' ' -f2)
+    names=$(printf '%s\n' "$l" | cut -d' ' -f3- | paste -sd , - | sed 's/,/, /g')
+    # usb allow asks for doas: in a terminal
+    a=$(notify-send -i g0wm-usb -a "󰕓 USB" -t 15000 -A allow="Allow $port" -A dismiss="Hide" \
+        "Left blocked" "$names" 2>/dev/null)
+    case $a in
+    allow) case $port in *[!0-9.-]* | '') ;; *) exec foot -H doas usb allow "$port" ;; esac ;;
+    dismiss) usb_dismiss ;;
+    esac
+}
+
+# right click: hidden until plugged in again, which gives a new id
+usb_dismiss() {
+    usb_pending | cut -d' ' -f1 >>"${XDG_RUNTIME_DIR:-/tmp}/usb-dismissed"
+    pkill -USR1 -u "$(id -u)" -x g0wm-status.sh 2>/dev/null || :
+}
+
+[ $# -le 2 ] || bad "extra operand '$3'"
+
+case ${1:-}/${2:-} in
+volume/up | volume/down | volume/mute | mic/up | mic/down | mic/mute | \
+    brightness/up | brightness/down | media/play | media/next | media/prev | \
+    battery/ | clock/ | mic/ | mic/info | cam/ | cam/info | cam/close | \
+    dns/ | dns/info | dns/restart | dns/logs | maint/ | maint/info | maint/retry | \
+    maint/logs | reboot/ | usb/ | usb/info | usb/dismiss | timer/ | -h/ | --help/) ;;
+/) bad "missing action" ;;
+*) bad "unknown action '$*'" ;;
+esac
+
+# one wheel notch after another, so none reads a volume the next one changes
+case ${1:-}/${2:-} in
+volume/up | volume/down | volume/mute | mic/up | mic/down | mic/mute)
+    exec 9>"${XDG_RUNTIME_DIR:-/tmp}/osd.lock"
+    flock 9
+    ;;
+esac
+
+case ${1:-}/${2:-} in
+-h/ | --help/) help ;;
+volume/up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
+volume/down) wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
+volume/mute) wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
+mic/mute) wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
+mic/up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SOURCE@ 5%+ && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
+mic/down) wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%- && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
+brightness/up) brightnessctl -q s 10%+ 2>/dev/null && brightness ;;
+brightness/down) brightnessctl -q s 10%- 2>/dev/null && brightness ;;
+media/play)
+    playerctl play-pause 2>/dev/null
+    player 0.2
+    ;;
+media/next)
+    playerctl next 2>/dev/null
+    player 0.4
+    ;;
+media/prev)
+    playerctl previous 2>/dev/null
+    player 0.4
+    ;;
+battery/) battery ;;
+clock/) osd_show clock " Date" "$(date '+%-d/%-m/%Y %H:%M:%S')" '' 3000 ;;
+mic/ | mic/info) mic ;;
+cam/ | cam/info) cam ;;
+cam/close) cam_close ;;
+dns/ | dns/info) dns ;;
+dns/restart) exec foot -H doas systemctl restart dnscrypt-proxy.service ;;
+dns/logs) exec foot logs -p service dnscrypt-proxy boot ;;
+maint/ | maint/info) maint ;;
+maint/retry) maint_retry ;;
+maint/logs) exec foot logs -p service maint ;;
+reboot/) reboot_ask ;;
+usb/ | usb/info) usb_ask ;;
+usb/dismiss) usb_dismiss ;;
+timer/) notice "󱎫 Timer" "$(timer list)" "Scroll switches the one shown, middle click cancels them" 6000 ;;
+'/') bad "missing action" ;;
+*) bad "unknown action '$*'" ;;
+esac

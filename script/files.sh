@@ -231,3 +231,8 @@ svc_refresh() {
     ((on && n != $(njot))) || return 0
     try "restart $u (files changed)" systemctl restart -- "$u"
 }
+
+do_helpers() {
+    step "Shared helper functions"
+    put_tree helpers
+}

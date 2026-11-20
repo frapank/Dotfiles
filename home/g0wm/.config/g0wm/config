@@ -113,7 +113,7 @@ rule {
 autostart dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
 autostart gnome-keyring-daemon --start --components=secrets
 autostart services session
-autostart logins --notify
+autostart failed-logins --notify
 
 # key: modifiers+key, action, argument
 key logo+q spawn foot
@@ -155,16 +155,16 @@ key logo+ctrl+l resizewidth 50
 key logo+ctrl+k resizeheight -50
 key logo+ctrl+j resizeheight 50
 key XF86PowerOff spawn power
-key XF86AudioRaiseVolume spawn osd volume up
-key XF86AudioLowerVolume spawn osd volume down
-key XF86AudioMute spawn osd volume mute
-key XF86AudioMicMute spawn osd mic mute
-key XF86MonBrightnessUp spawn osd brightness up
-key XF86MonBrightnessDown spawn osd brightness down
-key XF86AudioNext spawn osd media next
-key XF86AudioPause spawn osd media play
-key XF86AudioPlay spawn osd media play
-key XF86AudioPrev spawn osd media prev
+key XF86AudioRaiseVolume spawn desktop volume up
+key XF86AudioLowerVolume spawn desktop volume down
+key XF86AudioMute spawn desktop volume mute
+key XF86AudioMicMute spawn desktop mic mute
+key XF86MonBrightnessUp spawn desktop brightness up
+key XF86MonBrightnessDown spawn desktop brightness down
+key XF86AudioNext spawn desktop media next
+key XF86AudioPause spawn desktop media play
+key XF86AudioPlay spawn desktop media play
+key XF86AudioPrev spawn desktop media prev
 key logo+Return zoom
 key logo+space setlayout
 key logo+comma focusmon 4

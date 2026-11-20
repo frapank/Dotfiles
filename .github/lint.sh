@@ -20,7 +20,7 @@ done
 py_files=() sh_files=() bash_files=(home/bash/.bashrc_dotfile home/bash/.bash_profile_dotfile)
 while IFS= read -r -d '' f; do
     case $(head -n1 -- "$f") in
-    '#!/bin/sh'*) sh_files+=("$f") ;;
+    '#!/bin/sh'* | '# shellcheck shell=sh'*) sh_files+=("$f") ;;
     '#!'*bash* | '# shellcheck shell=bash'*) bash_files+=("$f") ;;
     '#!'*python3*) py_files+=("$f") ;;
     esac
@@ -105,6 +105,8 @@ for f in home/*/.local/bin/*; do
     grep -qxF -- "${f##*/}" <<<"$listed" || missing+=("${f##*/}")
 done
 if ((${#missing[@]})); then fail "not in the list of home/bin/.local/bin/dotfiles: ${missing[*]}"; else pass "dotfiles lists every command"; fi
+
+python3 .github/helpers.py || fail "helper behavior"
 
 echo "c"
 xml=/usr/share/wayland-protocols/staging/security-context/security-context-v1.xml

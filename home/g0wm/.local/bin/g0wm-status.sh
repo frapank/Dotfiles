@@ -27,7 +27,7 @@ In a format %v is the value and %i the icon; ram has %u and %t too, date and
 time are strftime formats. <module>_click_left, _click_middle, _click_right,
 _scroll_up and _scroll_down run a command when the module is clicked or
 scrolled in the bar. SIGUSR1 reads volume, mic, rec, timer, usbwait,
-nightlight and awake again at once: osd, record, timer and the nightlight and
+nightlight and awake again at once: desktop, record, timer and the nightlight and
 idle services send it after a change. With pactl, a change of the volume, the
 output or the microphone is read at once too.
 EOF
@@ -666,7 +666,7 @@ while (($#)); do
 done
 
 declare -A ivl=() area=() due=() out=()
-# osd asks for the volume and the microphone after changing them: set first,
+# desktop asks for the volume and the microphone after changing them: set first,
 # USR1 kills by default
 kick=0
 trap 'kick=1' USR1

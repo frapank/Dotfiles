@@ -1,79 +1,26 @@
 #!/bin/sh
 set -eu
 
+# shellcheck source=root/helpers/usr/local/lib/dotfiles/cli.sh
+. /usr/local/lib/dotfiles/cli.sh
+
 usage() {
     cat <<EOF
 Usage: record [region] [--no-audio]
-  or:  record info | stop | folder
+  or:  record status | info | stop | folder
 Record the screen with the sound of the desktop, and the microphone if it is
 on; run it again to stop. The red dot in the bar shows it is recording.
 
   region      pick a region with the mouse
   --no-audio  without sound
+  status      print whether a recording is running
   info        what is being recorded and for how long, in the bar
   stop        stop recording
   folder      open the folder of the recordings
   -h, --help  show this help
 
-Exit status: 0, 2 on bad usage.
+Exit status: 0, 1 on failure, 2 on bad usage.
 EOF
-}
-
-# the help; on a terminal styled as man does: bold titles, underlined
-# placeholders, dimmed examples
-help() {
-    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-        usage | awk -v b="$(printf '\033[1m')" -v u="$(printf '\033[4m')" \
-            -v d="$(printf '\033[2m')" -v n="$(printf '\033[0m')" '
-            function ul(s, r) {
-                while (match(s, /[A-Z][A-Z0-9_]+/)) {
-                    r = r substr(s, 1, RSTART - 1) u substr(s, RSTART, RLENGTH) n
-                    s = substr(s, RSTART + RLENGTH)
-                }
-                return r s
-            }
-            /^$/ { ex = 0 }
-            ex { print d $0 n; next }
-            /^(Usage|  or):/ {
-                i = index($0, ":")
-                print b substr($0, 1, i) n ul(substr($0, i + 1))
-                next
-            }
-            /^[A-Z][A-Za-z]*( [a-z]+)?:/ {
-                i = index($0, ":")
-                ex = $0 == "Examples:"
-                print b substr($0, 1, i) n substr($0, i + 1)
-                next
-            }
-            /^  [^ ]/ && match(substr($0, 3), /   *|$/) {
-                i = RSTART
-                print "  " ul(substr($0, 3, i - 1)) substr($0, i + 2)
-                next
-            }
-            { print }'
-    else
-        usage
-    fi
-}
-
-# an error, the name in red on a terminal
-err() {
-    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
-        printf '\033[1;31m%s:\033[0m %s\n' record "$*" >&2
-    else
-        printf '%s: %s\n' record "$*" >&2
-    fi
-}
-
-# a usage error: what is wrong, then where the help is
-bad() {
-    err "$*"
-    if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
-        printf "\033[2mTry 'record --help' for more information.\033[0m\n" >&2
-    else
-        printf "Try 'record --help' for more information.\n" >&2
-    fi
-    exit 2
 }
 
 run=${XDG_RUNTIME_DIR:-/tmp}
@@ -100,8 +47,23 @@ stop() {
 
 # for the rec icon in the bar: how long and what, stop, the videos
 case ${1:-} in
+-h | --help | status | info | stop | folder)
+    [ $# -eq 1 ] || bad "extra operand '$2'"
+    ;;
+esac
+
+case ${1:-} in
 -h | --help)
     help
+    exit 0
+    ;;
+status)
+    if recording; then
+        printf 'on\n'
+        [ ! -r "$info" ] || cat "$info"
+    else
+        printf 'off\n'
+    fi
     exit 0
     ;;
 info)
@@ -123,11 +85,6 @@ stop)
 folder) exec files "$(xdg-user-dir VIDEOS 2>/dev/null || echo "$HOME")" ;;
 esac
 
-if recording; then
-    stop
-    exit 0
-fi
-
 region= sound=1
 for a in "$@"; do
     case $a in
@@ -137,6 +94,11 @@ for a in "$@"; do
     *) bad "unknown action '$a'" ;;
     esac
 done
+
+if recording; then
+    stop
+    exit 0
+fi
 
 geo= out= what=
 if [ -n "$region" ]; then

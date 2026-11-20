@@ -5,7 +5,7 @@ These are my personal dotfiles, made for my PC and for the way I use it, not mea
 This repo contains my dotfiles and the installer of them, for Debian 13 (trixie). My dotfiles aim to guarantee an environment that is consistent, secure and that gives priority to privacy.
 The script provides a pre-installation of several programs, among which:
 - G0wm, my personal window manager, originally based on dwl.
-- Several utils scripts: open, extract, compress, metadata-remover, traces, conns, isolate, snap, forget, logs, why, qr, timer, ding, colorpick etc.
+- Several utils scripts: open, extract, compress, metadata, traces, conns, isolate, snap, forget, logs, why, qr, timer, ding, colorpick etc.
 - There are several custom services, among them watchdog that checks crashes, errors and various problems and maint that handles the maintenance of the system automatically. All integrated with the G0wm notification system.
 - Many of these scripts are tied to g0wm keybinds and to the statusbar icons, for example awake that keeps gtklock from starting and nightlight that is the blue light filter. This comes with record, screenshot, volume manager etc.
 - Many programs, especially the ones that open files, are completely sandboxed through AppArmor and dbus-filter.
@@ -20,6 +20,22 @@ Debian from the netinst image, in the text installer:
 Then on tty1, from the cloned repo: `doas ./install.sh`, or `sudo ./install.sh` the first time. It asks what to apply, shows the plan and rolls everything back if a step fails. What each choice does is in script/sections/, one file per section.
 
 What Debian does not have is built or downloaded at fixed commits and checksums: wlroots 0.20 with the newer wayland, libdrm, xkbcommon, wayland-protocols and pixman it needs and libscfg for the g0wm config, in /usr/local/lib/wlroots-0.20 (only g0wm uses them, by its rpath), grub-btrfs, hardened_malloc, the Geist and Nerd symbols fonts, the cursor and icon themes. LibreWolf comes from its own repository, with the key Debian's extrepo lists for it.
+
+## Helpers
+
+`dotfiles` lists the commands, and `dotfiles NAME` shows their help.
+Shell helpers share `/usr/local/lib/dotfiles/cli.sh`, installed before the other
+files and owned by root. Re-run the installer when updating these helpers.
+
+- `desktop` handles media keys and bar clicks; `osd` and `indicator` remain aliases.
+- `failed-logins` reports failed authentication attempts; `logins` remains an alias.
+- `metadata clean FILE...` removes metadata and `metadata show FILE...` lists it.
+  `metadata-remover` keeps its previous syntax.
+- `wifi`, `bluetooth`, `awake`, `nightlight` and `record` have a `status` action
+  that prints plain text without notifications. `info` shows a notification.
+  A successful status query exits 0 whether the feature is on or off.
+- `wifi settings` and `bluetooth settings` open their managers, as does running
+  either command without arguments. Unknown actions exit 2.
 
 ## Maint
 
@@ -124,6 +140,9 @@ With usbguard new devices stay blocked. When you plug one in a notification arri
 - traces: shows or deletes recent files, histories, thumbnails, trash and clipboard.
 
 ## Installer tests
+
+`python3 .github/helpers.py` checks helper arguments, status output, compatibility
+wrappers and desktop actions with mocked session commands. The lint job runs it too.
 
 The CI runs three integration scenarios in a disposable Debian 13 VM: first
 installation, second installation (idempotence), and rollback after an injected
