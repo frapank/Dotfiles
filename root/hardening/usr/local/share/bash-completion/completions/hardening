@@ -1,0 +1,6 @@
+_hardening() {
+    local words='status fast --help'
+    [[ ${COMP_WORDS[1]:-} != fast || $COMP_CWORD != 2 ]] || words='podman distrobox gdb perf powertop debug'
+    COMPREPLY=($(compgen -W "$words" -- "${COMP_WORDS[COMP_CWORD]}"))
+}
+complete -F _hardening hardening

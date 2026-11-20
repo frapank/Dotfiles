@@ -1,0 +1,1184 @@
+#!/usr/bin/python3 -I
+"""Interactive hardening policy for the dotfiles. No shell evaluation of input."""
+
+import collections
+import contextlib
+import dataclasses
+import fcntl
+import fnmatch
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import shlex
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import textwrap
+import time
+
+
+class Error(Exception):
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class Option:
+    key: str
+    default: str
+    relaxed: str
+    description: str
+    kind: str = "boot"
+    aliases: tuple = ()
+
+
+# Relaxation means an explicit alternative, except '-' which removes the override.
+# Firmware/kernel build requirements can still impose stricter settings.
+OPTIONS = [
+    Option("init_on_alloc", "1", "0", "Zero newly allocated memory"),
+    Option("init_on_free", "1", "0", "Zero freed memory"),
+    Option("slab_nomerge", "", "slab_merge", "Keep slab caches separate", aliases=("slab_merge",)),
+    Option("page_alloc.shuffle", "1", "0", "Shuffle free memory pages"),
+    Option("randomize_kstack_offset", "on", "off", "Randomize kernel stack offsets"),
+    Option("vsyscall", "none", "emulate", "Disable the legacy vsyscall interface"),
+    Option("debugfs", "off", "on", "Disable debugfs (PowerTOP needs it)"),
+    Option("iommu.strict", "1", "0", "Strict IOMMU invalidation"),
+    Option("efi", "disable_early_pci_dma", "-", "Disable early PCI DMA through EFI"),
+    Option("lockdown", "confidentiality", "-", "Kernel confidentiality lockdown (relaxed: remove override)"),
+    Option("module.sig_enforce", "1", "0", "Require signed kernel modules"),
+    Option("proc_mem.force_override", "ptrace", "always", "Limit forced /proc/PID/mem writes to debuggers"),
+    Option("iommu.passthrough", "0", "1", "Keep devices out of IOMMU passthrough"),
+    Option("kfence.sample_interval", "100", "0", "Sample kernel heap errors with KFENCE"),
+    Option("random.trust_cpu", "off", "on", "Do not credit CPU randomness alone"),
+    Option("random.trust_bootloader", "off", "on", "Do not credit bootloader randomness alone"),
+    Option("bdev_allow_write_mounted", "0", "1", "Block raw writes to mounted block devices"),
+    Option("intel_iommu", "on", "off", "Enable Intel IOMMU"),
+    Option("amd_iommu", "force_isolation", "off", "Force AMD IOMMU isolation"),
+    Option("tsx", "off", "on", "Disable Intel TSX"),
+    Option("kernel.perf_event_paranoid", "3", "2", "Restrict perf (relaxed: own user-space tasks)", "sysctl"),
+    Option("kernel.yama.ptrace_scope", "1", "0", "Restrict debugger attachment to descendants", "sysctl"),
+    Option("kernel.kptr_restrict", "2", "0", "Hide kernel symbol addresses", "sysctl"),
+    Option("kernel.dmesg_restrict", "1", "0", "Restrict kernel log access", "sysctl"),
+    Option("kernel.unprivileged_bpf_disabled", "1", "0", "Disable unprivileged BPF (1 cannot be undone until reboot)", "sysctl"),
+    Option("net.core.bpf_jit_harden", "2", "0", "Harden the BPF JIT", "sysctl"),
+    Option("kernel.io_uring_disabled", "2", "0", "Disable io_uring", "sysctl"),
+    Option("vm.unprivileged_userfaultfd", "0", "1", "Restrict userfaultfd", "sysctl"),
+    Option("kernel.randomize_va_space", "2", "0", "Userspace address randomization (ASLR)", "sysctl"),
+    Option("vm.mmap_rnd_bits", "32", "28", "Extra mmap randomization (relaxed: 28 bits)", "sysctl"),
+    Option("vm.mmap_rnd_compat_bits", "16", "8", "Extra 32-bit mmap randomization (relaxed: 8 bits)", "sysctl"),
+    Option("kernel.kexec_load_disabled", "1", "0", "Disable kexec (cannot be undone until reboot)", "sysctl"),
+    Option("dev.tty.ldisc_autoload", "0", "1", "Disable terminal line discipline autoload", "sysctl"),
+    Option("dev.tty.legacy_tiocsti", "0", "1", "Disable legacy terminal input injection", "sysctl"),
+    Option("fs.protected_hardlinks", "1", "0", "Protect hard links", "sysctl"),
+    Option("fs.protected_symlinks", "1", "0", "Protect symbolic links in sticky directories", "sysctl"),
+    Option("fs.protected_fifos", "2", "0", "Protect FIFOs in sticky directories", "sysctl"),
+    Option("fs.protected_regular", "2", "0", "Protect regular files in sticky directories", "sysctl"),
+    Option("userns_helpers", "blocked", "allowed", "Restrict rootless UID/GID mapping helpers", "tool"),
+    Option("msr_module", "blocked", "allowed", "Block the MSR kernel module", "tool"),
+]
+BY_KEY = {o.key: o for o in OPTIONS}
+PROFILES = {
+    "podman": ("Podman / Distrobox", {"userns_helpers": "allowed"},
+               "Restore setuid to newuidmap/newgidmap and keep the APT nosuid hook from removing it. Existing subordinate UID/GID ranges are required."),
+    "gdb": ("GDB attach", {"kernel.yama.ptrace_scope": "0"},
+            "Allow attachment to your other dumpable processes. ASLR and the core-dump policy stay at their selected values."),
+    "perf": ("perf userspace", {"kernel.perf_event_paranoid": "2"},
+             "Profile your own userspace tasks without root: perf stat --all-user ./program. Kernel tracing is still restricted."),
+    "powertop": ("PowerTOP", {"debugfs": "on", "lockdown": "-", "msr_module": "allowed"},
+                 "Enable debugfs, remove the explicit lockdown request and allow loading msr. Reboot is needed for boot changes; Secure Boot can still enforce lockdown."),
+}
+PROFILES["debug"] = ("Debug tools", {k: v for _, values, _ in PROFILES.values() for k, v in values.items()},
+                     "Combine Podman, GDB, perf userspace and PowerTOP. Other selections are preserved; ASLR, unprivileged BPF and IOMMU protections are not relaxed by this profile.")
+STATE = Path("/var/lib/hardening")
+POLICY = STATE / "settings.json"
+GRUB = Path("/etc/default/grub.d/99-hardening.cfg")
+SYSCTL = Path("/etc/sysctl.d/99-hardening.conf")
+BOOTCFG = Path("/boot/grub/grub.cfg")
+EARLY = (Path("/etc/sysctl.d/51-kernel-hardening.conf"),
+         Path("/etc/sysctl.d/53-kernel-debug-restrictions.conf"))
+NOSUID = Path("/usr/local/sbin/nosuid")
+MODPROBE = Path("/etc/modprobe.d/30-harden.conf")
+HELPERS = (Path("/usr/bin/newuidmap"), Path("/usr/bin/newgidmap"))
+MANAGED = (POLICY, GRUB, SYSCTL, BOOTCFG, *EARLY, NOSUID, MODPROBE)
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "HOME": "/root"}
+COLOR = sys.stdout.isatty() and "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb"
+
+
+def styled(text, code):
+    return f"\033[{code}m{text}\033[0m" if COLOR else text
+
+
+def heading(text, detail=""):
+    print("\n" + styled("::", "1;36") + " " + styled(text, "1")
+          + ("  " + styled(detail, "2") if detail else ""))
+
+
+def width():
+    return max(40, min(80, shutil.get_terminal_size((80, 24)).columns))
+
+
+def note(text, color="2"):
+    if os.environ.get("TERM") == "linux":
+        text = text.replace("·", "-")
+    for line in textwrap.wrap(text, max(20, width() - 6)):
+        print("   " + styled(line, color))
+
+
+def row(kind, text):
+    label, color = {"ok": ("+" if os.environ.get("TERM") == "linux" else "✓", "32"),
+                    "warn": ("!", "33"), "fail": ("x", "31"), "info": ("·" if os.environ.get("TERM") != "linux" else "-", "2")}[kind]
+    lines = textwrap.wrap(text, max(20, width() - 6)) or [""]
+    print("   " + styled(label, color) + " " + lines[0])
+    for line in lines[1:]:
+        print("     " + styled(line, "2"))
+
+
+def clear_menu():
+    if sys.stdout.isatty() and os.environ.get("TERM") not in (None, "dumb"):
+        print("\033[H\033[2J", end="", flush=True)
+
+
+def error(text):
+    label = "hardening:"
+    if sys.stderr.isatty() and "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb":
+        label = "\033[1;31m" + label + "\033[0m"
+    print(label + " " + text, file=sys.stderr)
+
+
+def read(path):
+    try:
+        return Path(path).read_text().strip()
+    except FileNotFoundError:
+        return None
+
+
+def procfile(option):
+    return Path("/proc/sys") / option.key.replace(".", "/")
+
+
+def secure(path, directory=False, missing=False):
+    """Reject symlinks, untrusted ancestors and writable root configuration."""
+    path = Path(path)
+    for parent in reversed(path.parents):
+        s = parent.lstat()
+        if not stat.S_ISDIR(s.st_mode) or s.st_uid != 0 or s.st_mode & 0o022:
+            raise Error(f"unsafe directory: {parent}")
+    try:
+        s = path.lstat()
+    except FileNotFoundError:
+        if missing:
+            return
+        raise Error(f"missing: {path}") from None
+    wanted = stat.S_ISDIR if directory else stat.S_ISREG
+    if not wanted(s.st_mode) or s.st_uid != 0 or s.st_mode & 0o022:
+        raise Error(f"unsafe owner, mode or file type: {path}")
+    if not directory and s.st_nlink != 1:
+        raise Error(f"hard-linked file: {path}")
+
+
+def atomic(path, data, mode=0o600):
+    secure(path.parent, directory=True)
+    secure(path, missing=True)
+    fd, name = tempfile.mkstemp(prefix=".hardening-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            os.fchmod(stream.fileno(), mode)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+        syncdir(path.parent)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def syncdir(path):
+    fd = os.open(path, os.O_DIRECTORY | os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def run(args, timeout=120):
+    result = subprocess.run(args, env=ENV, text=True, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, timeout=timeout, check=False)
+    if result.returncode:
+        raise Error(f"{args[0]} failed ({result.returncode}):\n{result.stdout[-8000:]}")
+    return result.stdout
+
+
+def validate_policy(policy):
+    if not isinstance(policy, dict) or set(policy) - BY_KEY.keys():
+        raise Error("unknown option in saved settings")
+    for key, value in policy.items():
+        o = BY_KEY[key]
+        if value not in (o.default, o.relaxed):
+            raise Error(f"invalid value for {key}: {value!r}")
+    return policy
+
+
+def load_policy():
+    secure(POLICY, missing=True)
+    text = read(POLICY)
+    return validate_policy(json.loads(text)) if text is not None else {}
+
+
+# Preserve every unselected token verbatim, including quotes and backslashes.
+# This same small transformer is embedded in the GRUB drop-in: no dependency on
+# the interactive program, its state directory, or a particular login environment.
+TOKENIZER = r'''import json,re,sys
+spec=json.loads(sys.argv[1])
+text=sys.argv[2]
+pattern=r"(?:[^\s\"'\\]|\\.|\"(?:[^\"\\]|\\.)*\"|'[^']*')+"
+tokens=[]
+end=0
+for match in re.finditer(pattern,text):
+    if text[end:match.start()].strip(): raise SystemExit("invalid kernel command line")
+    tokens.append(match.group())
+    end=match.end()
+if text[end:].strip(): raise SystemExit("invalid kernel command line")
+out=[]
+for token in tokens:
+    key=token.split('=',1)[0]
+    if key in spec and (key!='efi' or token=='efi=disable_early_pci_dma'): continue
+    out.append(token)
+print(' '.join(out))
+'''
+
+
+def boot_token(o, value):
+    if value == "-":
+        return None
+    if value in o.aliases:
+        return value
+    return o.key + ("=" + value if value else "")
+
+
+def selectors(policy):
+    return sorted({key for name in policy for key in (name, *BY_KEY[name].aliases)
+                   if BY_KEY[name].kind == "boot"})
+
+
+def grub_text(policy):
+    keys = selectors(policy)
+    if not keys:
+        return b"# Managed by hardening. No kernel command-line overrides.\n"
+    code = shlex.quote(TOKENIZER)
+    spec = shlex.quote(json.dumps(keys))
+    tokens = [boot_token(BY_KEY[k], v) for k, v in sorted(policy.items())
+              if BY_KEY[k].kind == "boot"]
+    extra = " ".join(t for t in tokens if t)
+    return ("# Managed by hardening. Use 'doas hardening' to change it.\n"
+            "# Recovery entries do not receive these additional arguments.\n"
+            "_hardening_filter() {\n"
+            f"    /usr/bin/python3 -I -c {code} {spec} \"$1\"\n"
+            "}\n"
+            'GRUB_CMDLINE_LINUX="$(_hardening_filter "$GRUB_CMDLINE_LINUX")" || return 1\n'
+            'GRUB_CMDLINE_LINUX_DEFAULT="$(_hardening_filter "$GRUB_CMDLINE_LINUX_DEFAULT")" || return 1\n'
+            f'GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT{(" " + extra) if extra else ""}"\n'
+            "unset -f _hardening_filter\n").encode()
+
+
+def sysctl_text(policy):
+    lines = ["# Managed by hardening. Use 'doas hardening' to change it."]
+    lines.extend(f"{k}={v}" for k, v in sorted(policy.items()) if BY_KEY[k].kind == "sysctl")
+    return ("\n".join(lines) + "\n").encode()
+
+
+def early_sysctl_text(text, policy):
+    # A later sysctl.d override cannot undo a preceding irreversible '=1'.
+    # Change the original assignment too, before the next boot applies it.
+    for key in ("kernel.kexec_load_disabled", "kernel.unprivileged_bpf_disabled"):
+        if key in policy:
+            text = re.sub(r"(?m)^" + re.escape(key) + r"[ \t]*=[ \t]*\d+[ \t]*$",
+                          key + "=" + policy[key], text)
+    return text.encode()
+
+
+def nosuid_text(text, policy):
+    if "userns_helpers" not in policy:
+        return text.encode()
+    anchor = "/usr/bin/mount /usr/bin/umount\n"
+    helpers = "/usr/bin/newuidmap /usr/bin/newgidmap\n"
+    if text.count(anchor) != 1 or text.count(helpers) > 1:
+        raise Error("unexpected nosuid layout; refusing to edit it")
+    result = text.replace(helpers, "")
+    if "newuidmap" in result or "newgidmap" in result:
+        raise Error("unexpected mapping-helper references in nosuid")
+    if policy["userns_helpers"] == "blocked":
+        result = result.replace(anchor, anchor + helpers)
+    return result.encode()
+
+
+def module_text(text, policy):
+    if "msr_module" not in policy:
+        return text.encode()
+    pattern = r"(?m)^install[ \t]+msr[ \t]+/bin/false[ \t]*\n?"
+    result = re.sub(pattern, "", text)
+    if re.search(r"(?m)^\s*(install|blacklist|alias|options)\s+msr\b", result):
+        raise Error("unexpected MSR policy; refusing to edit it")
+    if policy["msr_module"] == "blocked":
+        result = result.rstrip("\n") + "\ninstall msr /bin/false\n"
+    return result.encode()
+
+
+def override(path):
+    result = subprocess.run(["/usr/bin/dpkg-statoverride", "--list", str(path)], env=ENV,
+                            capture_output=True, text=True, check=False, timeout=15)
+    if result.returncode == 1 and not result.stdout.strip():
+        return None
+    fields = result.stdout.strip().split()
+    if result.returncode or len(fields) != 4 or fields[3] != str(path) or not re.fullmatch(r"[0-7]{3,4}", fields[2]):
+        raise Error(f"cannot read dpkg mode override for {path}")
+    return fields[:3]
+
+
+def helper_snapshot():
+    result = {}
+    for path in HELPERS:
+        secure(path)
+        s = path.stat()
+        if s.st_gid != 0:
+            raise Error(f"expected root:root helper: {path}")
+        result[str(path)] = {"mode": stat.S_IMODE(s.st_mode), "override": override(path)}
+    return result
+
+
+def helper_restore(saved):
+    if not saved:
+        return
+    if set(saved) != {str(p) for p in HELPERS}:
+        raise Error("invalid mapping-helper backup")
+    for path in HELPERS:
+        secure(path)
+        data = saved[str(path)]
+        if override(path) is not None:
+            run(["/usr/bin/dpkg-statoverride", "--remove", str(path)])
+        if data["override"] is not None:
+            run(["/usr/bin/dpkg-statoverride", "--add", *data["override"], str(path)])
+        os.chmod(path, data["mode"])
+        if stat.S_IMODE(path.stat().st_mode) != data["mode"] or override(path) != data["override"]:
+            raise Error(f"could not restore {path}")
+
+
+def set_helpers(value):
+    mode = "4755" if value == "allowed" else "755"
+    for path in HELPERS:
+        secure(path)
+        if override(path) is not None:
+            run(["/usr/bin/dpkg-statoverride", "--remove", str(path)])
+        run(["/usr/bin/dpkg-statoverride", "--update", "--add", "root", "root", mode, str(path)])
+        if stat.S_IMODE(path.stat().st_mode) != int(mode, 8):
+            raise Error(f"helper mode did not change: {path}")
+
+
+def check_userns():
+    user = os.environ.get("DOAS_USER", "")
+    uid = str(pwd.getpwnam(user).pw_uid)
+    helper_snapshot()
+    for path in HELPERS:
+        options = run(["/usr/bin/findmnt", "-n", "-o", "OPTIONS", "-T", str(path)]).strip().split(",")
+        if "nosuid" in options:
+            raise Error(f"{path} is on a nosuid filesystem")
+    for name in ("/etc/subuid", "/etc/subgid"):
+        secure(Path(name))
+        entries = [line.split(":") for line in Path(name).read_text().splitlines()]
+        if not any(len(e) == 3 and e[0] in (user, uid) and e[1].isdigit() and e[2].isdigit()
+                   and int(e[1]) > 0 and int(e[2]) > 0 for e in entries):
+            raise Error(f"no subordinate ID range for {user} in {name}; configure the range before applying Podman")
+
+
+def tool_state(o):
+    if o.key == "userns_helpers":
+        if not all(p.exists() for p in HELPERS) or not NOSUID.exists():
+            return "unavailable"
+        modes = [stat.S_IMODE(p.stat().st_mode) for p in HELPERS]
+        allowed = all(mode == 0o4755 for mode in modes)
+        blocked = "/usr/bin/newuidmap /usr/bin/newgidmap\n" in NOSUID.read_text()
+        return "allowed" if allowed and not blocked else "blocked" if all(mode == 0o755 for mode in modes) and blocked else "custom"
+    if not MODPROBE.exists():
+        return "unavailable"
+    blocked = bool(re.search(r"(?m)^install\s+msr\s+/bin/false\s*$", MODPROBE.read_text()))
+    return "allowed" if not blocked or Path("/sys/module/msr").exists() else "blocked"
+
+
+def boot_rows(text):
+    rows = []
+    for line in text.splitlines():
+        if re.match(r"^\s*(linux|linuxefi|linux16|initrd|initrdefi|initrd16)\s", line):
+            row = shlex.split(line, comments=True)
+            if len(row) < 2:
+                raise Error("incomplete kernel/initrd entry in grub.cfg")
+            rows.append(row)
+    if not any(row[0].startswith("linux") for row in rows):
+        raise Error("grub.cfg has no Linux entries")
+    return rows
+
+
+def is_managed(token, keys):
+    key = token.split("=", 1)[0]
+    return key in keys and (key != "efi" or token == "efi=disable_early_pci_dma")
+
+
+def check_boot(old, new, policy):
+    """Keep all kernel images, initrds and every unrelated argument unchanged."""
+    keys = selectors(policy)
+    before, after = boot_rows(old), boot_rows(new)
+    def signature(rows):
+        return collections.Counter(tuple(row[:2] + [t for t in row[2:] if not is_managed(t, keys)])
+                                   if row[0].startswith("linux") else tuple(row) for row in rows)
+    if signature(before) != signature(after):
+        raise Error("generated GRUB changes kernel images, initrds or unrelated boot arguments; refusing")
+    wanted = [boot_token(BY_KEY[k], v) for k, v in policy.items() if BY_KEY[k].kind == "boot"]
+    # At least a normal entry must contain the complete requested policy.
+    if not any(all(t is None or t in row[2:] for t in wanted)
+               for row in after if row[0].startswith("linux")):
+        raise Error("GRUB did not apply the requested kernel arguments")
+    for row in after:
+        if not row[0].startswith("linux"):
+            continue
+        for name, value in policy.items():
+            o = BY_KEY[name]
+            if o.kind != "boot":
+                continue
+            actual = [t for t in row[2:] if is_managed(t, (name, *o.aliases))]
+            expected = boot_token(o, value)
+            if any(t != expected for t in actual):
+                raise Error(f"conflicting or removed argument still in GRUB: {name}")
+
+
+def snapshot():
+    result = {}
+    for path in MANAGED:
+        secure(path, missing=path != BOOTCFG)
+        result[str(path)] = None if not path.exists() else {
+            "text": path.read_text(), "mode": stat.S_IMODE(path.stat().st_mode)}
+    return result
+
+
+def restore_files(files, subset=False):
+    allowed = {str(p) for p in MANAGED}
+    if (set(files) - allowed) or (not subset and set(files) != allowed):
+        raise Error("invalid backup file list")
+    for name, data in files.items():
+        path = Path(name)
+        secure(path, missing=True)
+        if data is None:
+            path.unlink(missing_ok=True)
+            syncdir(path.parent)
+        else:
+            atomic(path, data["text"].encode(), data["mode"])
+
+
+def set_runtime(key, value):
+    path = procfile(BY_KEY[key])
+    path.write_text(value + "\n")
+    if read(path) != value:
+        raise Error(f"kernel did not accept {key}={value}")
+
+
+def deferred(o, current, value):
+    return o.key in ("kernel.unprivileged_bpf_disabled", "kernel.kexec_load_disabled") and current == "1" and value != "1"
+
+
+def recover(journal):
+    secure(journal)
+    data = json.loads(journal.read_text())
+    if not data.get("committed"):
+        allowed = {str(p) for p in MANAGED}
+        if set(data["files"]) - allowed or (allowed - {str(NOSUID), str(MODPROBE)}) - data["files"].keys():
+            raise Error("invalid backup file list")
+        errors = []
+        safe = {}
+        planned = data.get("planned", {name: None for name in data["files"]})
+        if set(planned) - data["files"].keys():
+            raise Error("invalid transaction file list")
+        for name, expected in planned.items():
+            path = Path(name)
+            secure(path, missing=True)
+            current = path.read_text() if path.exists() else None
+            original = data["files"][name]
+            original_text = original["text"] if original is not None else None
+            if "planned" in data and current not in (original_text, expected):
+                errors.append(name + " changed outside hardening")
+            else:
+                safe[name] = original
+        restore_files(safe, subset=True)
+        if data.get("helpers_started"):
+            helper_restore(data.get("helpers", {}))
+        for key, value in data["runtime"].items():
+            if key not in BY_KEY or BY_KEY[key].kind != "sysctl" or not re.fullmatch(r"\d+", value):
+                raise Error("invalid runtime backup")
+            if read(procfile(BY_KEY[key])) != value:
+                set_runtime(key, value)
+        if errors:
+            raise Error("; ".join(errors) + "; backup retained, manual review required")
+    journal.unlink()
+    syncdir(STATE)
+
+
+def preflight(policy):
+    validate_policy(policy)
+    for path in (STATE, GRUB.parent, SYSCTL.parent, BOOTCFG.parent):
+        secure(path, directory=True)
+    for path in MANAGED:
+        secure(path, missing=path != BOOTCFG)
+    for path in (GRUB, SYSCTL):
+        if path.exists() and not path.read_text().startswith("# Managed by hardening."):
+            raise Error(f"{path} is not owned by hardening; refusing to overwrite it")
+    for tool in ("/usr/sbin/grub-mkconfig", "/usr/bin/grub-script-check", "/bin/sh"):
+        secure(Path(tool).resolve())
+        if not os.access(tool, os.X_OK):
+            raise Error(f"not executable: {tool}")
+    secure(Path("/etc/default/grub"))
+    for path in GRUB.parent.glob("*.cfg"):
+        secure(path)
+        if path.name > GRUB.name:
+            raise Error(f"GRUB drop-in sorts after hardening: {path}")
+    secure(Path("/etc/grub.d"), directory=True)
+    for path in Path("/etc/grub.d").iterdir():
+        if path.is_file() and os.access(path, os.X_OK):
+            secure(path)
+    required_space = max(8 * 1024 * 1024, BOOTCFG.stat().st_size * 6)
+    for path in (STATE, BOOTCFG.parent):
+        v = os.statvfs(path)
+        if v.f_bavail * v.f_frsize < required_space:
+            raise Error(f"insufficient free space for staging and rollback in {path} (need {required_space} bytes)")
+    for key, value in policy.items():
+        o = BY_KEY[key]
+        if o.kind == "sysctl" and read(procfile(o)) is None:
+            raise Error(f"kernel does not expose {key}; no changes applied")
+    if "userns_helpers" in policy:
+        secure(NOSUID)
+        nosuid_text(NOSUID.read_text(), policy)
+        secure(Path("/usr/bin/dpkg-statoverride"))
+        helper_snapshot()
+        if policy["userns_helpers"] == "allowed":
+            check_userns()
+    if "msr_module" in policy:
+        secure(MODPROBE)
+        secure(Path("/usr/sbin/modprobe"))
+        module_text(MODPROBE.read_text(), policy)
+    for key in ("kernel.kexec_load_disabled", "kernel.unprivileged_bpf_disabled"):
+        if key in policy:
+            occurrences = sum(len(re.findall(r"(?m)^" + re.escape(key) + r"[ \t]*=[ \t]*\d+[ \t]*$", p.read_text()))
+                              for p in EARLY)
+            if occurrences != 1:
+                raise Error(f"expected one original assignment for {key}; refusing")
+
+
+def check_sysctl_sources(policy):
+    """Refuse another administrator's later override instead of promising persistence."""
+    wanted = {k: v for k, v in policy.items() if BY_KEY[k].kind == "sysctl"}
+    if not wanted:
+        return
+    chosen = {}
+    for directory in ("/etc/sysctl.d", "/run/sysctl.d", "/usr/local/lib/sysctl.d", "/usr/lib/sysctl.d", "/lib/sysctl.d"):
+        for path in Path(directory).glob("*.conf"):
+            chosen.setdefault(path.name, path)
+    actual = {}
+    for name in sorted(chosen):
+        path = chosen[name]
+        if path.is_symlink() and path.resolve() == Path("/dev/null"):
+            continue
+        secure(path.resolve())
+        for line in path.read_text().splitlines():
+            line = re.split(r"[#;]", line, maxsplit=1)[0].strip()
+            if "=" not in line:
+                continue
+            key, value = (s.strip() for s in line.split("=", 1))
+            key = key.lstrip("-").replace("/", ".")
+            for target in wanted:
+                if fnmatch.fnmatchcase(target, key):
+                    actual[target] = value
+    for key, value in wanted.items():
+        if actual.get(key) != value:
+            raise Error(f"another sysctl.d file overrides {key}; refusing an inconsistent persistent policy")
+
+
+@contextlib.contextmanager
+def package_locks():
+    # Debian package hooks also regenerate GRUB: do not race apt/dpkg.
+    with contextlib.ExitStack() as stack:
+        for name in ("/var/lib/dpkg/lock-frontend", "/var/lib/dpkg/lock"):
+            path = Path(name)
+            secure(path)
+            stream = stack.enter_context(open(path, "r+"))
+            try:
+                fcntl.lockf(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise Error("apt/dpkg is running; try again when it finishes") from None
+        yield
+
+
+def apply(policy, previous):
+    with package_locks():
+        return transaction(policy, previous)
+
+
+def transaction(policy, previous):
+    # Include previous keys at their default when resetting, so filters remove
+    # stale arguments and the runtime kernel returns to the dotfiles baseline.
+    effective = {k: BY_KEY[k].default for k in previous}
+    effective.update(policy)
+    preflight(effective)
+    journal = STATE / "pending.json"
+    if journal.exists():
+        raise Error("unfinished transaction; recover it first")
+    files = snapshot()
+    runtime = {}
+    later = []
+    for key, value in effective.items():
+        o = BY_KEY[key]
+        if o.kind != "sysctl":
+            continue
+        current = read(procfile(o))
+        if current == value:
+            continue
+        if deferred(o, current, value):
+            later.append(key)
+        elif key in ("kernel.unprivileged_bpf_disabled", "kernel.kexec_load_disabled") and value == "1":
+            # Never perform an irreversible write inside a reversible transaction.
+            later.append(key)
+        else:
+            runtime[key] = current
+    helpers = helper_snapshot() if "userns_helpers" in effective else {}
+    data = {"files": files, "runtime": runtime, "helpers": helpers, "helpers_started": False,
+            "committed": False, "planned": {}}
+    atomic(journal, (json.dumps(data, indent=2) + "\n").encode())
+    log = STATE / (time.strftime("backup-%Y%m%d-%H%M%S-") + str(time.time_ns()) + ".json")
+    atomic(log, (json.dumps(data, indent=2) + "\n").encode())
+    def replace(path, payload, mode=0o600):
+        # Record intent before each atomic replacement. Recovery will not
+        # overwrite an unrelated file changed concurrently by another admin.
+        data["planned"][str(path)] = payload.decode()
+        atomic(journal, (json.dumps(data, indent=2) + "\n").encode())
+        atomic(path, payload, mode)
+    staged = None
+    try:
+        replace(GRUB, grub_text(effective), 0o644)
+        run(["/bin/sh", "-n", str(GRUB)])
+        replace(SYSCTL, sysctl_text(effective), 0o644)
+        for path in EARLY:
+            original = files[str(path)]
+            if original is not None:
+                replace(path, early_sysctl_text(original["text"], effective), original["mode"])
+        check_sysctl_sources(effective)
+        fd, name = tempfile.mkstemp(prefix=".hardening-grub-", dir=BOOTCFG.parent)
+        os.close(fd)
+        staged = Path(name)
+        run(["/usr/sbin/grub-mkconfig", "-o", str(staged)])
+        secure(staged)
+        run(["/usr/bin/grub-script-check", str(staged)])
+        check_boot(files[str(BOOTCFG)]["text"], staged.read_text(), effective)
+        if BOOTCFG.read_text() != files[str(BOOTCFG)]["text"]:
+            raise Error("grub.cfg changed concurrently; refusing to replace it")
+        if "msr_module" in effective:
+            original = files[str(MODPROBE)]
+            replace(MODPROBE, module_text(original["text"], effective), original["mode"])
+            if effective["msr_module"] == "allowed":
+                rules = run(["/usr/sbin/modprobe", "--showconfig"])
+                if re.search(r"(?m)^install\s+msr\b", rules):
+                    raise Error("another modprobe install rule still intercepts msr; refusing")
+                command = run(["/usr/sbin/modprobe", "-n", "-v", "msr"])
+                if re.search(r"\binstall\b|/bin/false", command):
+                    raise Error("another modprobe rule still intercepts msr; refusing")
+        if "userns_helpers" in effective:
+            original = files[str(NOSUID)]
+            replace(NOSUID, nosuid_text(original["text"], effective), original["mode"])
+            run(["/bin/sh", "-n", str(NOSUID)])
+            data["helpers_started"] = True
+            atomic(journal, (json.dumps(data, indent=2) + "\n").encode())
+            set_helpers(effective["userns_helpers"])
+        for key in runtime:
+            if read(procfile(BY_KEY[key])) != runtime[key]:
+                raise Error(f"{key} changed while preparing the transaction")
+            set_runtime(key, effective[key])
+        # Existing boot configuration is replaced only after every check passed.
+        replace(BOOTCFG, staged.read_bytes(), files[str(BOOTCFG)]["mode"])
+        replace(POLICY, (json.dumps(policy, indent=2, sort_keys=True) + "\n").encode())
+        data["committed"] = True
+        atomic(journal, (json.dumps(data, indent=2) + "\n").encode())
+    except BaseException:
+        # Ctrl-C/TERM must not interrupt recovery halfway through.
+        with ignore_signals():
+            if staged is not None:
+                staged.unlink(missing_ok=True)
+                staged = None
+            try:
+                recover(journal)
+            except Exception as exc:
+                print(f"hardening: recovery incomplete: {exc}; backup: {log}", file=sys.stderr)
+        raise
+    finally:
+        if staged is not None:
+            staged.unlink(missing_ok=True)
+    journal.unlink()
+    syncdir(STATE)
+    row("ok", "Settings saved and verified.")
+    row("info", f"Backup: {log}")
+    if any(timing(BY_KEY[k], v) == "R" for k, v in effective.items()) or later:
+        row("warn", "Reboot to apply the boot parameters and deferred settings.")
+    if later:
+        row("info", "Deferred: " + ", ".join(later))
+    row("info", "No reboot is performed automatically.")
+
+
+@contextlib.contextmanager
+def ignore_signals():
+    old = {s: signal.signal(s, signal.SIG_IGN) for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+    try:
+        yield
+    finally:
+        for sig, handler in old.items():
+            signal.signal(sig, handler)
+
+
+def running(o):
+    if o.kind == "tool":
+        return tool_state(o)
+    if o.kind == "sysctl":
+        return read(procfile(o)) or "unavailable"
+    if o.key == "lockdown":
+        text = read("/sys/kernel/security/lockdown") or ""
+        active = re.search(r"\[([^]]+)\]", text)
+        if active:
+            return active[1] + " (verified)"
+    args = shlex.split(read("/proc/cmdline") or "")
+    found = [t for t in args if is_managed(t, (o.key, *o.aliases))]
+    return ", ".join(found) + " (boot argument)" if found else "kernel default / not specified"
+
+
+def actual_boot(o):
+    args = shlex.split(read("/proc/cmdline") or "")
+    return [t for t in args if is_managed(t, (o.key, *o.aliases))]
+
+
+def timing(o, value):
+    if o.kind == "tool":
+        if tool_state(o) == value:
+            return "ok"
+        if tool_state(o) == "unavailable":
+            return "unavailable"
+        if o.key == "msr_module" and value == "blocked" and Path("/sys/module/msr").exists():
+            return "R"
+        return "now"
+    if o.kind == "boot":
+        target = boot_token(o, value)
+        if actual_boot(o) != ([target] if target else []):
+            return "R"
+        if o.key == "lockdown" and running(o) != ("none" if value == "-" else value) + " (verified)":
+            return "R"
+        return "ok"
+    current = read(procfile(o))
+    if current == value:
+        return "ok"
+    if deferred(o, current, value) or (
+            o.key in ("kernel.kexec_load_disabled", "kernel.unprivileged_bpf_disabled") and value == "1"):
+        return "R"
+    return "now" if current is not None else "unavailable"
+
+
+def current_state(o):
+    if o.kind == "tool":
+        value = tool_state(o)
+        return "default" if value == o.default else "relaxed" if value == o.relaxed else "n/a" if value == "unavailable" else "custom"
+    if o.kind == "sysctl":
+        value = read(procfile(o))
+        return "n/a" if value is None else "default" if value == o.default else "relaxed" if value == o.relaxed else "custom"
+    if o.key == "lockdown":
+        value = running(o)
+        if value.endswith(" (verified)"):
+            return "default" if value == o.default + " (verified)" else "relaxed"
+    tokens = actual_boot(o)
+    if not tokens:
+        return "unknown"
+    if tokens == [boot_token(o, o.default)]:
+        return "default"
+    return "relaxed" if tokens == [boot_token(o, o.relaxed)] else "custom"
+
+
+def state_color(state):
+    return {"default": "32", "relaxed": "31", "custom": "33"}.get(state, "2")
+
+
+def value_text(o, value):
+    target = boot_token(o, value) if o.kind == "boot" else value
+    return target if target is not None else "remove override / kernel default"
+
+
+def footer():
+    if width() < 70:
+        return ("+ default  ! relaxed  ? unknown  * unsaved", "default = dotfiles values",
+                "N: change  ?N: details  n/p: pages", "f: fast  a: apply  d: reset  k: boot  q: quit")
+    return ("+ default   ! relaxed   ? unknown/custom   * unsaved",
+            "default = dotfiles values; boot values describe the command-line request.",
+            "number: change · ?N: details · n/p: next/previous",
+            "f: fast profiles · a: apply · d: reset · k: command line · q: quit")
+
+
+def pages():
+    # Match the installer: adapt to the screen, with short rows and stable IDs.
+    height = shutil.get_terminal_size((80, 24)).lines
+    footer_height = sum(len(textwrap.wrap(line, width() - 6)) for line in footer())
+    reserved = (4 if width() < 70 else 5) + footer_height + 4
+    size = max(1, min(12, (height - reserved) // (2 if width() < 70 else 1)))
+    result = []
+    for kind, title in (("boot", "Kernel command line"), ("sysctl", "Runtime kernel settings"), ("tool", "Tool compatibility")):
+        options = [(i, o) for i, o in enumerate(OPTIONS, 1) if o.kind == kind]
+        result.extend((title, options[start:start + size]) for start in range(0, len(options), size))
+    return result
+
+
+def option_row(i, o, policy, selected):
+    value = selected.get(o.key, o.default)
+    current = current_state(o)
+    target = "default" if value == o.default else "relaxed"
+    dirty = selected.get(o.key) != policy.get(o.key)
+    mark = "!" if "relaxed" in (current, target) else "+" if current == "default" else "?"
+    color = "31" if mark == "!" else "32" if mark == "+" else "2"
+    when = {"ok": "-", "R": "reboot", "now": "now", "unavailable": "n/a"}[timing(o, value)]
+    when_color = "33" if when in ("reboot", "now") else "2"
+    prefix = f"   {i:2} " + styled(mark, color) + " "
+    label = o.description.split(" (", 1)[0]
+    if width() >= 70:
+        name_width = width() - 43
+        title = textwrap.shorten(label, width=name_width, placeholder="...")
+        print(prefix + title.ljust(name_width) + "  "
+              + styled(current.ljust(9), state_color(current)) + "  "
+              + styled(target.ljust(9), state_color(target)) + "  "
+              + styled(when.ljust(6), when_color) + styled(" *" if dirty else "", "33"))
+    else:
+        title = textwrap.shorten(label, width=width() - 10, placeholder="...")
+        print(prefix + title + styled(" *" if dirty else "", "33"))
+        print("        " + styled(current, state_color(current)) + " -> "
+              + styled(target, state_color(target)) + "  " + styled(when, when_color))
+
+
+def show(policy, selected, page=None):
+    print(styled("Hardening", "1") + "  " + styled(os.uname().release, "2"))
+    changed = sum(selected.get(k) != policy.get(k) for k in policy.keys() | selected.keys())
+    relaxed = sum(current_state(o) == "relaxed" for o in OPTIONS)
+    summary = f"{relaxed} relaxed now  ·  {changed} unsaved"
+    note(summary if width() < 70 else summary + f" selection{'s' if changed != 1 else ''}", "33" if changed else "2")
+    groups = pages()
+    visible = [groups[page % len(groups)]] if page is not None else [
+        (title, [(i, o) for i, o in enumerate(OPTIONS, 1) if o.kind == kind])
+        for kind, title in (("boot", "Kernel command line"), ("sysctl", "Runtime kernel settings"), ("tool", "Tool compatibility"))]
+    for title, options in visible:
+        detail = f"{page % len(groups) + 1}/{len(groups)}" if page is not None else ""
+        heading(title, detail)
+        if width() >= 70:
+            print(styled("        " + "Protection".ljust(width() - 43)
+                         + "  " + "Now".ljust(9) + "  " + "Selected".ljust(9) + "  Apply", "2"))
+        for i, o in options:
+            option_row(i, o, policy, selected)
+    print()
+    legend, explanation, navigation, actions = footer()
+    note(legend)
+    note(explanation)
+    if page is not None:
+        print()
+        note(navigation)
+        note(actions)
+    else:
+        note("Firewall and AppArmor are managed separately. Tool exceptions cover only msr and the UID/GID mapping helpers.")
+
+
+def detail(o, policy, selected):
+    heading(o.description.split(" (", 1)[0])
+    note(o.key)
+    print()
+    current = current_state(o)
+    note("Now       " + running(o), state_color(current))
+    for title, value in (("Saved", policy.get(o.key, o.default)), ("Selected", selected.get(o.key, o.default))):
+        state = "default" if value == o.default else "relaxed"
+        note(f"{title:<10}{value_text(o, value)}", state_color(state))
+    when = {"ok": "Already matches the running value.", "R": "Requires a reboot.",
+            "now": "Can apply now and persists after reboot.", "unavailable": "Unavailable on this kernel."}[timing(o, selected.get(o.key, o.default))]
+    print()
+    row("info" if timing(o, selected.get(o.key, o.default)) == "ok" else "warn", when)
+    if o.kind == "boot":
+        note("Boot arguments are requests; firmware, hardware or kernel builds may override them.")
+    if o.key == "lockdown":
+        row("warn", "Lockdown cannot be lowered on the running kernel. Secure Boot may enforce it after reboot.")
+    elif o.key == "debugfs":
+        note("PowerTOP needs debugfs. Its fast profile also allows msr and removes the explicit lockdown request.")
+    elif o.key == "userns_helpers":
+        note(PROFILES["podman"][2])
+    elif o.key == "msr_module":
+        note("Allows modprobe to load msr; does not load or unload it automatically. A loaded module stays loaded until reboot when blocking it again.")
+    elif o.key in ("kernel.kexec_load_disabled", "kernel.unprivileged_bpf_disabled"):
+        note("A value of 1 cannot be undone in this session. Irreversible writes are deferred until reboot.")
+    elif o.key in ("kernel.perf_event_paranoid", "vm.mmap_rnd_bits", "vm.mmap_rnd_compat_bits"):
+        note(o.description)
+
+
+def prompt(text):
+    try:
+        return input(text).strip()
+    except EOFError:
+        raise KeyboardInterrupt from None
+
+
+def review(policy, selected, profile=None):
+    changed = {k for k in policy.keys() | selected.keys() if policy.get(k) != selected.get(k)}
+    if not changed:
+        row("info", "No changes selected.")
+        return False
+    clear_menu()
+    heading("Review changes", f"{len(changed)} selected")
+    if profile:
+        note(PROFILES["podman" if profile == "distrobox" else profile][2])
+    for o in OPTIONS:
+        if o.key in changed:
+            value = selected.get(o.key, o.default)
+            print()
+            note(o.key, "1")
+            note("saved     " + value_text(o, policy.get(o.key, o.default)))
+            note("selected  " + value_text(o, value), "32" if value == o.default else "31")
+            note({"R": "apply     after reboot", "now": "apply     now + persistent",
+                  "ok": "apply     already matches", "unavailable": "apply     unavailable on this kernel"}[timing(o, value)], "33")
+    print()
+    row("warn", "Relaxing protections increases access to processes, memory or hardware.")
+    note("Backups and GRUB validation run before committing. No automatic reboot.")
+    print()
+    return prompt(styled("   Type 'apply' to confirm", "1") + " [Enter: cancel]: ") == "apply"
+
+
+def profile_selection(selected, name):
+    name = "podman" if name == "distrobox" else name
+    if name not in PROFILES:
+        raise Error("unknown fast profile: " + name)
+    return validate_policy({**selected, **PROFILES[name][1]})
+
+
+def choose_profile():
+    names = list(PROFILES)
+    summaries = {"podman": "UID/GID helpers: persistent setuid exception",
+                 "gdb": "Attach to your running processes",
+                 "perf": "Profile your own userspace tasks",
+                 "powertop": "debugfs + msr; remove lockdown request (reboot)",
+                 "debug": "All four profiles; preserve other selections"}
+    while True:
+        clear_menu()
+        heading("Fast profiles")
+        note("Select only the exceptions a tool needs. Review and confirm before applying.")
+        for i, name in enumerate(names, 1):
+            title = PROFILES[name][0]
+            note(f"{i}  {name:<9} {title}", "1")
+            note("   " + textwrap.shorten(summaries[name], width=width() - 10, placeholder="..."))
+        print()
+        note("number or name: select · Enter / q: cancel")
+        answer = prompt("\n" + styled("   > ", "1")).lower()
+        if answer in ("", "q"):
+            return None
+        if answer.isdecimal() and 1 <= int(answer) <= len(names):
+            return names[int(answer) - 1]
+        if answer in PROFILES or answer == "distrobox":
+            return "podman" if answer == "distrobox" else answer
+
+
+def menu():
+    policy = load_policy()
+    selected = policy.copy()
+    page = 0
+    message = ""
+    while True:
+        clear_menu()
+        page %= len(pages())
+        show(policy, selected, page)
+        if message:
+            row("warn", message)
+            message = ""
+        answer = prompt("\n" + styled("   > ", "1"))
+        if answer == "q":
+            if selected == policy or prompt("  Discard unsaved selections? [y/N]: ").lower() == "y":
+                return
+        elif answer == "k":
+            clear_menu()
+            heading("Current kernel command line")
+            note(read("/proc/cmdline") or "unavailable", "0")
+            prompt("  Enter to return: ")
+        elif answer in ("n", "p"):
+            page = (page + (1 if answer == "n" else -1)) % len(pages())
+        elif answer == "d":
+            if prompt("  Reset all listed options to the dotfiles defaults? [y/N]: ").lower() == "y":
+                selected = {o.key: o.default for o in OPTIONS if o.kind == "boot"
+                            or (o.kind == "sysctl" and read(procfile(o)) is not None)
+                            or (o.kind == "tool" and tool_state(o) != "unavailable")}
+        elif answer == "f":
+            name = choose_profile()
+            if name:
+                selected = profile_selection(selected, name)
+                if review(policy, selected, name):
+                    apply(selected, policy)
+                    policy = selected.copy()
+                    prompt("  Enter to return: ")
+                else:
+                    message = "Profile selected but not applied. Use a to review it again."
+        elif answer == "a":
+            if review(policy, selected):
+                apply(selected, policy)
+                policy = selected.copy()
+                prompt("  Enter to return: ")
+            else:
+                message = "No changes applied. Your selections are kept in the menu."
+        elif answer.startswith("?") and answer[1:].isdecimal() and 1 <= int(answer[1:]) <= len(OPTIONS):
+            clear_menu()
+            detail(OPTIONS[int(answer[1:]) - 1], policy, selected)
+            prompt("\n   Enter to return: ")
+        elif answer.isdecimal() and 1 <= int(answer) <= len(OPTIONS):
+            o = OPTIONS[int(answer) - 1]
+            clear_menu()
+            detail(o, policy, selected)
+            if (o.kind == "sysctl" and read(procfile(o)) is None) or (o.kind == "tool" and tool_state(o) == "unavailable"):
+                row("warn", "Unavailable on this kernel; selection unchanged.")
+                prompt("  Enter to return: ")
+                continue
+            heading("Select protection")
+            note("1  Default   " + value_text(o, o.default), "32")
+            note("2  Relaxed   " + value_text(o, o.relaxed), "31")
+            note("0  Keep selection")
+            choice = prompt("\n   Choice [0]: ")
+            if choice in ("1", "2"):
+                selected[o.key] = o.default if choice == "1" else o.relaxed
+            elif choice not in ("", "0"):
+                message = "Choose 1 or 2 to change a protection; selection unchanged."
+        elif answer:
+            message = "Choose a number, ?N, n/p, f, a, d, k or q."
+
+
+def help_text():
+    text = """Usage: doas hardening [status | fast [PROFILE]]
+Inspect and select kernel protections. With no command, opens an interactive
+menu with a review and confirmation before any change. Columns show the running
+state, selection and when it applies. Red ! marks relaxed protections; yellow *
+marks unsaved choices. 'default' means the dotfiles values, not kernel defaults.
+
+  status       show running values and saved selections, without changing them
+  fast         choose a tool profile, then review and confirm
+  fast PROFILE go straight to its review: podman, gdb, perf, powertop, debug
+  -h, --help   show this help
+
+Menu:
+  NUMBER       inspect and change a protection
+  ?NUMBER      show its values and explanation
+  n, p         next or previous page (fits the terminal)
+  a            review and apply, after explicit confirmation
+  f            fast profiles for tools (Podman also covers Distrobox)
+  d            reset selections to the dotfiles defaults
+  k            show the complete running kernel command line
+  q            quit; asks before discarding unsaved choices
+
+Settings persist across reboots and dotfiles installs. Reset to default in the
+menu restores the listed dotfiles defaults. Boot changes require Debian GRUB;
+all kernel images, initrds and unrelated arguments must remain unchanged.
+Backups: /var/lib/hardening/backup-*.json. Interrupted transactions offer recovery
+on the next launch. No automatic reboot. Unsupported kernel settings are refused.
+Only root invoked through doas may inspect or change settings (help is public).
+Fast profiles preserve unrelated selections. Podman checks subordinate IDs and
+restores mapping-helper setuid; PowerTOP permits msr but never loads it itself.
+Debug combines the four profiles; it does not disable ASLR or unprivileged BPF
+restrictions. Restoring defaults also restores the msr and mapping-helper blocks.
+
+Examples:
+  doas hardening fast podman
+  doas hardening fast gdb
+  doas hardening fast powertop
+  doas hardening fast debug
+
+Exit status: 0 success, 1 failure, 2 bad usage, 130 cancelled.
+"""
+    for line in text.splitlines():
+        if line.startswith("Usage:"):
+            line = styled("Usage:", "1") + line[len("Usage:"):]
+        elif line.endswith(":") and line and not line.startswith(" "):
+            line = styled(line, "1")
+        elif line.startswith("  "):
+            line = re.sub(r"\b(NUMBER|COMMAND|ARGS)\b", lambda m: styled(m[0], "4"), line)
+        print(line)
+
+
+def main():
+    if sys.argv[1:] in (["--help"], ["-h"]):
+        help_text()
+        return 0
+    args = sys.argv[1:]
+    fast = bool(args and args[0] == "fast" and len(args) <= 2)
+    if args not in ([], ["status"]) and not fast:
+        print("hardening: bad usage; try 'hardening --help'", file=sys.stderr)
+        return 2
+    if fast and len(args) == 2 and args[1] not in (*PROFILES, "distrobox"):
+        raise Error("unknown fast profile: " + args[1])
+    user = os.environ.get("DOAS_USER", "")
+    if os.geteuid() != 0 or not user or pwd.getpwnam(user).pw_uid == 0:
+        raise Error("run with doas: doas hardening")
+    os.umask(0o077)
+    if not STATE.exists():
+        secure(STATE.parent, directory=True)
+        STATE.mkdir(mode=0o700)
+    secure(STATE, directory=True)
+    secure(STATE / "lock", missing=True)
+    with open(STATE / "lock", "a") as lock, contextlib.ExitStack() as stack:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Error("another hardening session is running") from None
+        # Coordinate with the installer, which uses this same lock.
+        installer_lock = Path("/run/debian-postinstall.lock")
+        secure(installer_lock, missing=True)
+        other = stack.enter_context(open(installer_lock, "a"))
+        try:
+            fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Error("the dotfiles installer is running") from None
+        journal = STATE / "pending.json"
+        if journal.exists():
+            if sys.argv[1:] or not sys.stdin.isatty():
+                raise Error("unfinished transaction: run 'doas hardening' interactively to recover")
+            if prompt("  Interrupted transaction found. Restore its backup? [y/N]: ").lower() != "y":
+                raise Error("recovery required before continuing")
+            with package_locks(), ignore_signals():
+                recover(journal)
+            print("  ok  Previous transaction recovered.")
+        if sys.argv[1:] == ["status"]:
+            policy = load_policy()
+            show(policy, policy)
+        else:
+            if not sys.stdin.isatty() or not sys.stdout.isatty():
+                raise Error("interactive terminal required; use 'doas hardening status' for a report")
+            if fast:
+                name = args[1] if len(args) == 2 else choose_profile()
+                if name:
+                    policy = load_policy()
+                    selected = profile_selection(policy, name)
+                    if review(policy, selected, name):
+                        apply(selected, policy)
+                    else:
+                        row("info", "Cancelled; no settings applied.")
+            else:
+                menu()
+    return 0
+
+
+if __name__ == "__main__":
+    def interrupted(signum, frame):
+        raise KeyboardInterrupt
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, interrupted)
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print(file=sys.stderr)
+        error("cancelled")
+        sys.exit(130)
+    except (Error, OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
+        error(str(exc))
+        sys.exit(1)

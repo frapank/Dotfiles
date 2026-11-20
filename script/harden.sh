@@ -1,6 +1,21 @@
 # shellcheck shell=bash
 # kernel and firewall hardening
 
+hardening_keep() {
+    [[ -f /var/lib/hardening/settings.json ]] || return 0
+    local prefs
+    prefs=$(mktemp -p "$BAK")
+    run "keep hardening preferences in $2" python3 -I -c '
+import pathlib, runpy, sys
+m = runpy.run_path("/usr/local/sbin/hardening", run_name="hardening_installer")
+p = m["load_policy"]()
+text = pathlib.Path(sys.argv[2]).read_text()
+pathlib.Path(sys.argv[3]).write_bytes(m[sys.argv[1]](text, p))
+' "$1" "$2" "$prefs"
+    put "$prefs" "$2" "$3"
+    rm -f -- "$prefs"
+}
+
 save_sysctl() {
     local f key v
     for f in "$@"; do
@@ -34,14 +49,25 @@ nft_apply() {
 do_harden() {
     step "Kernel and firewall hardening"
     local f
+    put_tree hardening
+    run "hardening parses" python3 -I -c 'import ast; ast.parse(open("/usr/local/sbin/hardening").read())'
     # core_pattern runs it: it goes in first
     put_tree cores
     run "core-keep parses" sh -n /usr/local/libexec/core-keep
     save_sysctl "$REPO"/root/sysctl/etc/sysctl.d/*.conf
+    [[ ! -f /etc/sysctl.d/99-hardening.conf ]] || save_sysctl /etc/sysctl.d/99-hardening.conf
     put_tree sysctl
+    # Preserve the explicit choices of hardening across reinstalls, including
+    # the irreversible sysctls: a later '=0' cannot undo an earlier '=1'.
+    for f in 51-kernel-hardening.conf 53-kernel-debug-restrictions.conf; do
+        hardening_keep early_sysctl_text "/etc/sysctl.d/$f" 0600
+    done
     for f in "$REPO"/root/sysctl/etc/sysctl.d/*.conf; do
         try "sysctl -p ${f##*/}" sysctl -p "/etc/sysctl.d/${f##*/}"
     done
+    if [[ -f /etc/sysctl.d/99-hardening.conf ]]; then
+        try "sysctl -p 99-hardening.conf" sysctl -p /etc/sysctl.d/99-hardening.conf
+    fi
 
     nft_apply put_tree nftables
 
@@ -58,6 +84,7 @@ do_harden() {
     ssh_dir
 
     put_tree modprobe
+    hardening_keep module_text /etc/modprobe.d/30-harden.conf 0644
     # the daemons get more of the sandbox of systemd, after the next start
     put_tree sandbox
     svc_reload
@@ -129,6 +156,7 @@ machine_id() {
 no_suid() {
     local f m c n=0 o
     put_tree nosuid
+    hardening_keep nosuid_text /usr/local/sbin/nosuid 0755
     run "nosuid parses" sh -n /usr/local/sbin/nosuid
     while IFS= read -r f; do
         if [[ -u $f || -g $f ]]; then

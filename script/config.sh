@@ -71,7 +71,7 @@ APT=(env DEBIAN_FRONTEND=noninteractive UCF_FORCE_CONFFOLD=1 NEEDRESTART_MODE=l 
         zoxide git-delta lazygit bear entr shellcheck nala)
     # taplo, zls, bash-language-server and yaml-language-server are not in Debian
     PKG_LSP=(clangd rust-analyzer)
-    PKG_HARDEN=(nftables openssh-client)
+    PKG_HARDEN=(nftables openssh-client python3)
     PKG_USB=(usbguard libnotify-bin)
     HARDEN_CMDLINE=(init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1
         randomize_kstack_offset=on vsyscall=none debugfs=off iommu.strict=1
