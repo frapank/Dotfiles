@@ -7,14 +7,15 @@ set -u
 usage() {
     cat <<EOF
 Usage: timer [-b] DURATION|@HH:MM [MESSAGE]
-  or:  timer list | cancel | next | prev
+  or:  timer status | info | cancel | next | prev
 Count down to the end, then a critical notification with MESSAGE and a bell.
 The end is wall-clock time, so a timer survives a suspend and fires on resume.
 
   DURATION    90, 90s, 25m, 1h30m, 1h2m3s
   @HH:MM      until that time, tomorrow if it has already passed
   -b          in the background, the terminal stays free
-  list        list the timers, in the terminal and in the background
+  status      list the timers (list is an alias)
+  info        show the timers in a notification
   cancel      cancel them all
   next, prev  show the next or the previous one in the bar
   -h, --help  show this help
@@ -100,13 +101,25 @@ pick() {
 }
 
 case ${1:-} in
+-h | --help | status | list | info | cancel | next | prev)
+    [ $# -eq 1 ] || bad "extra operand '$2'"
+    ;;
+esac
+
+case ${1:-} in
 -h | --help)
     help
     exit 0
     ;;
-list)
+status | list)
     list
     exit 0
+    ;;
+info)
+    notify-send -a "󱎫 Timer" -u low -e -t 6000 "Timers" "$(list)
+Middle click: cancel all · Right click: details
+Scroll: previous or next timer" 2>/dev/null
+    exit $?
     ;;
 cancel)
     pkill -u "$(id -u)" -f -- '/timer --until [0-9]' || die "no timers"

@@ -2,6 +2,9 @@
 # the snapshot actions of Thunar
 set -u
 
+# shellcheck source=root/helpers/usr/local/lib/dotfiles/cli.sh
+. /usr/local/lib/dotfiles/cli.sh
+
 SNAP=/usr/local/bin/snap
 
 bye() {
@@ -51,7 +54,9 @@ restore() {
         echo "nothing copied"
         return 0
     fi
-    "$SNAP" restore "$label" -- "$1"
+    dest=$("$SNAP" restore --print-path "$label" -- "$1") || return 1
+    printf 'Copied to %s\n' "$dest"
+    notify_file "󰋚 Snapshots" "File restored" "$dest" </dev/null >/dev/null 2>&1 &
 }
 
 forget_ui() {

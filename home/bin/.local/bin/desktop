@@ -6,13 +6,20 @@ set -u
 
 usage() {
     cat <<EOF
-Usage: desktop volume|mic up|down|mute
+Usage: desktop volume|mic [info|status|settings|on|off|toggle|up|down]
   or:  desktop brightness up|down
   or:  desktop media play|next|prev
-  or:  desktop battery | clock | timer | reboot
-  or:  desktop mic info | cam [info|close]
-  or:  desktop dns [info|restart|logs] | maint [info|retry|logs]
-  or:  desktop usb [info|dismiss]
+  or:  desktop battery | clock
+  or:  desktop timer [info|status]
+  or:  desktop cam [info|status|close]
+  or:  desktop dns [info|status|restart|logs]
+  or:  desktop maint [info|status|retry|logs]
+  or:  desktop reboot [info|status|restart]
+  or:  desktop usb [info|status|allow|dismiss]
+info shows a notification; status prints text; settings opens the manager.
+For volume and mic, on unmutes, off mutes, and toggle changes the mute state.
+mute remains an alias for toggle.
+
 Handle the media keys and bar clicks: change settings, show who uses the
 microphone or camera, inspect services and pending actions.
 
@@ -23,18 +30,30 @@ EOF
 }
 
 osd_show() {
-    notify-send -a "$2" -u low -e -t "${5:-1500}" -h "string:x-dunst-stack-tag:osd-$1" \
-        ${4:+-h "int:value:$4"} "$3" 2>/dev/null
+    body= timeout=${5:-1500}
+    case $topic/$action in
+    volume/info)
+        body="Middle click: toggle mute · Right click: settings
+Scroll: volume" timeout=4000
+        ;;
+    esac
+    set -- -a "$2" -u low -e -t "$timeout" -h "string:x-dunst-stack-tag:osd-$1" \
+        ${4:+-h "int:value:$4"} "$3"
+    [ -z "$body" ] || set -- "$@" "$body"
+    notify-send "$@" 2>/dev/null
 }
 
 volume() {
-    # the bar redraws its volume icon now instead of at its next read
-    pkill -USR1 -u "$(id -u)" -x g0wm-status.sh 2>/dev/null
     v=$(wpctl get-volume "$1") || exit 1
+    p=$(printf '%s\n' "$v" | awk '{ printf "%d", $2 * 100 + 0.5 }')
+    if [ "$action" = status ]; then
+        case $v in *MUTED*) printf 'off\n' ;; *) printf 'on\n' ;; esac
+        printf 'volume=%s\n' "$p"
+        return 0
+    fi
     case $v in
     *MUTED*) osd_show "$2" "$3" "Muted" 0 ;;
     *)
-        p=$(echo "$v" | awk '{ printf "%d", $2 * 100 + 0.5 }')
         osd_show "$2" "$3" "$p%" "$p"
         ;;
     esac
@@ -91,16 +110,23 @@ notice() { # app summary [body] [ms]
 # the programs on PipeWire's recording streams: the sound card itself is
 # open by PipeWire only
 mic() {
-    who=$(pactl list source-outputs 2>/dev/null | awk -F' = ' '
+    streams=$(pactl list source-outputs 2>/dev/null) || return 1
+    who=$(printf '%s\n' "$streams" | awk -F' = ' '
 		/^Source Output #/ { if (app != "") print app; app = ""; bin = 0; next }
 		/application\.process\.binary = / { gsub(/"/, "", $2); app = $2; bin = 1; next }
 		/application\.name = / && !bin { gsub(/"/, "", $2); app = $2 }
 		END { if (app != "") print app }' | sort -u | paste -sd , - | sed 's/,/, /g')
-    if [ -n "$who" ]; then
-        notice " Microphone" "In use by $who"
-    else
-        notice " Microphone" "Not in use"
+    if [ "$action" = status ]; then
+        volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone"
+        printf 'in_use=%s\n' "${who:-none}"
+        return 0
     fi
+    level=$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@) || return 1
+    if [ -n "$who" ]; then summary="In use by $who"; else summary="Not in use"; fi
+    notice " Microphone" "$summary" \
+        "$level
+Middle click: toggle mute · Right click: settings
+Scroll: microphone level"
 }
 
 # hidepid shows only this user's programs, the only ones it could close too
@@ -113,11 +139,17 @@ camnames() { # pids -> names
 
 cam() {
     pids=$(campids)
-    if [ -n "$pids" ]; then
-        notice " Webcam" "In use by $(camnames "$pids")"
-    else
-        notice " Webcam" "Not in use"
+    if [ "$action" = status ]; then
+        if [ -n "$pids" ]; then
+            printf 'on\n'
+            ps -o pid=,comm= -p "$(printf '%s\n' "$pids" | paste -sd, -)"
+        else
+            printf 'off\n'
+        fi
+        return 0
     fi
+    if [ -n "$pids" ]; then summary="In use by $(camnames "$pids")"; else summary="Not in use"; fi
+    notice " Webcam" "$summary" "Middle click: close apps · Right click: details"
 }
 
 cam_close() {
@@ -135,14 +167,14 @@ cam_close() {
 
 dns() {
     l=$(logs -n service dnscrypt-proxy boot 2>/dev/null | tail -n 1)
-    if [ -z "$l" ]; then
-        notice " DNS" "Not answering" "dnscrypt-proxy logged nothing since boot"
-        return
-    fi
-    # 2026-10-06 15:31:20 daemon.notice: dnscrypt-proxy: [...] [NOTICE] message
-    t=${l#* } t=${t%%:[0-9][0-9] *}
-    m=${l##*] }
-    notice " DNS" "Not answering" "last message at $t: $m"
+    body=${l:-dnscrypt-proxy logged nothing since boot}
+    choice=$(notify-send -a " DNS" -u low -t 10000 \
+        -A restart=Restart -A logs=Logs "DNS needs attention" "$body
+Middle click: restart · Right click: logs" 2>/dev/null) || return 0
+    case $choice in
+    restart) exec "$0" dns restart ;;
+    logs) exec "$0" dns logs ;;
+    esac
 }
 
 # the jobs that failed at their last run, from what maint leaves readable
@@ -151,9 +183,15 @@ maint_failed() { sed -n 's/^failed=//p' /var/lib/maint-status 2>/dev/null; }
 maint() {
     f=$(maint_failed)
     if [ -n "$f" ]; then
-        notice "󰖷 Maintenance" "Failed: $f" "Middle click runs them again, right click shows the log" 8000
+        choice=$(notify-send -a "󰖷 Maintenance" -u low -t 10000 \
+            -A retry=Retry -A logs=Logs "Failed: $f" \
+            "Middle click: retry · Right click: logs" 2>/dev/null) || return 0
+        case $choice in
+        retry) maint_retry ;;
+        logs) exec "$0" maint logs ;;
+        esac
     else
-        notice "󰖷 Maintenance" "Every job went fine"
+        notice "󰖷 Maintenance" "Every job went fine" "Right click: logs"
     fi
 }
 
@@ -173,13 +211,19 @@ reboot_ask() {
         d=${d%/}
         printf '%s\n' "${d##*/}"
     done | sort -V | tail -n 1)
+    if [ "$action" = status ]; then
+        printf 'running=%s\ninstalled=%s\n' "$run" "${new:-unknown}"
+        return 0
+    fi
     if [ -z "$new" ] || [ "$new" = "$run" ]; then
-        notice "󰜉 Reboot" "Running the newest kernel" "$run"
+        notice "󰜉 Reboot" "Running the newest kernel" "$run
+Middle click: restart · Right click: details"
         return
     fi
     a=$(notify-send -i g0wm-reboot -a "󰜉 Reboot" -t 15000 -A reboot="󰜉 Reboot" \
-        "Restart to use the new kernel" "running $run · installed $new" 2>/dev/null)
-    [ "$a" = reboot ] && exec loginctl reboot
+        "Restart to use the new kernel" "running $run · installed $new
+Middle click: restart · Right click: details" 2>/dev/null)
+    if [ "$a" = reboot ]; then exec power reboot; fi
 }
 
 # the USB devices usb left blocked with no answer: "ID PORT NAME" lines
@@ -193,6 +237,11 @@ usb_pending() {
     done </run/usb-pending
 }
 
+usb_allow() {
+    case $1 in *[!0-9.-]* | '') return 1 ;; esac
+    exec foot -H usb allow "$1"
+}
+
 usb_ask() {
     l=$(usb_pending)
     [ -n "$l" ] || {
@@ -202,49 +251,71 @@ usb_ask() {
     first=$(printf '%s\n' "$l" | head -n 1)
     port=$(printf '%s' "$first" | cut -d' ' -f2)
     names=$(printf '%s\n' "$l" | cut -d' ' -f3- | paste -sd , - | sed 's/,/, /g')
-    # usb allow asks for doas: in a terminal
+    if [ "$action" = allow ]; then usb_allow "$port"; fi
     a=$(notify-send -i g0wm-usb -a "󰕓 USB" -t 15000 -A allow="Allow $port" -A dismiss="Hide" \
-        "Left blocked" "$names" 2>/dev/null)
+        "Left blocked" "$names
+Middle click: allow first device · Right click: details" 2>/dev/null)
     case $a in
-    allow) case $port in *[!0-9.-]* | '') ;; *) exec foot -H doas usb allow "$port" ;; esac ;;
+    allow) usb_allow "$port" ;;
     dismiss) usb_dismiss ;;
     esac
 }
 
-# right click: hidden until plugged in again, which gives a new id
+# Hidden until plugged in again, which gives a new id.
 usb_dismiss() {
     usb_pending | cut -d' ' -f1 >>"${XDG_RUNTIME_DIR:-/tmp}/usb-dismissed"
     pkill -USR1 -u "$(id -u)" -x g0wm-status.sh 2>/dev/null || :
 }
 
 [ $# -le 2 ] || bad "extra operand '$3'"
-
-case ${1:-}/${2:-} in
-volume/up | volume/down | volume/mute | mic/up | mic/down | mic/mute | \
+topic=${1:-} action=${2:-info}
+case $topic/$action in
+-h/info | --help/info)
+    help
+    exit 0
+    ;;
+volume/info | volume/status | volume/settings | volume/on | volume/off | volume/toggle | volume/mute | volume/up | volume/down | \
+    mic/info | mic/status | mic/settings | mic/on | mic/off | mic/toggle | mic/mute | mic/up | mic/down | \
     brightness/up | brightness/down | media/play | media/next | media/prev | \
-    battery/ | clock/ | mic/ | mic/info | cam/ | cam/info | cam/close | \
-    dns/ | dns/info | dns/restart | dns/logs | maint/ | maint/info | maint/retry | \
-    maint/logs | reboot/ | usb/ | usb/info | usb/dismiss | timer/ | -h/ | --help/) ;;
-/) bad "missing action" ;;
+    battery/info | clock/info | cam/info | cam/status | cam/close | \
+    dns/info | dns/status | dns/restart | dns/logs | maint/info | maint/status | maint/retry | maint/logs | \
+    reboot/info | reboot/status | reboot/restart | usb/info | usb/status | usb/allow | usb/dismiss | timer/info | timer/status) ;;
+/info) bad "missing action" ;;
 *) bad "unknown action '$*'" ;;
 esac
 
-# one wheel notch after another, so none reads a volume the next one changes
-case ${1:-}/${2:-} in
-volume/up | volume/down | volume/mute | mic/up | mic/down | mic/mute)
+case $topic/$action in
+volume/on | volume/off | volume/toggle | volume/mute | volume/up | volume/down | \
+    mic/on | mic/off | mic/toggle | mic/mute | mic/up | mic/down)
     exec 9>"${XDG_RUNTIME_DIR:-/tmp}/osd.lock"
     flock 9
     ;;
 esac
 
-case ${1:-}/${2:-} in
--h/ | --help/) help ;;
-volume/up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
-volume/down) wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
-volume/mute) wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && volume @DEFAULT_AUDIO_SINK@ volume " Volume" ;;
-mic/mute) wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
-mic/up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SOURCE@ 5%+ && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
-mic/down) wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%- && volume @DEFAULT_AUDIO_SOURCE@ mic " Microphone" ;;
+case $topic in
+volume | mic)
+    if [ "$topic" = volume ]; then target=@DEFAULT_AUDIO_SINK@; else target=@DEFAULT_AUDIO_SOURCE@; fi
+    case $action in
+    up) wpctl set-volume -l 1 "$target" 5%+ || exit 1 ;;
+    down) wpctl set-volume "$target" 5%- || exit 1 ;;
+    on) wpctl set-mute "$target" 0 || exit 1 ;;
+    off) wpctl set-mute "$target" 1 || exit 1 ;;
+    toggle | mute) wpctl set-mute "$target" toggle || exit 1 ;;
+    esac
+    case $action in
+    on | off | toggle | mute | up | down) pkill -USR1 -u "$(id -u)" -x g0wm-status.sh 2>/dev/null || : ;;
+    esac
+    ;;
+esac
+
+case $topic/$action in
+volume/settings) exec audio ;;
+mic/settings) exec audio -t 2 ;;
+volume/info | volume/status | volume/on | volume/off | volume/toggle | volume/mute | volume/up | volume/down)
+    volume "$target" volume " Volume"
+    ;;
+mic/info | mic/status) mic ;;
+mic/on | mic/off | mic/toggle | mic/mute | mic/up | mic/down) volume "$target" mic " Microphone" ;;
 brightness/up) brightnessctl -q s 10%+ 2>/dev/null && brightness ;;
 brightness/down) brightnessctl -q s 10%- 2>/dev/null && brightness ;;
 media/play)
@@ -259,21 +330,27 @@ media/prev)
     playerctl previous 2>/dev/null
     player 0.4
     ;;
-battery/) battery ;;
-clock/) osd_show clock " Date" "$(date '+%-d/%-m/%Y %H:%M:%S')" '' 3000 ;;
-mic/ | mic/info) mic ;;
-cam/ | cam/info) cam ;;
+battery/info) battery ;;
+clock/info) osd_show clock " Date" "$(date '+%-d/%-m/%Y %H:%M:%S')" '' 3000 ;;
+cam/info | cam/status) cam ;;
 cam/close) cam_close ;;
-dns/ | dns/info) dns ;;
+dns/info) dns ;;
+dns/status)
+    state=$(systemctl is-active dnscrypt-proxy.service)
+    code=$?
+    case $code in 0 | 3) printf '%s\n' "$state" ;; *) exit 1 ;; esac
+    ;;
 dns/restart) exec foot -H doas systemctl restart dnscrypt-proxy.service ;;
 dns/logs) exec foot logs -p service dnscrypt-proxy boot ;;
-maint/ | maint/info) maint ;;
+maint/info) maint ;;
+maint/status) exec cat /var/lib/maint-status ;;
 maint/retry) maint_retry ;;
 maint/logs) exec foot logs -p service maint ;;
-reboot/) reboot_ask ;;
-usb/ | usb/info) usb_ask ;;
+reboot/info | reboot/status) reboot_ask ;;
+reboot/restart) exec power reboot ;;
+usb/info | usb/allow) usb_ask ;;
+usb/status) exec usb list ;;
 usb/dismiss) usb_dismiss ;;
-timer/) notice "󱎫 Timer" "$(timer list)" "Scroll switches the one shown, middle click cancels them" 6000 ;;
-'/') bad "missing action" ;;
-*) bad "unknown action '$*'" ;;
+timer/info) exec timer info ;;
+timer/status) exec timer status ;;
 esac

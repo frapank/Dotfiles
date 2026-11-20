@@ -233,7 +233,7 @@ strip() {
     esac
 }
 
-ok=0 bad=0 skipped=0 failed=
+ok=0 bad=0 skipped=0 failed= result=
 
 fail() {
     bad=$((bad + 1))
@@ -277,6 +277,7 @@ clean() {
         else
             mv -f -- "$work/out.$ext" "$f"
         fi && {
+            result=${result:-${dst:-$f}}
             ok=$((ok + 1))
             untick
             row ok "${dst:-$f}"
@@ -359,11 +360,22 @@ untick
 summary="$summary."
 dim "$summary"
 if [ "$notify" = 1 ] && command -v notify-send >/dev/null; then
-    if [ "$bad" = 0 ]; then
-        notify-send -a " metadata" -u low "Metadata removed" "$summary"
+    if [ "$ok" = 1 ] && [ "$bad" = 0 ] && [ -n "${result:-}" ]; then
+        notify_file " Metadata" "Metadata removed" "$result" '' "$summary
+$result" </dev/null >/dev/null 2>&1 &
     else
-        notify-send -a " metadata" -u critical "Metadata removal failed" "$summary
-$failed"
+        (
+            trap '' HUP
+            title="Metadata removed" body="$summary" urgency=low
+            if [ "$bad" != 0 ]; then
+                title="Metadata removal failed" body="$summary
+$failed" urgency=critical
+            fi
+            set -- -a " Metadata" -u "$urgency"
+            [ -z "${result:-}" ] || set -- "$@" -A folder="Show first folder"
+            action=$(notify-send "$@" "$title" "$body" 2>/dev/null) || exit 0
+            [ "$action" != folder ] || [ -z "${result:-}" ] || files "$(dirname -- "$result")"
+        ) </dev/null >/dev/null 2>&1 &
     fi
 fi
 [ "$bad" = 0 ]

@@ -39,6 +39,7 @@ your own permissions, so you only get back what was yours to read.
                A new or deleted folder is one line. Only names are compared,
                no file is read. Downloads, ~/.cache and the other folders
                kept out of the snapshots never show up.
+  --print-path with restore: print the destination, progress goes to stderr
   -t SNAPSHOT  with diff: up to SNAPSHOT instead of now
   -h, --help   show this help
 
@@ -432,7 +433,7 @@ def copy_regular(src, dst):
     return dst
 
 
-def restore(snaps, want, path, dest):
+def restore(snaps, want, path, dest, print_path=False):
     label, root = pick(snaps, want)
     real, rel = rel_path(path)
     fd, name = lookup(root, rel)
@@ -465,7 +466,10 @@ def restore(snaps, want, path, dest):
         die(f'{q(dest)}: copied with errors: {len(e.args[0])} file(s) failed')
     except OSError as e:
         die(f'{q(e.filename or dest)}: {e.strerror}')
-    dim(f'Copied {q(real)} from {label} to {q(dest)}.')
+    dim(f'Copied {q(real)} from {label} to {q(dest)}.',
+        file=sys.stderr if print_path else None)
+    if print_path:
+        print(os.path.abspath(dest))
 
 
 DIFF_TMP = '.snap-diff'
@@ -661,7 +665,8 @@ def main():
     if not forgetting and argv[:1] in (['list'], ['restore'], ['diff']):
         action, argv = argv[0], argv[1:]
     try:
-        opts, args = getopt.gnu_getopt(argv, 'hn' if forgetting else 'ht:', ['help'])
+        longopts = ['help'] if forgetting else ['help', 'print-path']
+        opts, args = getopt.gnu_getopt(argv, 'hn' if forgetting else 'ht:', longopts)
     except getopt.GetoptError as e:
         if 'requires argument' in e.msg:
             usage_error(f"option requires an argument -- '{e.opt}'")
@@ -670,10 +675,13 @@ def main():
         usage_error(f"invalid option -- '{e.opt}'" if len(e.opt) == 1 else f"unrecognized option '--{e.opt}'")
     mode, want, until = ('forget' if forgetting else 'versions'), None, None
     dry = False
+    print_path = False
     for o, a in opts:
         if o in ('-h', '--help'):
             print(help_text(FORGET_USAGE if forgetting else USAGE), end='')
             return 0
+        if o == '--print-path':
+            print_path = True
         if o == '-n':
             dry = True
         if o == '-t':
@@ -694,6 +702,8 @@ def main():
         usage_error('missing file operand' if not args else f'extra operand {q(args[2])}')
     if mode == 'diff' and len(args) > 1:
         usage_error(f'extra operand {q(args[1])}')
+    if print_path and mode != 'restore':
+        usage_error('--print-path goes with restore')
     if until is not None and mode != 'diff':
         usage_error('-t goes with diff')
 
@@ -717,7 +727,7 @@ def main():
     elif mode == 'versions':
         list_versions(snaps, args[0])
     else:
-        restore(snaps, want, args[0], args[1] if len(args) > 1 else None)
+        restore(snaps, want, args[0], args[1] if len(args) > 1 else None, print_path)
     return 0
 
 

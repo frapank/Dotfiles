@@ -75,3 +75,22 @@ row() {
 }
 
 dim() { printf '%s%s%s\n' "$o_dim" "$*" "$o_off"; }
+
+notify_file() (
+    trap '' HUP
+    command -v notify-send >/dev/null || exit 0
+    nf_app=$1 nf_title=$2 nf_file=$3 nf_edit=${4:-} nf_body=${5:-$3}
+    [ -n "$nf_file" ] || exit 0
+    set -- -a "$nf_app" -u low -A default=Open
+    [ "$nf_edit" != edit ] || set -- "$@" -A edit=Edit
+    set -- "$@" -A folder="Show in folder"
+    nf_action=$(notify-send "$@" "$nf_title" "$nf_body" 2>/dev/null) || exit 0
+    case $nf_action in
+    default) open -- "$nf_file" ;;
+    edit)
+        [ "$nf_edit" = edit ] || exit 0
+        swappy -f "$nf_file" -o "$nf_file" && wl-copy --type image/png <"$nf_file"
+        ;;
+    folder) files "$(dirname -- "$nf_file")" ;;
+    esac
+)

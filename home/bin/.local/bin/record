@@ -6,16 +6,18 @@ set -eu
 
 usage() {
     cat <<EOF
-Usage: record [region] [--no-audio]
-  or:  record status | info | stop | folder
+Usage: record [on|toggle] [region] [--no-audio]
+  or:  record off | status | info | folder
 Record the screen with the sound of the desktop, and the microphone if it is
 on; run it again to stop. The red dot in the bar shows it is recording.
 
+  on          start recording, leave an active recording running
+  off         stop recording (stop is an alias)
+  toggle      start or stop (default)
   region      pick a region with the mouse
   --no-audio  without sound
   status      print whether a recording is running
   info        what is being recorded and for how long, in the bar
-  stop        stop recording
   folder      open the folder of the recordings
   -h, --help  show this help
 
@@ -35,19 +37,12 @@ bar() { setsid -f sh -c "sleep ${1:-0}; exec pkill -USR1 -u $(id -u) -x g0wm-sta
 
 stop() {
     pkill -INT -u "$(id -u)" -x wf-recorder
-    rm -f "$pid" "$info"
     bar
-    file=$(cat "$last" 2>/dev/null) || file=
-    (
-        [ "$(notify-send -a " record" -u low -A default=Open \
-            "Recording saved" "$file" 2>/dev/null)" = default ] && [ -n "$file" ] &&
-            open -- "$file"
-    ) </dev/null >/dev/null 2>&1 &
 }
 
 # for the rec icon in the bar: how long and what, stop, the videos
 case ${1:-} in
--h | --help | status | info | stop | folder)
+-h | --help | status | info | stop | off | folder)
     [ $# -eq 1 ] || bad "extra operand '$2'"
     ;;
 esac
@@ -72,19 +67,26 @@ info)
         t=$(printf '%02d:%02d' $((s / 60 % 60)) $((s % 60)))
         [ "$s" -lt 3600 ] || t=$((s / 3600)):$t
         notify-send -a " record" -u low -e -t 3000 -h string:x-dunst-stack-tag:record \
-            "Recording $t" "$(cat "$info" 2>/dev/null)" || true
+            "Recording $t" "$(cat "$info" 2>/dev/null)
+Middle click: stop · Right click: recordings" || true
     else
         notify-send -a " record" -u low -e -t 2000 "Not recording" || true
     fi
     exit 0
     ;;
-stop)
+off | stop)
     recording && stop
     exit 0
     ;;
 folder) exec files "$(xdg-user-dir VIDEOS 2>/dev/null || echo "$HOME")" ;;
 esac
 
+mode=toggle
+case ${1:-} in on | toggle)
+    mode=$1
+    shift
+    ;;
+esac
 region= sound=1
 for a in "$@"; do
     case $a in
@@ -96,6 +98,7 @@ for a in "$@"; do
 done
 
 if recording; then
+    [ "$mode" != on ] || exit 0
     stop
     exit 0
 fi
@@ -169,3 +172,7 @@ wait "$rec" || wait "$rec" || :
 rm -f "$pid" "$info"
 bar
 unload
+
+if [ -s "$file" ]; then
+    notify_file " Recording" "Recording saved" "$file" </dev/null >/dev/null 2>&1 &
+fi

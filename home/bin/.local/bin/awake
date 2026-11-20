@@ -6,7 +6,7 @@ set -u
 
 usage() {
     cat <<EOF
-Usage: awake [on|off|toggle|longer|shorter|status|info]
+Usage: awake [on|off|toggle|longer|shorter|status|info|logs]
 Keep the screen from locking by itself; it still locks before sleep. The eye
 in the bar shows it is on.
 
@@ -14,6 +14,7 @@ in the bar shows it is on.
   longer, shorter  turn it off 30 minutes later or earlier, up to 8 hours
   status           print the current state
   info             how long it has been on and how long is left, in the bar
+  logs             show the service logs
   -h, --help       show this help
 
 Exit status: 0, 1 if the idle service is off, 2 on bad usage.
@@ -133,9 +134,13 @@ info() {
     left
     if [ -n "$end" ]; then
         span "$rem"
-        show "$since" 3000 "$t left"
+        show "$since" 3000 "$t left
+Middle click: turn off · Right click: logs
+Scroll: extend or shorten"
     else
-        show "$since" 3000 "until turned off"
+        show "$since" 3000 "Until turned off
+Middle click: turn off · Right click: logs
+Scroll: extend or shorten"
     fi
 }
 
@@ -156,6 +161,7 @@ status)
         printf 'off\n'
     fi
     ;;
+logs) exec services logs idle ;;
 info) info ;;
 wait) wait_end ;;
 *) bad "unknown action '$1'" ;;

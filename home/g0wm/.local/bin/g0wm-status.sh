@@ -452,7 +452,7 @@ read_btbattery() {
 }
 
 # the USB devices usb left blocked with no answer ("ID PORT NAME"), less the
-# ones dismissed with a right click
+# ones hidden from the notification
 read_usbwait() {
     usb_n=0
     [[ -r /run/usb-pending ]] || return 0

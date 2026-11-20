@@ -25,7 +25,7 @@ are the units of Debian.
   restart NAME...   stop it and start it again (after editing its unit)
   enable NAME...    start it now and at every login
   disable NAME...   stop it now and no longer at login
-  log NAME          what it printed, the same as 'logs service NAME'
+  logs NAME         what it printed, the same as 'logs service NAME'
   session           start them and stop them when g0wm quits: g0wm autostart runs it
   failed NAME       tell that NAME gave up: its units run it
   -h, --help        show this help
@@ -165,10 +165,10 @@ log() {
 failed() {
     n=${1%.service}
     check_name "$n"
-    case $(notify-send -i g0wm -a " services" -u critical -A default=Open -A restart=Restart \
+    case $(notify-send -i g0wm -a " services" -u critical -A default=Logs -A restart=Restart \
         "$n failed" "It kept exiting right after it started: click to see what it printed" 2>/dev/null) in
     # foot's AppArmor profile runs nothing from ~
-    default) exec foot -- sh "$self" log "$n" ;;
+    default) exec foot -- sh "$self" logs "$n" ;;
     restart)
         sc reset-failed -- "$n.service"
         exec "$self" start "$n"
@@ -239,7 +239,7 @@ stop) ctl stop "$@" ;;
 restart) ctl restart "$@" ;;
 enable) toggle 1 "$@" ;;
 disable) toggle 0 "$@" ;;
-log) log "$@" ;;
+logs | log) log "$@" ;;
 session) session ;;
 failed)
     [ $# -eq 1 ] || bad "missing NAME"

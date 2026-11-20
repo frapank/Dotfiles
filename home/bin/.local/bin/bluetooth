@@ -56,7 +56,8 @@ status)
 info)
     read_state || exit 1
     if [ "$state" = on ]; then
-        show "On" "$(bluetoothctl devices Connected 2>/dev/null | cut -d' ' -f3- | paste -sd, - | sed 's/,/, /g')"
+        show "On" "$(bluetoothctl devices Connected 2>/dev/null | cut -d' ' -f3- | paste -sd, - | sed 's/,/, /g')
+Right click: settings"
     else
         show "Off"
     fi

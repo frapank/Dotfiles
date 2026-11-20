@@ -37,6 +37,35 @@ files and owned by root. Re-run the installer when updating these helpers.
 - `wifi settings` and `bluetooth settings` open their managers, as does running
   either command without arguments. Unknown actions exit 2.
 
+Stateful commands use `status` for terminal output, `info` for notifications,
+`on`, `off` and `toggle` for switches, `settings` for a manager and `logs` for
+service logs where available. `record on` leaves an active recording running;
+`record off` stops it. `stop` remains an alias. `timer status` lists timers and
+`timer info` shows them in a notification; `list` remains an alias.
+`services logs NAME` replaces `services log NAME`, which remains accepted.
+
+Bar clicks follow the same pattern: left shows information, middle performs the
+main action, right opens settings or details. Scroll adjusts a value or changes
+the selected timer. Information notifications describe the available gestures.
+
+| Icon | Middle click | Right click |
+|---|---|---|
+| Volume / microphone | Toggle mute | Audio settings |
+| Recording | Stop | Recordings folder |
+| Camera | Ask to close the apps | Processes using the camera |
+| DNS | Restart the resolver | Logs |
+| Maintenance | Retry failed jobs | Logs |
+| Timer | Cancel all timers | Timer list |
+| Reboot | Ask to restart | Running and installed kernel |
+| Pending USB | Allow the first pending device | Device list |
+| Nightlight / awake | Turn off | Service logs |
+| Bluetooth battery | — | Bluetooth settings |
+
+Saved screenshots offer Open, Edit and Show in folder. Completed recordings,
+single cleaned files and files restored through Thunar offer Open and Show in
+folder. Multi-file metadata operations offer the first result's folder.
+Maintenance failures offer Logs and Retry; DNS information offers Restart and Logs.
+
 ## Maint
 
 maint is the service that handles the maintenance of the system automatically. Every hour it checks what there is to do and does it:
@@ -142,7 +171,7 @@ With usbguard new devices stay blocked. When you plug one in a notification arri
 ## Installer tests
 
 `python3 .github/helpers.py` checks helper arguments, status output, compatibility
-wrappers and desktop actions with mocked session commands. The lint job runs it too.
+wrappers, bar actions, restore output and notification follow-ups with mocked session commands. The lint job runs it too.
 
 The CI runs three integration scenarios in a disposable Debian 13 VM: first
 installation, second installation (idempotence), and rollback after an injected

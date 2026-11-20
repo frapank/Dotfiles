@@ -8,7 +8,7 @@ usage() {
     cat <<EOF
 Usage: screenshot [region|screen|edit]
 Take a screenshot: saved in Pictures, copied, and notified; the notification
-opens it or edits it.
+opens it, edits it or shows its folder.
 
   region      pick a region with the mouse (default)
   screen      the whole screen, or the one picked with several
@@ -54,10 +54,4 @@ file=$dir/shot-$(date +%Y%m%d-%H%M%S).png
 grim ${geo:+-g "$geo"} ${out:+-o "$out"} "$file"
 [ "$mode" = edit ] && swappy -f "$file" -o "$file"
 wl-copy --type image/png <"$file" || :
-(
-    case $(notify-send -a " screenshot" -u low -A default=Open -A edit=Edit \
-        "Screenshot saved" "$file" 2>/dev/null) in
-    default) open -- "$file" ;;
-    edit) swappy -f "$file" -o "$file" && wl-copy --type image/png <"$file" ;;
-    esac
-) </dev/null >/dev/null 2>&1 &
+notify_file " Screenshot" "Screenshot saved" "$file" edit </dev/null >/dev/null 2>&1 &

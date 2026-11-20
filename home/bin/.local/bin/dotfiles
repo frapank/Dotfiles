@@ -35,7 +35,7 @@ failed-logins|the wrong passwords since the last login, told at every login
 Shell
 tmux-project|a tmux session per folder, from zoxide (prefix f)
 ding|notify when a command ends: ding make, or make; ding
-timer|a countdown with a notification: timer 25m tea, timer @14:30
+timer|a countdown with a notification: timer 25m tea; timer status lists them
 qr|show text as a QR code, read one from the screen (qr scan)
 colorpick|click a pixel, copy its color as #rrggbb
 Snapshots of /home
@@ -45,7 +45,7 @@ System
 why|why a package is installed, or which package ships a file
 logs|system logs in local time: errors, crashes, AppArmor, firewall
 hardening|kernel protections, persistent exceptions and reset to defaults (doas hardening)
-services|the programs g0wm keeps running: idle lock, nightlight...
+services|the programs g0wm keeps running: status, start, stop, logs...
 maint|snapshots, updates and cleanup, run by itself (doas maint status)
 dotfiles|this list'
 
