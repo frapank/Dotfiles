@@ -115,7 +115,7 @@ ini_set() {
 mode_for() {
     case $1 in
     /etc/nftables/* | /etc/sysctl.d/* | /etc/usbguard/*) echo 0600 ;;
-    /etc/NetworkManager/dispatcher.d/* | /usr/local/sbin/* | /usr/local/bin/* | /usr/local/libexec/*) echo 0755 ;;
+    /etc/NetworkManager/dispatcher.d/* | /etc/initramfs-tools/hooks/* | /usr/local/sbin/* | /usr/local/bin/* | /usr/local/libexec/*) echo 0755 ;;
     *) echo 0644 ;;
     esac
 }

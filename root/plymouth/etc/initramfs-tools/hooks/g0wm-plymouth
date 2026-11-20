@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+prereqs)
+    echo cryptroot
+    exit 0
+    ;;
+esac
+
+# Keep Debian's askpass (FIFO, retries and console fallback). Only omit the
+# disk prompt while Plymouth is running; two-step always draws that prompt.
+# Boot status messages are suppressed separately in g0wm.plymouth.
+askpass="$DESTDIR/lib/cryptsetup/askpass"
+[ -x "$askpass" ] || exit 0
+[ ! -e "$askpass.g0wm-original" ] || exit 0
+mv "$askpass" "$askpass.g0wm-original"
+cat >"$askpass" <<'EOF'
+#!/bin/sh
+if [ -x /bin/plymouth ] && /bin/plymouth --ping; then
+	# An explicit blank label also works with clients expecting a prompt value.
+	exec /lib/cryptsetup/askpass.g0wm-original " "
+fi
+exec /lib/cryptsetup/askpass.g0wm-original "$@"
+EOF
+chmod 0755 "$askpass"

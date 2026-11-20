@@ -28,6 +28,7 @@ ProgressBarHorizontalAlignment=.5
 ProgressBarVerticalAlignment=.63
 
 [boot-up]
+SuppressMessages=true
 UseEndAnimation=false
 UseProgressBar=true
 
